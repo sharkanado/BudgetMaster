@@ -1,13 +1,11 @@
-import React, {useState} from 'react';
-import {View, TextInput} from 'react-native';
+import React from 'react';
+import {View, TextInput, TextInputProps} from 'react-native';
 
-const TextField = ({placeholder}: {placeholder: string}) => {
-  const [value, setValue] = useState('');
+interface TextFieldProps extends TextInputProps {
+  placeholder: string;
+}
 
-  const handleTextChange = (text: string) => {
-    setValue(text);
-  };
-
+const TextField = (props: TextFieldProps) => {
   return (
     <View>
       <TextInput
@@ -18,9 +16,7 @@ const TextField = ({placeholder}: {placeholder: string}) => {
           borderRadius: 4,
           borderColor: '#ddd',
         }}
-        onChangeText={handleTextChange}
-        value={value}
-        placeholder={placeholder}
+        {...props}
       />
     </View>
   );

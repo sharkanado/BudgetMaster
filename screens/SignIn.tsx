@@ -32,7 +32,7 @@ const SignIn: React.FC<SignInProps> = ({navigation}) => {
       </View>
       <Button
         title="Sign In"
-        onPress={() => navigation.navigate('DashboardNavigator')}
+        // onPress={() => navigation.navigate('DashboardNavigator')}
       />
       <Button title="Sign Up" onPress={() => navigation.navigate('SignUp')} />
     </View>
