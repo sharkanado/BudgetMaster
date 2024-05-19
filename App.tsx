@@ -9,7 +9,10 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export default function App() {
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="Home">
+      <Stack.Navigator
+        initialRouteName="SignIn"
+        screenOptions={{headerShown: false}}
+      >
         {applicationActivities.map(({name, component, options}) => (
           <Stack.Screen
             key={name}

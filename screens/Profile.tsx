@@ -9,6 +9,6 @@ type ProfileScreenProps = {
 };
 
 const ProfileScreen: React.FC<ProfileScreenProps> = ({route}) => {
-  return <Text>This is {route.params.name}'s profile</Text>;
+  return <Text>heo</Text>;
 };
 export default ProfileScreen;
