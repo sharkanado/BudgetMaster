@@ -21,6 +21,7 @@ const SignUp: React.FC<SignUpProps> = ({navigation}) => {
     username: '',
   });
 
+  console.log(process.env.G_MEASUREMENT_ID);
   const handleInputChange = (name: string, value: string) => {
     setFormState((prevState) => ({
       ...prevState,
@@ -87,11 +88,13 @@ const SignUp: React.FC<SignUpProps> = ({navigation}) => {
           value={formState.password}
           onChangeText={(value) => handleInputChange('password', value)}
           placeholder="Password"
+          secureTextEntry
         />
         <TextField
           value={formState.repeatPassword}
           onChangeText={(value) => handleInputChange('repeatPassword', value)}
           placeholder="Repeat Password"
+          secureTextEntry
         />
       </View>
       <Button title="Create An Account" onPress={onRegisterPress} />
