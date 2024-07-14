@@ -21,7 +21,6 @@ const SignUp: React.FC<SignUpProps> = ({navigation}) => {
     username: '',
   });
 
-  console.log(process.env.G_MEASUREMENT_ID);
   const handleInputChange = (name: string, value: string) => {
     setFormState((prevState) => ({
       ...prevState,

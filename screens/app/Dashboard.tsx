@@ -1,5 +1,5 @@
 import React from 'react';
-import {View, Text} from 'react-native';
+import {View, Text, Button} from 'react-native';
 import {AppTabParamList} from '@/lib/types';
 import {BottomTabScreenProps} from '@react-navigation/bottom-tabs';
 
@@ -27,6 +27,13 @@ const DashboardScreen: React.FC<DashboardProps> = ({navigation}) => {
           <SummaryView amount="700" name="Debt" color="red" size="small" />
         </View>
       </View>
+      <Text>Ostatnie wydatki</Text>
+      <View style={{gap: 10}}>
+        <View>
+          <Text>Wydatek1</Text>
+        </View>
+      </View>
+      <Button onPress={() => console.log('aaaasr')} title="See details" />
     </View>
   );
 };
