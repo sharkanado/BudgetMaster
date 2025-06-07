@@ -1,132 +1,142 @@
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="260dp"
+    android:layout_height="match_parent"
     android:fitsSystemWindows="false"
     android:padding="16dp">
 
-    <!-- Vertical Guideline at 60% (for left-right split) -->
-    <androidx.constraintlayout.widget.Guideline
-        android:id="@+id/guidelineVertical"
+    <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:app="http://schemas.android.com/apk/res-auto"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
-        app:layout_constraintGuide_percent="0.6"/>
-
-    <!-- My Expenses block (left) -->
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/myExpensesBlock"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:background="@color/grey_dark"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toStartOf="@id/guidelineVertical">
-
-        <TextView
-            android:id="@+id/myExpensesLabel"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="my expenses"
-            android:textSize="14sp"
-            android:fontFamily="@font/manrope_bold"
-            android:textColor="#FFFFFF"
-            android:layout_margin="8dp"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintStart_toStartOf="parent"/>
-
-        <TextView
-            android:id="@+id/myExpensesAmount"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="-1230,26"
-            android:textSize="28sp"
-            android:fontFamily="@font/manrope_bold"
-            android:textColor="#FFFFFF"
-            android:layout_margin="8dp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"/>
-    </androidx.constraintlayout.widget.ConstraintLayout>
-
-    <!-- Receivable block (top-right) -->
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/receivableBlock"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:fontFamily="@font/manrope_bold"
-        android:layout_marginStart="8dp"
-        android:layout_marginBottom="4dp"
-        android:background="@color/yellow"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="@id/guidelineVertical"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/debtBlock"
-        app:layout_constraintHeight_percent="0.5">
+        android:layout_height="260dp">
+        <!-- Vertical Guideline at 60% (for left-right split) -->
+        <androidx.constraintlayout.widget.Guideline
+            android:id="@+id/guidelineVertical"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            app:layout_constraintGuide_percent="0.6" />
 
-        <TextView
-            android:id="@+id/receivableLabel"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="receivable"
-            android:fontFamily="@font/manrope_bold"
-            android:textSize="14sp"
-            android:textColor="#000000"
-            app:layout_constraintTop_toTopOf="parent"
+        <!-- My Expenses block (left) -->
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/myExpensesBlock"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:background="@drawable/my_expenses_bg"
+            android:padding="10dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/guidelineVertical"
             app:layout_constraintStart_toStartOf="parent"
-            android:layout_margin="8dp"/>
+            app:layout_constraintTop_toTopOf="parent">
 
-        <TextView
-            android:id="@+id/receivableAmount"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            <TextView
+                android:id="@+id/myExpensesLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                android:fontFamily="@font/manrope_bold"
+                android:text="my expenses"
+                android:textColor="#FFFFFF"
+                android:textSize="18sp"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <TextView
+                android:id="@+id/myExpensesAmount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                android:fontFamily="@font/manrope_bold"
+                android:text="-1230,26"
+                android:textColor="#FFFFFF"
+                android:textSize="28sp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent" />
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <!-- Receivable block (top-right) -->
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/receivableBlock"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginBottom="4dp"
+            android:background="@drawable/receivable_bg"
             android:fontFamily="@font/manrope_bold"
-            android:text="230,26"
-            android:textSize="20sp"
-            android:textColor="#000000"
+            android:padding="5dp"
+            app:layout_constraintBottom_toTopOf="@id/debtBlock"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHeight_percent="0.5"
+            app:layout_constraintStart_toStartOf="@id/guidelineVertical"
+            app:layout_constraintTop_toTopOf="parent">
+
+            <TextView
+                android:id="@+id/receivableLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                android:fontFamily="@font/manrope_bold"
+                android:text="receivable"
+                android:textColor="#000000"
+                android:textSize="14sp"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <TextView
+                android:id="@+id/receivableAmount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                android:fontFamily="@font/manrope_bold"
+                android:text="230,26"
+                android:textColor="#000000"
+                android:textSize="20sp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent" />
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <!-- Debt block (bottom-right) -->
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/debtBlock"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="4dp"
+            android:background="@drawable/debt_bg"
+            android:fontFamily="@font/manrope_bold"
+            android:padding="5dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            android:layout_margin="8dp"/>
+            app:layout_constraintStart_toStartOf="@id/guidelineVertical"
+            app:layout_constraintTop_toBottomOf="@id/receivableBlock">
+
+            <TextView
+                android:id="@+id/debtLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                android:fontFamily="@font/manrope_bold"
+                android:text="debt"
+                android:textColor="#000000"
+                android:textSize="14sp"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <TextView
+                android:id="@+id/debtAmount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                android:fontFamily="@font/manrope_bold"
+                android:text="230,26"
+                android:textColor="#000000"
+                android:textSize="20sp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent" />
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
     </androidx.constraintlayout.widget.ConstraintLayout>
-
-    <!-- Debt block (bottom-right) -->
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/debtBlock"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:fontFamily="@font/manrope_bold"
-        android:layout_marginStart="8dp"
-        android:layout_marginTop="4dp"
-        android:background="@color/orange"
-        app:layout_constraintTop_toBottomOf="@id/receivableBlock"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="@id/guidelineVertical"
-        app:layout_constraintEnd_toEndOf="parent">
-
-        <TextView
-            android:id="@+id/debtLabel"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="debt"
-            android:fontFamily="@font/manrope_bold"
-            android:textSize="14sp"
-            android:textColor="#000000"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            android:layout_margin="8dp"/>
-
-        <TextView
-            android:id="@+id/debtAmount"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:fontFamily="@font/manrope_bold"
-            android:text="230,26"
-            android:textSize="20sp"
-            android:textColor="#000000"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            android:layout_margin="8dp"/>
-    </androidx.constraintlayout.widget.ConstraintLayout>
-
 </androidx.constraintlayout.widget.ConstraintLayout>
