@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:background="#6C6A6A"
+    android:paddingVertical="8dp"
+    android:paddingHorizontal="16dp"
+    android:id="@+id/dailyExpensesHeader"
+    >
+
+    <TextView
+        android:id="@+id/dailyExpensesDate"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="17 Jun 2025"
+        android:textColor="@color/white"
+        android:textSize="16sp"
+        android:fontFamily="@font/manrope_bold"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+    <TextView
+        android:id="@+id/dailyExpensesSummary"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="-300 PLN"
+        android:textColor="@color/white"
+        android:textSize="16sp"
+        android:fontFamily="@font/manrope_bold"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent" />
+</androidx.constraintlayout.widget.ConstraintLayout>
