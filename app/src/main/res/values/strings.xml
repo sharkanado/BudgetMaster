@@ -3,4 +3,10 @@
     <string name="title_home">Home</string>
     <string name="title_dashboard">Dashboard</string>
     <string name="title_notifications">Notifications</string>
+    <string name="welcome_text">
+    Welcome to <font color="#FF9C3F">Budget Master!</font>
+    </string>
+    <string name="sign_in_new_user_text">
+    New to Budget Master? <font color="#FF9C3F">Join us!</font>
+    </string>
 </resources>
