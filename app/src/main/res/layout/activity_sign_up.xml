@@ -43,7 +43,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginTop="22dp"
-        android:hint="Email"
+        android:hint="Name"
         app:boxBackgroundColor="@color/grey_dark"
         android:textColorHint="@color/grey_light"
         app:boxBackgroundMode="outline"
@@ -58,6 +58,7 @@
         android:layout_marginHorizontal="@dimen/textfields_margin_horizontal">
 
         <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/nameEditText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:fontFamily="@font/manrope_regular"
@@ -72,7 +73,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
-        android:hint="Password"
+        android:hint="Email"
         android:textColorHint="@color/grey_light"
         app:boxBackgroundColor="@color/grey_dark"
         app:boxBackgroundMode="outline"
@@ -87,10 +88,11 @@
         android:layout_marginHorizontal="@dimen/textfields_margin_horizontal">
 
         <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/emailEditText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:fontFamily="@font/manrope_regular"
-            android:inputType="textPassword"
+            android:inputType="text"
             android:paddingTop="16dp"
             android:paddingBottom="16dp"
             android:textColor="@color/grey_light" />
@@ -101,7 +103,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
-        android:hint="Password"
+        android:hint="Repeat Password"
         android:textColorHint="@color/grey_light"
         app:boxBackgroundColor="@color/grey_dark"
         app:boxBackgroundMode="outline"
@@ -116,6 +118,7 @@
         android:layout_marginHorizontal="@dimen/textfields_margin_horizontal">
 
         <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/passwordEditText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:fontFamily="@font/manrope_regular"
@@ -145,6 +148,7 @@
         android:layout_marginHorizontal="@dimen/textfields_margin_horizontal">
 
         <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/repeatPasswordEditText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:fontFamily="@font/manrope_regular"
