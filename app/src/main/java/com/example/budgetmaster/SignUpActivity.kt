@@ -2,7 +2,6 @@ package com.example.budgetmaster
 
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
 import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -26,7 +25,7 @@ class SignUpActivity : AppCompatActivity() {
         val passwordEditText = findViewById<TextInputEditText>(R.id.passwordEditText)
         val repeatPasswordEditText = findViewById<TextInputEditText>(R.id.repeatPasswordEditText)
 
-        val signUpButton = findViewById<Button>(R.id.sign_up_button)
+        val signUpButton = findViewById<Button>(R.id.signUpButton)
         signUpButton.setOnClickListener {
             val name = nameEditText.text.toString().trim()
             val email = emailEditText.text.toString().trim()

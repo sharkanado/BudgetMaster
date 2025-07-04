@@ -22,7 +22,7 @@ class SignInActivity : AppCompatActivity() {
 
         val emailEditText = findViewById<TextInputEditText>(R.id.emailEditText)
         val passwordEditText = findViewById<TextInputEditText>(R.id.passwordEditText)
-        val signInButton = findViewById<MaterialButton>(R.id.sign_in_button)
+        val signInButton = findViewById<MaterialButton>(R.id.signInButton)
 
         signInButton.setOnClickListener {
             val email = emailEditText.text.toString().trim()
