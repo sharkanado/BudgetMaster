@@ -2,12 +2,16 @@ package com.example.budgetmaster
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.LayoutInflater
+import android.widget.EditText
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.ktx.auth
@@ -31,6 +35,11 @@ class SignInActivity : AppCompatActivity() {
         val emailEditText = findViewById<TextInputEditText>(R.id.emailEditText)
         val passwordEditText = findViewById<TextInputEditText>(R.id.passwordEditText)
         val signInButton = findViewById<MaterialButton>(R.id.signInButton)
+        val resetPassword = findViewById<TextView>(R.id.resetPassword)
+
+        resetPassword.setOnClickListener {
+            showResetPasswordDialog()
+        }
 
         signInButton.setOnClickListener {
             val email = emailEditText.text.toString().trim()
@@ -54,4 +63,35 @@ class SignInActivity : AppCompatActivity() {
                 }
         }
     }
+
+    fun showResetPasswordDialog() {
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_reset_password, null)
+        val emailEditText = dialogView.findViewById<EditText>(R.id.emailEditText)
+
+        MaterialAlertDialogBuilder(this)
+            .setView(dialogView)
+            .setPositiveButton("Reset") { _, _ ->
+                val email = emailEditText.text.toString().trim()
+                if (email.isEmpty()) {
+                    Toast.makeText(this, "Please enter your email", Toast.LENGTH_SHORT).show()
+                } else {
+                    resetPassword(email)
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    fun resetPassword(email: String) {
+        FirebaseAuth.getInstance().sendPasswordResetEmail(email)
+            .addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    Toast.makeText(this, "Reset link sent to $email", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Error: ${task.exception?.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+    }
+
+
 }
