@@ -19,7 +19,7 @@
 
     <fragment
         android:id="@+id/navigationSettings"
-        android:name="com.example.budgetmaster.ui.notifications.NotificationsFragment"
+        android:name="com.example.budgetmaster.ui.settings.SettingsFragment"
         android:label="@string/title_settings"
         tools:layout="@layout/fragment_settings" />
 </navigation>
