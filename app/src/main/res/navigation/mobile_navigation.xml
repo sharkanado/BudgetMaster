@@ -7,7 +7,7 @@
 
     <fragment
         android:id="@+id/navigationBudgets"
-        android:name="com.example.budgetmaster.ui.home.HomeFragment"
+        android:name="com.example.budgetmaster.ui.budgets.BudgetsFragment"
         android:label="@string/title_budgets"
         tools:layout="@layout/fragment_budgets" />
 

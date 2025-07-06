@@ -1,14 +1,18 @@
 package com.example.budgetmaster.ui.settings
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.example.budgetmaster.ChangePassword
+import com.example.budgetmaster.SignInActivity
 import com.example.budgetmaster.databinding.FragmentSettingsBinding
 import com.example.budgetmaster.ui.notifications.MenuAdapter
 import com.example.budgetmaster.ui.notifications.MenuItem
+import com.google.firebase.auth.FirebaseAuth
 
 class SettingsFragment : Fragment() {
 
@@ -18,9 +22,10 @@ class SettingsFragment : Fragment() {
     // Define menu actions here
     private val menuItems by lazy {
         listOf(
+            MenuItem("Change Password") { navigateToChangePassword() },
             MenuItem("Sign Out") { signOut() },
-            MenuItem("Change Password") { changePassword() }
-        )
+
+            )
     }
 
     override fun onCreateView(
@@ -37,13 +42,18 @@ class SettingsFragment : Fragment() {
     }
 
     private fun signOut() {
-        // TODO: Replace with real logic
-        println("User signed out")
+        FirebaseAuth.getInstance().signOut()
+        val intent = Intent(requireContext(), SignInActivity::class.java)
+        startActivity(intent)
+        requireActivity().finish()
+
     }
 
-    private fun changePassword() {
-        // TODO: Replace with real logic
-        println("Change password clicked")
+    private fun navigateToChangePassword() {
+        val intent = Intent(requireContext(), ChangePassword::class.java)
+        startActivity(intent)
+
+
     }
 
     override fun onDestroyView() {
