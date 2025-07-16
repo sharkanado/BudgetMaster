@@ -1,4 +1,4 @@
-package com.example.budgetmaster.ui.notifications
+package com.example.budgetmaster.ui.settings
 
 import android.view.LayoutInflater
 import android.view.View
