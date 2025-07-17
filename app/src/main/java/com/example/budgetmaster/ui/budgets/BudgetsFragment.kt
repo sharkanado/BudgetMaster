@@ -8,10 +8,8 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
-import com.example.budgetmaster.MainActivity
-import com.example.budgetmaster.R
 import com.example.budgetmaster.databinding.FragmentBudgetsBinding
-import com.example.budgetmaster.ui.CreateBudget
+import com.example.budgetmaster.CreateBudget
 
 class BudgetsFragment : Fragment() {
 
