@@ -10,8 +10,8 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.budgetmaster.ChangePassword
 import com.example.budgetmaster.SignInActivity
 import com.example.budgetmaster.databinding.FragmentSettingsBinding
-import com.example.budgetmaster.ui.notifications.MenuAdapter
-import com.example.budgetmaster.ui.notifications.MenuItem
+import com.example.budgetmaster.ui.settings.MenuAdapter
+import com.example.budgetmaster.ui.settings.MenuItem
 import com.google.firebase.auth.FirebaseAuth
 
 class SettingsFragment : Fragment() {
