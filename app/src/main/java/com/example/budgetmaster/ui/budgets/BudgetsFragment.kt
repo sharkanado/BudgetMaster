@@ -10,6 +10,7 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import com.example.budgetmaster.databinding.FragmentBudgetsBinding
 import com.example.budgetmaster.CreateBudget
+import com.example.budgetmaster.MyWallet
 
 class BudgetsFragment : Fragment() {
 
@@ -37,6 +38,11 @@ class BudgetsFragment : Fragment() {
 
         binding.addWalletButton.setOnClickListener {
             val intent = Intent(requireContext(), CreateBudget::class.java)
+            startActivity(intent)
+        }
+
+        binding.myWalletCard.setOnClickListener {
+            val intent = Intent(requireContext(), MyWallet::class.java)
             startActivity(intent)
         }
 
