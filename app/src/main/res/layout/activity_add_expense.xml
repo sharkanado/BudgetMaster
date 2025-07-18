@@ -23,7 +23,6 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
-        <!-- Income/Expense Toggle -->
         <com.google.android.material.button.MaterialButtonToggleGroup
             android:id="@+id/transactionTypeToggle"
             android:layout_width="wrap_content"
@@ -58,60 +57,6 @@
                 app:strokeWidth="2dp" />
         </com.google.android.material.button.MaterialButtonToggleGroup>
 
-        <!-- Amount -->
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/amountInputLayout"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:hint="Amount"
-            android:textColorHint="@color/grey_light"
-            app:boxBackgroundColor="@color/grey_dark"
-            app:boxBackgroundMode="outline"
-            app:boxCornerRadiusBottomEnd="12dp"
-            app:boxCornerRadiusBottomStart="12dp"
-            app:boxCornerRadiusTopEnd="12dp"
-            app:boxCornerRadiusTopStart="12dp"
-            app:boxStrokeWidth="0dp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/transactionTypeToggle">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/amountInput"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:fontFamily="@font/manrope_regular"
-                android:inputType="numberDecimal"
-                android:paddingVertical="16dp"
-                android:textColor="@color/white" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <!-- Category -->
-        <TextView
-            android:id="@+id/categoryLabel"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:fontFamily="@font/manrope_bold"
-            android:text="Category"
-            android:textColor="@color/grey_light"
-            android:textSize="14sp"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/amountInputLayout" />
-
-        <Spinner
-            android:id="@+id/categorySpinner"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:backgroundTint="@color/grey_dark"
-            android:padding="12dp"
-            android:popupBackground="@color/grey_dark"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/categoryLabel" />
-
         <!-- Description -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/descriptionInputLayout"
@@ -129,7 +74,7 @@
             app:boxStrokeWidth="0dp"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/categorySpinner">
+            app:layout_constraintTop_toBottomOf="@id/transactionTypeToggle">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/descriptionInput"
@@ -138,6 +83,60 @@
                 android:fontFamily="@font/manrope_regular"
                 android:paddingTop="16dp"
                 android:paddingBottom="16dp"
+                android:textColor="@color/white" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Category -->
+        <TextView
+            android:id="@+id/categoryLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:fontFamily="@font/manrope_bold"
+            android:text="Category"
+            android:textColor="@color/grey_light"
+            android:textSize="14sp"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/descriptionInputLayout" />
+
+        <Spinner
+            android:id="@+id/categorySpinner"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:backgroundTint="@color/grey_dark"
+            android:padding="12dp"
+            android:popupBackground="@color/grey_dark"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/categoryLabel" />
+
+        <!-- Amount -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/amountInputLayout"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:hint="Amount"
+            android:textColorHint="@color/grey_light"
+            app:boxBackgroundColor="@color/grey_dark"
+            app:boxBackgroundMode="outline"
+            app:boxCornerRadiusBottomEnd="12dp"
+            app:boxCornerRadiusBottomStart="12dp"
+            app:boxCornerRadiusTopEnd="12dp"
+            app:boxCornerRadiusTopStart="12dp"
+            app:boxStrokeWidth="0dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/categorySpinner">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/amountInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/manrope_regular"
+                android:inputType="numberDecimal"
+                android:paddingVertical="16dp"
                 android:textColor="@color/white" />
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -152,7 +151,7 @@
             android:textColor="@color/grey_light"
             android:textSize="14sp"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/descriptionInputLayout" />
+            app:layout_constraintTop_toBottomOf="@id/amountInputLayout" />
 
         <Spinner
             android:id="@+id/currencySpinner"
