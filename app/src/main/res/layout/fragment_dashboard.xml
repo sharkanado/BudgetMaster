@@ -4,7 +4,7 @@
     android:layout_height="match_parent"
     android:fitsSystemWindows="false">
 
-    <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/summary"
         android:layout_width="match_parent"
         android:layout_height="260dp"
@@ -56,7 +56,6 @@
                 app:layout_constraintEnd_toEndOf="parent" />
         </androidx.constraintlayout.widget.ConstraintLayout>
 
-        <!-- Receivable block (top-right) -->
         <androidx.constraintlayout.widget.ConstraintLayout
             android:id="@+id/receivableBlock"
             android:layout_width="0dp"
@@ -189,6 +188,7 @@
             android:layout_height="0dp"
             android:clipToPadding="false"
             android:paddingTop="4dp"
+            android:layout_marginBottom="105dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintHorizontal_bias="0.0"
@@ -203,6 +203,7 @@
             android:layout_marginEnd="16dp"
             android:layout_marginBottom="120dp"
             android:backgroundTint="@color/orange"
+            android:contentDescription="@null"
             android:src="@drawable/ic_add"
             android:tint="#FFFFFF"
             app:layout_constraintBottom_toBottomOf="parent"
