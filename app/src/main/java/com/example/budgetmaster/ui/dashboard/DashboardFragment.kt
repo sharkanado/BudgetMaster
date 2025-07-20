@@ -76,6 +76,11 @@ class DashboardFragment : Fragment() {
 
         expensesAdapter = ExpensesAdapter(dummyData)
 
+        binding.seeAllButton.setOnClickListener {
+            val intent = Intent(requireContext(), MyWallet::class.java)
+            startActivity(intent)
+        }
+
         binding.latestExpensesRecycler.apply {
             layoutManager = LinearLayoutManager(requireContext())
             adapter = expensesAdapter

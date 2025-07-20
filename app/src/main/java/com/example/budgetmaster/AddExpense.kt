@@ -7,10 +7,11 @@ import android.text.InputType
 import android.widget.*
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import com.example.budgetmaster.ui.dashboard.DashboardFragment
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.datepicker.MaterialDatePicker
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.Firebase
@@ -37,7 +38,6 @@ class AddExpense : AppCompatActivity() {
         val today = Calendar.getInstance().time
         val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
         dateInput.setText(dateFormat.format(today))
-
         dateInput.inputType = InputType.TYPE_NULL
         dateInput.isFocusable = false
         dateInput.isClickable = true
@@ -56,31 +56,50 @@ class AddExpense : AppCompatActivity() {
             }
         }
 
-        //populate currency spinner
+        val btnExpense = findViewById<MaterialButton>(R.id.btnExpense)
+        val btnIncome = findViewById<MaterialButton>(R.id.btnIncome)
+        val toggleGroup = findViewById<MaterialButtonToggleGroup>(R.id.transactionTypeToggle)
+
+        fun updateToggleStyles() {
+            val orange = ContextCompat.getColor(this, R.color.orange)
+            val greyDark = ContextCompat.getColor(this, R.color.grey_dark)
+            val white = ContextCompat.getColor(this, android.R.color.white)
+
+            if (btnExpense.isChecked) {
+                btnExpense.setBackgroundColor(orange)
+                btnIncome.setBackgroundColor(greyDark)
+            } else {
+                btnIncome.setBackgroundColor(orange)
+                btnExpense.setBackgroundColor(greyDark)
+            }
+
+            btnExpense.setTextColor(white)
+            btnIncome.setTextColor(white)
+        }
+
+        toggleGroup.addOnButtonCheckedListener { _, _, _ -> updateToggleStyles() }
+        updateToggleStyles()
+
         val currencySpinner = findViewById<Spinner>(R.id.currencySpinner)
         val currencies = listOf("PLN", "USD", "EUR", "GBP", "JPY")
-        val currencyAdapter =
-            ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, currencies)
+        val currencyAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, currencies)
         currencySpinner.adapter = currencyAdapter
 
-        //populate category spinner
         val categorySpinner = findViewById<Spinner>(R.id.categorySpinner)
         val categories = listOf(
             "Food", "Transport", "Entertainment", "Bills",
             "Health", "Shopping", "Savings", "Investment", "Salary", "Gift", "Other"
         )
-        val categoryAdapter =
-            ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, categories)
+        val categoryAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, categories)
         categorySpinner.adapter = categoryAdapter
 
-        //save button action
         findViewById<MaterialButton>(R.id.saveTransactionBtn).setOnClickListener {
             val userId = Firebase.auth.currentUser?.uid
-            if (userId !== null)
+            if (userId != null) {
                 saveExpense(this, userId)
-            val intent = Intent(this, MyWallet::class.java)
-            startActivity(intent)
-            finish()
+                startActivity(Intent(this, MyWallet::class.java))
+                finish()
+            }
         }
     }
 
@@ -99,8 +118,7 @@ class AddExpense : AppCompatActivity() {
         val dateStr = dateInput.text.toString()
 
         if (amount == null || dateStr.isEmpty() || category.isEmpty() || currency.isEmpty()) {
-            Toast.makeText(context, "Please fill in all fields correctly", Toast.LENGTH_SHORT)
-                .show()
+            Toast.makeText(context, "Please fill in all fields correctly", Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -127,7 +145,7 @@ class AddExpense : AppCompatActivity() {
             .collection(month)
             .add(expenseData)
             .addOnSuccessListener {
-                Toast.makeText(context, "Saved!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Expense added successfully.", Toast.LENGTH_SHORT).show()
             }
             .addOnFailureListener { e ->
                 Toast.makeText(context, "Failed: ${e.message}", Toast.LENGTH_LONG).show()
