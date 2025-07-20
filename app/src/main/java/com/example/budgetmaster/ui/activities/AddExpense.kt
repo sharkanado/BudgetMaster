@@ -86,11 +86,6 @@ class AddExpense : AppCompatActivity() {
         toggleGroup.addOnButtonCheckedListener { _, _, _ -> updateToggleStyles() }
         updateToggleStyles()
 
-        val currencySpinner = findViewById<Spinner>(R.id.currencySpinner)
-        val currencies = listOf("PLN", "USD", "EUR", "GBP", "JPY")
-        val currencyAdapter =
-            ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, currencies)
-        currencySpinner.adapter = currencyAdapter
 
         val categorySpinner = findViewById<Spinner>(R.id.categorySpinner)
         val categories = listOf(
@@ -114,18 +109,16 @@ class AddExpense : AppCompatActivity() {
     private fun saveExpense(context: Context, uid: String) {
         val amountInput = findViewById<TextInputEditText>(R.id.amountInput)
         val categorySpinner = findViewById<Spinner>(R.id.categorySpinner)
-        val currencySpinner = findViewById<Spinner>(R.id.currencySpinner)
         val descriptionInput = findViewById<TextInputEditText>(R.id.descriptionInput)
         val dateInput = findViewById<TextInputEditText>(R.id.dateInput)
         val btnExpense = findViewById<MaterialButton>(R.id.btnExpense)
 
         val amount = amountInput.text.toString().toDoubleOrNull()
         val category = categorySpinner.selectedItem?.toString() ?: ""
-        val currency = currencySpinner.selectedItem?.toString() ?: ""
         val description = descriptionInput.text.toString()
         val dateStr = dateInput.text.toString()
 
-        if (amount == null || dateStr.isEmpty() || category.isEmpty() || currency.isEmpty()) {
+        if (amount == null || dateStr.isEmpty() || category.isEmpty()) {
             Toast.makeText(context, "Please fill in all fields correctly", Toast.LENGTH_SHORT)
                 .show()
             return
@@ -139,7 +132,6 @@ class AddExpense : AppCompatActivity() {
         val expenseData = hashMapOf(
             "amount" to amount,
             "category" to category,
-            "currency" to currency,
             "description" to description,
             "type" to transactionType,
             "date" to dateStr,

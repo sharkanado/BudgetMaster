@@ -88,11 +88,10 @@ class DashboardFragment : Fragment() {
                         val name = doc.getString("description") ?: ""
                         val category = doc.getString("category") ?: ""
                         val amount = doc.getDouble("amount") ?: 0.0
-                        val currency = doc.getString("currency") ?: "PLN"
                         Triple(
                             parsedDate,
                             name,
-                            Pair(category, String.format("%.2f", amount) + " $currency")
+                            Pair(category, String.format("%.2f", amount))
                         )
                     }
                     .groupBy { it.first }
@@ -105,9 +104,8 @@ class DashboardFragment : Fragment() {
                     val dailyTotal = entries.sumOf { (_, _, amountPair) ->
                         amountPair.second.split(" ")[0].replace(",", ".").toDoubleOrNull() ?: 0.0
                     }
-                    val currency =
-                        entries.firstOrNull()?.third?.second?.split(" ")?.getOrNull(1) ?: "PLN"
-                    val dailyLabel = "-${"%.2f".format(dailyTotal)} $currency"
+
+                    val dailyLabel = "-${"%.2f".format(dailyTotal)}"
 
                     listItems.add(ExpenseListItem.Header(date.format(formatted), dailyLabel))
 

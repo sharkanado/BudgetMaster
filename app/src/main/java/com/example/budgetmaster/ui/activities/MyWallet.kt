@@ -99,50 +99,35 @@ class MyWallet : AppCompatActivity() {
 
         findViewById<TextView>(R.id.monthLabel).text = "$selectedMonth $selectedYear"
 
-        db.collection("users")
-            .document(uid)
-            .collection("expenses")
-            .document(selectedYear.toString())
-            .collection(selectedMonth)
-            .get()
+        db.collection("users").document(uid).collection("expenses")
+            .document(selectedYear.toString()).collection(selectedMonth).get()
             .addOnSuccessListener { result ->
-                val grouped = result.documents
-                    .mapNotNull { doc ->
+                val grouped = result.documents.mapNotNull { doc ->
                         val dateStr = doc.getString("date") ?: return@mapNotNull null
                         val parsedDate = LocalDate.parse(dateStr)
                         val name = doc.getString("description") ?: ""
                         val category = doc.getString("category") ?: ""
-                        val amount = doc.getDouble("amount") ?: 0.0
-                        val currency = doc.getString("currency") ?: "PLN"
-                        Triple(
-                            parsedDate,
-                            name,
-                            Pair(category, String.format("%.2f", amount) + " $currency")
-                        )
-                    }
-                    .groupBy { it.first }
-                    .toSortedMap(compareByDescending { it })
+                        val amount = doc.getDouble("amount") ?: return@mapNotNull null
+                        val type = doc.getString("type") ?: "expense" // Default to expense
+
+                        val signedAmount = if (type == "expense") -amount else amount
+                        Triple(parsedDate, name, Pair(category, signedAmount))
+                    }.groupBy { it.first }.toSortedMap(compareByDescending { it })
 
                 val listItems = mutableListOf<ExpenseListItem>()
                 val formatted = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
 
                 for ((date, entries) in grouped) {
-                    val dailyTotal = entries.sumOf { (_, _, amountPair) ->
-                        amountPair.second.split(" ")[0].replace(",", ".").toDoubleOrNull() ?: 0.0
-                    }
-                    val currency =
-                        entries.firstOrNull()?.third?.second?.split(" ")?.getOrNull(1) ?: "PLN"
-                    val dailyLabel = "-${"%.2f".format(dailyTotal)} $currency"
+                    val dailyTotal = entries.sumOf { (_, _, pair) -> pair.second }
+                    val dailyLabel = "%.2f".format(dailyTotal)
 
                     listItems.add(ExpenseListItem.Header(date.format(formatted), dailyLabel))
 
-                    entries.forEach { (_, name, amountPair) ->
+                    entries.forEach { (_, name, pair) ->
+                        val displayAmount = "%.2f".format(pair.second)
                         listItems.add(
                             ExpenseListItem.Item(
-                                R.drawable.ic_home_white_24dp,
-                                name,
-                                amountPair.first,
-                                "-${amountPair.second}"
+                                R.drawable.ic_home_white_24dp, name, pair.first, displayAmount
                             )
                         )
                     }
@@ -151,4 +136,5 @@ class MyWallet : AppCompatActivity() {
                 expensesAdapter.updateItems(listItems)
             }
     }
+
 }
