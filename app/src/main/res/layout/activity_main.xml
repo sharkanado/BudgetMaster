@@ -6,13 +6,14 @@
     android:layout_height="match_parent"
     android:background="@color/grey"
     app:itemIconTint="@null"
-    app:itemTextColor="@null" >
+    app:itemTextColor="@null">
 
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/navigationView"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:background="@color/grey_dark"
+        android:elevation="8dp"
         app:itemIconTint="@color/bottom_nav_element"
         app:itemTextColor="@color/bottom_nav_element"
         app:layout_constraintBottom_toBottomOf="parent"
