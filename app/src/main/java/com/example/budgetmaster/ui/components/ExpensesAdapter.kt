@@ -5,6 +5,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
 
@@ -69,6 +70,9 @@ class ExpensesAdapter(
             name.text = item.name
             budget.text = item.budget
             amount.text = item.amount
+
+            val colorRes = if (item.type == "income") R.color.green_success else R.color.red_error
+            amount.setTextColor(ContextCompat.getColor(itemView.context, colorRes))
         }
     }
 }

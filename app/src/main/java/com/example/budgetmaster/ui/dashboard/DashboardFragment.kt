@@ -34,29 +34,24 @@ class DashboardFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        val dashboardViewModel =
-            ViewModelProvider(this).get(DashboardViewModel::class.java)
+        ViewModelProvider(this).get(DashboardViewModel::class.java)
 
         _binding = FragmentDashboardBinding.inflate(inflater, container, false)
-        val root: View = binding.root
+        val root = binding.root
 
         binding.addExpenseButton.setOnClickListener {
-            val intent = Intent(requireContext(), AddExpense::class.java)
-            startActivity(intent)
+            startActivity(Intent(requireContext(), AddExpense::class.java))
         }
 
         binding.myExpensesBlock.setOnClickListener {
-            val intent = Intent(requireContext(), MyWallet::class.java)
-            startActivity(intent)
+            startActivity(Intent(requireContext(), MyWallet::class.java))
+        }
+
+        binding.seeAllButton.setOnClickListener {
+            startActivity(Intent(requireContext(), MyWallet::class.java))
         }
 
         expensesAdapter = ExpensesAdapter(emptyList())
-
-        binding.seeAllButton.setOnClickListener {
-            val intent = Intent(requireContext(), MyWallet::class.java)
-            startActivity(intent)
-        }
-
         binding.latestExpensesRecycler.apply {
             layoutManager = LinearLayoutManager(requireContext())
             adapter = expensesAdapter
@@ -72,9 +67,6 @@ class DashboardFragment : Fragment() {
 
     private fun loadLatestExpenses() {
         val uid = auth.currentUser?.uid ?: return
-        val now = LocalDate.now()
-        val year = now.year.toString()
-        val month = now.month.name.lowercase().replaceFirstChar { it.uppercase() }
 
         db.collection("users")
             .document(uid)
@@ -87,11 +79,18 @@ class DashboardFragment : Fragment() {
                         val parsedDate = LocalDate.parse(dateStr)
                         val name = doc.getString("description") ?: ""
                         val category = doc.getString("category") ?: ""
-                        val amount = doc.getDouble("amount") ?: 0.0
-                        Triple(
-                            parsedDate,
-                            name,
-                            Pair(category, String.format("%.2f", amount))
+                        val amount = doc.getDouble("amount") ?: return@mapNotNull null
+                        val type = doc.getString("type") ?: "expense"
+                        val signedAmount = if (type == "expense") -amount else amount
+                        listOf(parsedDate, name, category, signedAmount, type)
+                    }
+                    .map { (date, name, category, amount, type) ->
+                        Quintuple(
+                            date as LocalDate,
+                            name as String,
+                            category as String,
+                            amount as Double,
+                            type as String
                         )
                     }
                     .groupBy { it.first }
@@ -101,21 +100,25 @@ class DashboardFragment : Fragment() {
                 val formatted = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
 
                 for ((date, entries) in grouped) {
-                    val dailyTotal = entries.sumOf { (_, _, amountPair) ->
-                        amountPair.second.split(" ")[0].replace(",", ".").toDoubleOrNull() ?: 0.0
-                    }
+                    val total = entries.sumOf { it.fourth }
+                    val label = "%.2f".format(total)
+                    listItems.add(
+                        ExpenseListItem.Header(
+                            date.format(formatted),
+                            label,
+                            total >= 0
+                        )
+                    )
 
-                    val dailyLabel = "-${"%.2f".format(dailyTotal)}"
-
-                    listItems.add(ExpenseListItem.Header(date.format(formatted), dailyLabel))
-
-                    entries.forEach { (_, name, amountPair) ->
+                    entries.forEach { (_, name, category, amount, type) ->
+                        val displayAmount = "%.2f".format(amount)
                         listItems.add(
                             ExpenseListItem.Item(
                                 R.drawable.ic_home_white_24dp,
                                 name,
-                                amountPair.first,
-                                "-${amountPair.second}"
+                                category,
+                                displayAmount,
+                                type
                             )
                         )
                     }
@@ -129,4 +132,12 @@ class DashboardFragment : Fragment() {
         super.onDestroyView()
         _binding = null
     }
+
+    private data class Quintuple<A, B, C, D, E>(
+        val first: A,
+        val second: B,
+        val third: C,
+        val fourth: D,
+        val fifth: E
+    )
 }

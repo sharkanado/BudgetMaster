@@ -12,7 +12,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
-        <!-- vertical guideline - 60% (left-right split) -->
+
         <androidx.constraintlayout.widget.Guideline
             android:id="@+id/guidelineVertical"
             android:layout_width="match_parent"
@@ -31,31 +31,32 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent">
 
-            <TextView
-                android:id="@+id/myExpensesLabel"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_margin="8dp"
-                android:fontFamily="@font/manrope_bold"
-                android:text="my expenses"
-                android:textColor="#FFFFFF"
-                android:textSize="18sp"
+            <ImageView
+                android:id="@+id/walletIcon"
+                android:layout_width="100dp"
+                android:layout_height="100dp"
+                android:src="@drawable/wallet"
+                android:contentDescription="Wallet Icon"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toTopOf="@+id/myWalletLabel"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toTopOf="parent" />
+                app:layout_constraintEnd_toEndOf="parent" />
 
             <TextView
-                android:id="@+id/myExpensesAmount"
+                android:id="@+id/myWalletLabel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_margin="8dp"
-                android:fontFamily="@font/manrope_bold"
-                android:text="-1230,26"
+                android:text="my expenses"
                 android:textColor="#FFFFFF"
-                android:textSize="28sp"
+                android:textSize="16sp"
+                android:fontFamily="@font/manrope_bold"
+                app:layout_constraintTop_toBottomOf="@id/walletIcon"
                 app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintEnd_toEndOf="parent" />
         </androidx.constraintlayout.widget.ConstraintLayout>
 
+        <!-- Receivable Block -->
         <androidx.constraintlayout.widget.ConstraintLayout
             android:id="@+id/receivableBlock"
             android:layout_width="0dp"
@@ -96,6 +97,7 @@
                 app:layout_constraintEnd_toEndOf="parent" />
         </androidx.constraintlayout.widget.ConstraintLayout>
 
+        <!-- Debt Block -->
         <androidx.constraintlayout.widget.ConstraintLayout
             android:id="@+id/debtBlock"
             android:layout_width="0dp"
@@ -134,9 +136,9 @@
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent" />
         </androidx.constraintlayout.widget.ConstraintLayout>
-
     </androidx.constraintlayout.widget.ConstraintLayout>
 
+    <!-- Latest Expenses Section -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/latestExpenses"
         android:layout_width="match_parent"
@@ -180,7 +182,6 @@
                 android:textColor="@color/orange"
                 android:textSize="18sp" />
 
-
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/seeAllButton"
                 android:layout_width="wrap_content"
@@ -191,7 +192,6 @@
                 android:textAllCaps="false"
                 android:textColor="@android:color/white"
                 app:cornerRadius="30dp" />
-
         </LinearLayout>
 
         <androidx.recyclerview.widget.RecyclerView
@@ -203,10 +203,8 @@
             android:layout_marginBottom="105dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintHorizontal_bias="0.0"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/headerRow"
-            app:layout_constraintVertical_bias="0.0" />
+            app:layout_constraintTop_toBottomOf="@id/headerRow" />
 
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/addExpenseButton"
@@ -221,6 +219,5 @@
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
     </androidx.constraintlayout.widget.ConstraintLayout>
-
 
 </androidx.constraintlayout.widget.ConstraintLayout>
