@@ -1,4 +1,4 @@
-package com.example.budgetmaster
+package com.example.budgetmaster.ui.components
 
 import android.view.LayoutInflater
 import android.view.View
@@ -6,9 +6,10 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.example.budgetmaster.R
 
 class ExpensesAdapter(
-    private val items: List<ExpenseListItem>
+    private var items: List<ExpenseListItem>
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     companion object {
@@ -23,10 +24,12 @@ class ExpensesAdapter(
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         return if (viewType == TYPE_HEADER) {
-            val view = LayoutInflater.from(parent.context).inflate(R.layout.item_recyclerview_header, parent, false)
+            val view = LayoutInflater.from(parent.context)
+                .inflate(R.layout.item_recyclerview_header, parent, false)
             HeaderViewHolder(view)
         } else {
-            val view = LayoutInflater.from(parent.context).inflate(R.layout.item_expense, parent, false)
+            val view =
+                LayoutInflater.from(parent.context).inflate(R.layout.item_expense, parent, false)
             ItemViewHolder(view)
         }
     }
@@ -38,6 +41,11 @@ class ExpensesAdapter(
             is ExpenseListItem.Header -> (holder as HeaderViewHolder).bind(item)
             is ExpenseListItem.Item -> (holder as ItemViewHolder).bind(item)
         }
+    }
+
+    fun updateItems(newItems: List<ExpenseListItem>) {
+        items = newItems
+        notifyDataSetChanged()
     }
 
     class HeaderViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
@@ -53,7 +61,7 @@ class ExpensesAdapter(
     class ItemViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val icon = itemView.findViewById<ImageView>(R.id.iconImage)
         private val name = itemView.findViewById<TextView>(R.id.dailyExpensesName)
-        private val budget = itemView.findViewById<TextView>(R.id.dailyExpensesDate);
+        private val budget = itemView.findViewById<TextView>(R.id.dailyExpensesDate)
         private val amount = itemView.findViewById<TextView>(R.id.dailyExpensesSummary)
 
         fun bind(item: ExpenseListItem.Item) {

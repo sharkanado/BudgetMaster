@@ -1,4 +1,4 @@
-package com.example.budgetmaster
+package com.example.budgetmaster.ui.components
 
 sealed class ExpenseListItem {
     data class Header(val date: String, val total: String) : ExpenseListItem()
