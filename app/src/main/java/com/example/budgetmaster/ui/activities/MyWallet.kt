@@ -2,6 +2,7 @@ package com.example.budgetmaster.ui.activities
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import android.widget.Button
 import android.widget.ImageButton
 import android.widget.ImageView
@@ -97,6 +98,9 @@ class MyWallet : AppCompatActivity() {
 
         findViewById<TextView>(R.id.monthLabel).text = "$selectedMonth $selectedYear"
 
+        val recycler = findViewById<RecyclerView>(R.id.expensesRecyclerView)
+        val noDataText = findViewById<TextView>(R.id.noDataText)
+
         db.collection("users")
             .document(uid)
             .collection("expenses")
@@ -104,6 +108,12 @@ class MyWallet : AppCompatActivity() {
             .collection(selectedMonth)
             .get()
             .addOnSuccessListener { result ->
+                if (result.isEmpty) {
+                    recycler.visibility = View.GONE
+                    noDataText.visibility = View.VISIBLE
+                    return@addOnSuccessListener
+                }
+
                 val grouped = result.documents
                     .mapNotNull { doc ->
                         val dateStr = doc.getString("date") ?: return@mapNotNull null
@@ -147,6 +157,8 @@ class MyWallet : AppCompatActivity() {
                 }
 
                 expensesAdapter.updateItems(listItems)
+                recycler.visibility = View.VISIBLE
+                noDataText.visibility = View.GONE
             }
     }
 
