@@ -6,7 +6,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/grey"
-    tools:context=".ui.activities.WalletExpenseDetails">
+    tools:context=".ui.activities.ExpenseDetailsWallet">
 
 
     <androidx.constraintlayout.widget.ConstraintLayout
@@ -33,7 +33,6 @@
             android:id="@+id/topBarTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Expense Details"
             android:fontFamily="@font/manrope_bold"
             android:textColor="@color/orange"
             android:textSize="20sp"
@@ -80,7 +79,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Amount -->
     <TextView
         android:id="@+id/expenseAmount"
         android:layout_width="wrap_content"
@@ -94,18 +92,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Date -->
-    <TextView
-        android:id="@+id/expenseDate"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="18 July 2025"
-        android:textColor="#AAAAAA"
-        android:textSize="14sp"
-        android:layout_marginTop="4dp"
-        app:layout_constraintTop_toBottomOf="@id/expenseAmount"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
 
     <View
         android:id="@+id/divider"
@@ -113,7 +99,7 @@
         android:layout_height="1dp"
         android:background="@color/grey_light"
         android:layout_marginTop="24dp"
-        app:layout_constraintTop_toBottomOf="@id/expenseDate"
+        app:layout_constraintTop_toBottomOf="@id/expenseAmount"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
@@ -144,21 +130,6 @@
             android:textSize="16sp"
             android:layout_marginBottom="16dp" />
 
-        <TextView
-            android:layout_height="wrap_content"
-            android:layout_width="wrap_content"
-            android:text="Currency"
-            android:textColor="#AAAAAA"
-            android:textSize="14sp" />
-
-        <TextView
-            android:layout_height="wrap_content"
-            android:layout_width="wrap_content"
-            android:id="@+id/expenseCurrency"
-            android:text="PLN"
-            android:textColor="@android:color/white"
-            android:textSize="16sp"
-            android:layout_marginBottom="16dp" />
 
         <TextView
             android:layout_height="wrap_content"
@@ -195,11 +166,20 @@
         <TextView
             android:layout_height="wrap_content"
             android:layout_width="wrap_content"
-            android:id="@+id/expenseTimestamp"
-            android:text="July 18, 2025 at 11:01:13 PM"
-            android:textColor="#888888"
-            android:textSize="13sp"
-            android:layout_marginTop="8dp" />
+            android:text="Date"
+            android:textColor="#AAAAAA"
+            android:textSize="14sp" />
+
+        <TextView
+            android:layout_height="wrap_content"
+            android:layout_width="wrap_content"
+            android:id="@+id/expenseDate"
+            android:text="blah blah"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            android:layout_marginBottom="16dp" />
+
+
     </LinearLayout>
 
     <com.google.android.material.button.MaterialButton

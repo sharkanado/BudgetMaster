@@ -66,7 +66,7 @@ class DashboardFragment : Fragment() {
             layoutManager = LinearLayoutManager(requireContext())
             adapter = expensesAdapter
         }
-        
+
 
         binding.latestExpensesRecycler.apply {
             layoutManager = LinearLayoutManager(requireContext())
@@ -126,7 +126,7 @@ class DashboardFragment : Fragment() {
                         )
                     )
 
-                    entries.forEach { (_, name, category, amount, type) ->
+                    entries.forEach { (date, name, category, amount, type) ->
                         val displayAmount = "%.2f".format(amount)
                         listItems.add(
                             ExpenseListItem.Item(
@@ -134,6 +134,7 @@ class DashboardFragment : Fragment() {
                                 name,
                                 category,
                                 displayAmount,
+                                date.toString(),
                                 type
                             )
                         )

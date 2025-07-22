@@ -148,7 +148,7 @@ class MyWallet : AppCompatActivity() {
                         )
                     )
 
-                    entries.forEach { (_, name, category, amount, type) ->
+                    entries.forEach { (date, name, category, amount, type) ->
                         val displayAmount = "%.2f".format(amount)
                         listItems.add(
                             ExpenseListItem.Item(
@@ -156,6 +156,7 @@ class MyWallet : AppCompatActivity() {
                                 name,
                                 category,
                                 displayAmount,
+                                date.toString(),
                                 type
                             )
                         )

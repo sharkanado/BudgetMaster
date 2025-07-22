@@ -14,6 +14,7 @@ sealed class ExpenseListItem {
         val name: String,
         val budget: String,
         val amount: String,
+        val date: String,
         val type: String
     ) : ExpenseListItem(), Parcelable
 }
