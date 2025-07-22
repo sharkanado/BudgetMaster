@@ -1,17 +1,19 @@
-package com.example.budgetmaster.ui.components
+import android.os.Parcelable
+import kotlinx.parcelize.Parcelize
 
 sealed class ExpenseListItem {
     data class Header(
         val date: String,
         val total: String,
-        val isIncome: Boolean
+        val isPositive: Boolean
     ) : ExpenseListItem()
 
+    @Parcelize
     data class Item(
         val iconResId: Int,
         val name: String,
         val budget: String,
         val amount: String,
-        val type: String,
-    ) : ExpenseListItem()
+        val type: String
+    ) : ExpenseListItem(), Parcelable
 }

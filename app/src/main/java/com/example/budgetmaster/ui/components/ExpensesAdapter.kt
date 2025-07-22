@@ -1,5 +1,6 @@
 package com.example.budgetmaster.ui.components
 
+import ExpenseListItem
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -10,7 +11,8 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
 
 class ExpensesAdapter(
-    private var items: List<ExpenseListItem>
+    private var items: List<ExpenseListItem>,
+    private val onItemClick: (ExpenseListItem.Item) -> Unit
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     companion object {
@@ -21,7 +23,9 @@ class ExpensesAdapter(
     override fun getItemViewType(position: Int): Int = when (items[position]) {
         is ExpenseListItem.Header -> TYPE_HEADER
         is ExpenseListItem.Item -> TYPE_ITEM
+        else -> throw IllegalArgumentException("Unknown view type at position $position")
     }
+
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         return if (viewType == TYPE_HEADER) {
@@ -29,9 +33,9 @@ class ExpensesAdapter(
                 .inflate(R.layout.item_recyclerview_header, parent, false)
             HeaderViewHolder(view)
         } else {
-            val view =
-                LayoutInflater.from(parent.context).inflate(R.layout.item_expense, parent, false)
-            ItemViewHolder(view)
+            val view = LayoutInflater.from(parent.context)
+                .inflate(R.layout.item_expense, parent, false)
+            ItemViewHolder(view, onItemClick)
         }
     }
 
@@ -41,6 +45,7 @@ class ExpensesAdapter(
         when (val item = items[position]) {
             is ExpenseListItem.Header -> (holder as HeaderViewHolder).bind(item)
             is ExpenseListItem.Item -> (holder as ItemViewHolder).bind(item)
+            else -> throw IllegalArgumentException("Unsupported item type at position $position")
         }
     }
 
@@ -59,7 +64,11 @@ class ExpensesAdapter(
         }
     }
 
-    class ItemViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+    class ItemViewHolder(
+        itemView: View,
+        private val onItemClick: (ExpenseListItem.Item) -> Unit
+    ) : RecyclerView.ViewHolder(itemView) {
+
         private val icon = itemView.findViewById<ImageView>(R.id.iconImage)
         private val name = itemView.findViewById<TextView>(R.id.dailyExpensesName)
         private val budget = itemView.findViewById<TextView>(R.id.dailyExpensesDate)
@@ -73,6 +82,10 @@ class ExpensesAdapter(
 
             val colorRes = if (item.type == "income") R.color.green_success else R.color.red_error
             amount.setTextColor(ContextCompat.getColor(itemView.context, colorRes))
+
+            itemView.setOnClickListener {
+                onItemClick(item)
+            }
         }
     }
 }

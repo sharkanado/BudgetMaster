@@ -1,5 +1,6 @@
 package com.example.budgetmaster.ui.activities
 
+import ExpenseListItem
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
@@ -14,7 +15,6 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
-import com.example.budgetmaster.ui.components.ExpenseListItem
 import com.example.budgetmaster.ui.components.ExpensesAdapter
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -48,7 +48,13 @@ class MyWallet : AppCompatActivity() {
         val nextYearBtn = findViewById<ImageButton>(R.id.nextYearBtn)
         val monthLabel = findViewById<TextView>(R.id.monthLabel)
 
-        expensesAdapter = ExpensesAdapter(emptyList())
+        // Initialize adapter with item click
+        expensesAdapter = ExpensesAdapter(emptyList()) { clickedItem ->
+            val intent = Intent(this, ExpenseDetailsWallet::class.java)
+            intent.putExtra("expense_item", clickedItem)
+            startActivity(intent)
+        }
+
         val recycler = findViewById<RecyclerView>(R.id.expensesRecyclerView)
         recycler.layoutManager = LinearLayoutManager(this)
         recycler.adapter = expensesAdapter

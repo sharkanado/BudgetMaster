@@ -1,5 +1,6 @@
 package com.example.budgetmaster.ui.dashboard
 
+import ExpenseListItem
 import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -11,8 +12,8 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.budgetmaster.R
 import com.example.budgetmaster.databinding.FragmentDashboardBinding
 import com.example.budgetmaster.ui.activities.AddExpense
+import com.example.budgetmaster.ui.activities.ExpenseDetailsWallet
 import com.example.budgetmaster.ui.activities.MyWallet
-import com.example.budgetmaster.ui.components.ExpenseListItem
 import com.example.budgetmaster.ui.components.ExpensesAdapter
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -51,7 +52,22 @@ class DashboardFragment : Fragment() {
             startActivity(Intent(requireContext(), MyWallet::class.java))
         }
 
-        expensesAdapter = ExpensesAdapter(emptyList())
+        expensesAdapter = ExpensesAdapter(
+            emptyList(),
+            onItemClick = { clickedItem ->
+                val intent = Intent(requireContext(), ExpenseDetailsWallet::class.java).apply {
+                    putExtra("expense_item", clickedItem)
+                }
+                startActivity(intent)
+            }
+        )
+
+        binding.latestExpensesRecycler.apply {
+            layoutManager = LinearLayoutManager(requireContext())
+            adapter = expensesAdapter
+        }
+        
+
         binding.latestExpensesRecycler.apply {
             layoutManager = LinearLayoutManager(requireContext())
             adapter = expensesAdapter
