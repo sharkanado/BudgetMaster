@@ -51,6 +51,7 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             insets
         }
 
+        // Get extras
         selectedYear = intent.getIntExtra("selectedYear", 0)
         selectedMonth = intent.getStringExtra("selectedMonth") ?: ""
 
@@ -144,11 +145,15 @@ class ExpenseDetailsWallet : AppCompatActivity() {
 
         findViewById<TextView>(R.id.expenseTitle).text = expenseItem.name
 
-        // Prefill with dot-format and 2 decimals
-        val prefillAmount = expenseItem.amount.replace(",", ".").toDoubleOrNull() ?: 0.0
+        // Prefill with dot-format and 2 decimals (always positive in DB)
+        val prefillAmount =
+            expenseItem.amount.replace(",", ".").replace("-", "").toDoubleOrNull() ?: 0.0
         val formattedAmount = "%.2f".format(prefillAmount)
 
-        amountText.text = formattedAmount
+        // Display negative sign only for expense type
+        amountText.text =
+            if (expenseItem.type == "expense") "-$formattedAmount" else formattedAmount
+
         findViewById<TextView>(R.id.expenseDate).text = expenseItem.date
         categoryText.text = expenseItem.budget
         typeText.text = expenseItem.type.replaceFirstChar { it.uppercase() }
@@ -163,7 +168,8 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         if (catPos >= 0) categorySpinner.setSelection(catPos)
 
         val typePos =
-            (typeSpinner.adapter as ArrayAdapter<String>).getPosition(expenseItem.type.replaceFirstChar { it.uppercase() })
+            (typeSpinner.adapter as ArrayAdapter<String>)
+                .getPosition(expenseItem.type.replaceFirstChar { it.uppercase() })
         if (typePos >= 0) typeSpinner.setSelection(typePos)
     }
 
@@ -212,29 +218,31 @@ class ExpenseDetailsWallet : AppCompatActivity() {
 
     private fun saveData() {
         val newCategory = categorySpinner.selectedItem.toString()
-        val newType = typeSpinner.selectedItem.toString()
+        val newType = typeSpinner.selectedItem.toString().lowercase()
 
-        // Normalize amount
-        val normalizedInput = amountEdit.text.toString().replace(",", ".")
+        // Normalize input (always positive)
+        val normalizedInput = amountEdit.text.toString().replace(",", ".").replace("-", "")
         val newAmount = normalizedInput.toDoubleOrNull() ?: 0.0
 
         val newDescription = descriptionEdit.text.toString()
 
-        // Update UI
+        // Update UI (negative only for expense type)
         categoryText.text = newCategory
-        typeText.text = newType
-        amountText.text = "%.2f".format(newAmount)
+        typeText.text = newType.replaceFirstChar { it.uppercase() }
+        amountText.text =
+            if (newType == "expense") "-%.2f".format(newAmount) else "%.2f".format(newAmount)
         descriptionText.text = newDescription
 
-        // **Update page title immediately when type changes**
-        val titleText = if (newType.lowercase() == "income") "Income Details" else "Expense Details"
+        // Update page title
+        val titleText = if (newType == "income") "Income Details" else "Expense Details"
         findViewById<TextView>(R.id.topBarTitle).text = titleText
 
+        // Save positive value to Firestore
         val updatedData = mapOf(
             "category" to newCategory,
             "amount" to newAmount,
             "description" to newDescription,
-            "type" to newType.lowercase()
+            "type" to newType
         )
 
         val db = FirebaseFirestore.getInstance()
