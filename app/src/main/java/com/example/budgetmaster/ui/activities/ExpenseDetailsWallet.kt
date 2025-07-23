@@ -28,11 +28,13 @@ class ExpenseDetailsWallet : AppCompatActivity() {
     private lateinit var categoryText: TextView
     private lateinit var amountText: TextView
     private lateinit var descriptionText: TextView
+    private lateinit var typeText: TextView
 
     // Edit mode
     private lateinit var categorySpinner: Spinner
     private lateinit var amountEdit: EditText
     private lateinit var descriptionEdit: EditText
+    private lateinit var typeSpinner: Spinner
 
     private lateinit var expenseItem: ExpenseListItem.Item
 
@@ -49,7 +51,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             insets
         }
 
-        // Get extras
         selectedYear = intent.getIntExtra("selectedYear", 0)
         selectedMonth = intent.getStringExtra("selectedMonth") ?: ""
 
@@ -80,16 +81,27 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         categoryText = findViewById(R.id.expenseCategory)
         amountText = findViewById(R.id.expenseAmount)
         descriptionText = findViewById(R.id.expenseDescription)
+        typeText = findViewById(R.id.expenseType)
 
         // Edit mode
         categorySpinner = findViewById(R.id.expenseCategorySpinner)
         amountEdit = findViewById(R.id.expenseAmountEdit)
         descriptionEdit = findViewById(R.id.expenseDescriptionEdit)
+        typeSpinner = findViewById(R.id.expenseTypeSpinner)
 
+        // Category spinner
         val categories = listOf("Shopping", "Food", "Bills", "Travel", "Misc")
-        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, categories)
-        categorySpinner.adapter = adapter
+        val categoryAdapter =
+            ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, categories)
+        categorySpinner.adapter = categoryAdapter
 
+        // Type spinner
+        val types = listOf("Expense", "Income")
+        val typeAdapter =
+            ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, types)
+        typeSpinner.adapter = typeAdapter
+
+        // Amount formatting watcher
         amountEdit.addTextChangedListener(object : TextWatcher {
             private var current = ""
 
@@ -100,33 +112,30 @@ class ExpenseDetailsWallet : AppCompatActivity() {
                 val raw = s?.toString() ?: return
                 if (raw == current) return
 
-                // 1. Replace commas with dots
+                // Replace commas with dots
                 var sanitized = raw.replace(',', '.')
 
-                // 2. Allow only digits and one dot
+                // Only digits + 1 dot allowed
                 sanitized = sanitized.replace(Regex("[^0-9.]"), "")
                 val dotIndex = sanitized.indexOf('.')
                 if (dotIndex != -1) {
-                    // Remove extra dots beyond first
                     sanitized = sanitized.substring(0, dotIndex + 1) +
                             sanitized.substring(dotIndex + 1).replace(".", "")
 
-                    // 3. Enforce max 2 digits after dot
+                    // Max 2 decimals
                     if (sanitized.length > dotIndex + 3) {
                         sanitized = sanitized.substring(0, dotIndex + 3)
                     }
                 }
 
-                // 4. Normalize leading zeros
+                // Remove leading zeros
                 sanitized = sanitized.replaceFirst(Regex("^0+(?!\\.)"), "0")
 
-                // Avoid infinite loop
                 current = sanitized
                 amountEdit.setText(sanitized)
                 amountEdit.setSelection(sanitized.length)
             }
         })
-
     }
 
     private fun populateData() {
@@ -135,22 +144,27 @@ class ExpenseDetailsWallet : AppCompatActivity() {
 
         findViewById<TextView>(R.id.expenseTitle).text = expenseItem.name
 
-        // Prefill: replace comma with dot and format to 2 decimals
+        // Prefill with dot-format and 2 decimals
         val prefillAmount = expenseItem.amount.replace(",", ".").toDoubleOrNull() ?: 0.0
         val formattedAmount = "%.2f".format(prefillAmount)
 
         amountText.text = formattedAmount
         findViewById<TextView>(R.id.expenseDate).text = expenseItem.date
         categoryText.text = expenseItem.budget
-        findViewById<TextView>(R.id.expenseType).text =
-            expenseItem.type.replaceFirstChar { it.uppercase() }
+        typeText.text = expenseItem.type.replaceFirstChar { it.uppercase() }
         descriptionText.text = expenseItem.name
 
         amountEdit.setText(formattedAmount)
         descriptionEdit.setText(expenseItem.name)
-        val spinnerPos =
+
+        // Set spinners
+        val catPos =
             (categorySpinner.adapter as ArrayAdapter<String>).getPosition(expenseItem.budget)
-        if (spinnerPos >= 0) categorySpinner.setSelection(spinnerPos)
+        if (catPos >= 0) categorySpinner.setSelection(catPos)
+
+        val typePos =
+            (typeSpinner.adapter as ArrayAdapter<String>).getPosition(expenseItem.type.replaceFirstChar { it.uppercase() })
+        if (typePos >= 0) typeSpinner.setSelection(typePos)
     }
 
     private fun setupEditToggle() {
@@ -175,18 +189,22 @@ class ExpenseDetailsWallet : AppCompatActivity() {
 
         if (enable) {
             categoryText.visibility = View.GONE
+            typeText.visibility = View.GONE
             amountText.visibility = View.GONE
             descriptionText.visibility = View.GONE
 
             categorySpinner.visibility = View.VISIBLE
+            typeSpinner.visibility = View.VISIBLE
             amountEdit.visibility = View.VISIBLE
             descriptionEdit.visibility = View.VISIBLE
         } else {
             categoryText.visibility = View.VISIBLE
+            typeText.visibility = View.VISIBLE
             amountText.visibility = View.VISIBLE
             descriptionText.visibility = View.VISIBLE
 
             categorySpinner.visibility = View.GONE
+            typeSpinner.visibility = View.GONE
             amountEdit.visibility = View.GONE
             descriptionEdit.visibility = View.GONE
         }
@@ -194,8 +212,9 @@ class ExpenseDetailsWallet : AppCompatActivity() {
 
     private fun saveData() {
         val newCategory = categorySpinner.selectedItem.toString()
+        val newType = typeSpinner.selectedItem.toString()
 
-        // Normalize input (comma to dot) before parsing
+        // Normalize amount
         val normalizedInput = amountEdit.text.toString().replace(",", ".")
         val newAmount = normalizedInput.toDoubleOrNull() ?: 0.0
 
@@ -203,13 +222,19 @@ class ExpenseDetailsWallet : AppCompatActivity() {
 
         // Update UI
         categoryText.text = newCategory
+        typeText.text = newType
         amountText.text = "%.2f".format(newAmount)
         descriptionText.text = newDescription
+
+        // **Update page title immediately when type changes**
+        val titleText = if (newType.lowercase() == "income") "Income Details" else "Expense Details"
+        findViewById<TextView>(R.id.topBarTitle).text = titleText
 
         val updatedData = mapOf(
             "category" to newCategory,
             "amount" to newAmount,
-            "description" to newDescription
+            "description" to newDescription,
+            "type" to newType.lowercase()
         )
 
         val db = FirebaseFirestore.getInstance()

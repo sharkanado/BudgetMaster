@@ -117,7 +117,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-
     <LinearLayout
         android:id="@+id/infoList"
         android:layout_width="0dp"
@@ -168,6 +167,13 @@
             android:text="Expense"
             android:textColor="@android:color/white"
             android:textSize="16sp"
+            android:layout_marginBottom="16dp" />
+
+        <Spinner
+            android:id="@+id/expenseTypeSpinner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
             android:layout_marginBottom="16dp" />
 
         <!-- Description -->
@@ -253,6 +259,5 @@
         app:layout_constraintEnd_toEndOf="parent"
         android:layout_marginEnd="16dp"
         android:layout_marginBottom="24dp" />
-
 
 </androidx.constraintlayout.widget.ConstraintLayout>
