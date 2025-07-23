@@ -93,16 +93,16 @@ class DashboardFragment : Fragment() {
                         val type = doc.getString("type") ?: "expense"
                         val signedAmount = if (type == "expense") -amount else amount
 
-                        Quintuple(parsedDate, name, category, signedAmount, type)
+                        ExpenseDetails(parsedDate, name, category, signedAmount, type)
                     }
-                    .groupBy { it.first }
+                    .groupBy { it.date }
                     .toSortedMap(compareByDescending { it })
 
                 val listItems = mutableListOf<ExpenseListItem>()
                 val formatted = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
 
                 for ((date, entries) in grouped) {
-                    val total = entries.sumOf { it.fourth }
+                    val total = entries.sumOf { it.amount }
                     val label = "%.2f".format(total)
                     listItems.add(
                         ExpenseListItem.Header(
@@ -147,11 +147,11 @@ class DashboardFragment : Fragment() {
         _binding = null
     }
 
-    private data class Quintuple<A, B, C, D, E>(
-        val first: A,
-        val second: B,
-        val third: C,
-        val fourth: D,
-        val fifth: E
+    private data class ExpenseDetails(
+        val date: LocalDate,
+        val name: String,
+        val category: String,
+        val amount: Double,
+        val type: String,
     )
 }
