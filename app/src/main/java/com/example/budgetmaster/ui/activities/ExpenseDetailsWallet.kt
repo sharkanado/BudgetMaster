@@ -1,6 +1,7 @@
 package com.example.budgetmaster.ui.activities
 
 import ExpenseListItem
+import android.app.DatePickerDialog
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -18,6 +19,9 @@ import androidx.core.view.WindowInsetsCompat
 import com.example.budgetmaster.R
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 
 class ExpenseDetailsWallet : AppCompatActivity() {
 
@@ -29,12 +33,14 @@ class ExpenseDetailsWallet : AppCompatActivity() {
     private lateinit var amountText: TextView
     private lateinit var descriptionText: TextView
     private lateinit var typeText: TextView
+    private lateinit var dateText: TextView
 
     // Edit mode
     private lateinit var categorySpinner: Spinner
     private lateinit var amountEdit: EditText
     private lateinit var descriptionEdit: EditText
     private lateinit var typeSpinner: Spinner
+    private lateinit var dateEdit: EditText
 
     private lateinit var expenseItem: ExpenseListItem.Item
 
@@ -83,12 +89,14 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         amountText = findViewById(R.id.expenseAmount)
         descriptionText = findViewById(R.id.expenseDescription)
         typeText = findViewById(R.id.expenseType)
+        dateText = findViewById(R.id.expenseDate)
 
         // Edit mode
         categorySpinner = findViewById(R.id.expenseCategorySpinner)
         amountEdit = findViewById(R.id.expenseAmountEdit)
         descriptionEdit = findViewById(R.id.expenseDescriptionEdit)
         typeSpinner = findViewById(R.id.expenseTypeSpinner)
+        dateEdit = findViewById(R.id.expenseDateEdit)
 
         // Category spinner
         val categories = listOf("Shopping", "Food", "Bills", "Travel", "Misc")
@@ -137,6 +145,38 @@ class ExpenseDetailsWallet : AppCompatActivity() {
                 amountEdit.setSelection(sanitized.length)
             }
         })
+
+        // Date picker logic
+        dateEdit.setOnClickListener {
+            val calendar = Calendar.getInstance()
+            val currentDate = dateEdit.text.toString()
+            val format = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+
+            // Parse current date if valid
+            try {
+                val parsedDate = format.parse(currentDate)
+                parsedDate?.let {
+                    calendar.time = it
+                }
+            } catch (_: Exception) {
+            }
+
+            val year = calendar.get(Calendar.YEAR)
+            val month = calendar.get(Calendar.MONTH)
+            val day = calendar.get(Calendar.DAY_OF_MONTH)
+
+            val datePicker = DatePickerDialog(
+                this,
+                { _, y, m, d ->
+                    val pickedDate = String.format("%04d-%02d-%02d", y, m + 1, d)
+                    dateEdit.setText(pickedDate)
+                },
+                year,
+                month,
+                day
+            )
+            datePicker.show()
+        }
     }
 
     private fun populateData() {
@@ -154,13 +194,14 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         amountText.text =
             if (expenseItem.type == "expense") "-$formattedAmount" else formattedAmount
 
-        findViewById<TextView>(R.id.expenseDate).text = expenseItem.date
+        dateText.text = expenseItem.date
         categoryText.text = expenseItem.budget
         typeText.text = expenseItem.type.replaceFirstChar { it.uppercase() }
         descriptionText.text = expenseItem.name
 
         amountEdit.setText(formattedAmount)
         descriptionEdit.setText(expenseItem.name)
+        dateEdit.setText(expenseItem.date)
 
         // Set spinners
         val catPos =
@@ -198,21 +239,25 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             typeText.visibility = View.GONE
             amountText.visibility = View.GONE
             descriptionText.visibility = View.GONE
+            dateText.visibility = View.GONE
 
             categorySpinner.visibility = View.VISIBLE
             typeSpinner.visibility = View.VISIBLE
             amountEdit.visibility = View.VISIBLE
             descriptionEdit.visibility = View.VISIBLE
+            dateEdit.visibility = View.VISIBLE
         } else {
             categoryText.visibility = View.VISIBLE
             typeText.visibility = View.VISIBLE
             amountText.visibility = View.VISIBLE
             descriptionText.visibility = View.VISIBLE
+            dateText.visibility = View.VISIBLE
 
             categorySpinner.visibility = View.GONE
             typeSpinner.visibility = View.GONE
             amountEdit.visibility = View.GONE
             descriptionEdit.visibility = View.GONE
+            dateEdit.visibility = View.GONE
         }
     }
 
@@ -225,6 +270,7 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         val newAmount = normalizedInput.toDoubleOrNull() ?: 0.0
 
         val newDescription = descriptionEdit.text.toString()
+        val newDate = dateEdit.text.toString()
 
         // Update UI (negative only for expense type)
         categoryText.text = newCategory
@@ -232,6 +278,7 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         amountText.text =
             if (newType == "expense") "-%.2f".format(newAmount) else "%.2f".format(newAmount)
         descriptionText.text = newDescription
+        dateText.text = newDate
 
         // Update page title
         val titleText = if (newType == "income") "Income Details" else "Expense Details"
@@ -242,7 +289,8 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             "category" to newCategory,
             "amount" to newAmount,
             "description" to newDescription,
-            "type" to newType
+            "type" to newType,
+            "date" to newDate
         )
 
         val db = FirebaseFirestore.getInstance()
