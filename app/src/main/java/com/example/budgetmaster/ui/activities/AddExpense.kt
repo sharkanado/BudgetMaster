@@ -100,8 +100,7 @@ class AddExpense : AppCompatActivity() {
             val userId = Firebase.auth.currentUser?.uid
             if (userId != null) {
                 saveExpense(this, userId)
-                startActivity(Intent(this, MyWallet::class.java))
-                finish()
+
             }
         }
     }
@@ -148,6 +147,8 @@ class AddExpense : AppCompatActivity() {
             .addOnSuccessListener {
                 Toast.makeText(context, "Expense added successfully.", Toast.LENGTH_SHORT).show()
                 updateLatestExpenses(uid, expenseData)
+                startActivity(Intent(this, MyWallet::class.java))
+                finish()
             }
             .addOnFailureListener { e ->
                 Toast.makeText(context, "Failed: ${e.message}", Toast.LENGTH_LONG).show()
