@@ -12,7 +12,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.budgetmaster.R
 import com.example.budgetmaster.databinding.FragmentDashboardBinding
 import com.example.budgetmaster.ui.activities.AddExpense
-import com.example.budgetmaster.ui.activities.ExpenseDetailsWallet
 import com.example.budgetmaster.ui.activities.MyWallet
 import com.example.budgetmaster.ui.components.ExpensesAdapter
 import com.google.firebase.auth.FirebaseAuth
@@ -40,6 +39,7 @@ class DashboardFragment : Fragment() {
         _binding = FragmentDashboardBinding.inflate(inflater, container, false)
         val root = binding.root
 
+        // Buttons remain functional
         binding.addExpenseButton.setOnClickListener {
             startActivity(Intent(requireContext(), AddExpense::class.java))
         }
@@ -52,21 +52,11 @@ class DashboardFragment : Fragment() {
             startActivity(Intent(requireContext(), MyWallet::class.java))
         }
 
+        // Adapter with NO click action
         expensesAdapter = ExpensesAdapter(
             emptyList(),
-            onItemClick = { clickedItem ->
-                val intent = Intent(requireContext(), ExpenseDetailsWallet::class.java).apply {
-                    putExtra("expense_item", clickedItem)
-                }
-                startActivity(intent)
-            }
+            onItemClick = { /* Clicks disabled for dashboard */ }
         )
-
-        binding.latestExpensesRecycler.apply {
-            layoutManager = LinearLayoutManager(requireContext())
-            adapter = expensesAdapter
-        }
-
 
         binding.latestExpensesRecycler.apply {
             layoutManager = LinearLayoutManager(requireContext())
@@ -98,16 +88,8 @@ class DashboardFragment : Fragment() {
                         val amount = doc.getDouble("amount") ?: return@mapNotNull null
                         val type = doc.getString("type") ?: "expense"
                         val signedAmount = if (type == "expense") -amount else amount
-                        listOf(parsedDate, name, category, signedAmount, type)
-                    }
-                    .map { (date, name, category, amount, type) ->
-                        Quintuple(
-                            date as LocalDate,
-                            name as String,
-                            category as String,
-                            amount as Double,
-                            type as String
-                        )
+
+                        Quintuple(parsedDate, name, category, signedAmount, type)
                     }
                     .groupBy { it.first }
                     .toSortedMap(compareByDescending { it })
@@ -135,7 +117,8 @@ class DashboardFragment : Fragment() {
                                 category,
                                 displayAmount,
                                 date.toString(),
-                                type
+                                type,
+                                "" // No ID needed for dashboard
                             )
                         )
                     }

@@ -48,10 +48,12 @@ class MyWallet : AppCompatActivity() {
         val nextYearBtn = findViewById<ImageButton>(R.id.nextYearBtn)
         val monthLabel = findViewById<TextView>(R.id.monthLabel)
 
-        // Initialize adapter with item click
+        // Adapter with item click
         expensesAdapter = ExpensesAdapter(emptyList()) { clickedItem ->
             val intent = Intent(this, ExpenseDetailsWallet::class.java)
-            intent.putExtra("expense_item", clickedItem)
+            intent.putExtra("selectedYear", selectedYear)
+            intent.putExtra("selectedMonth", selectedMonth)
+            intent.putExtra("expense_item", clickedItem) // includes ID now
             startActivity(intent)
         }
 
@@ -129,7 +131,7 @@ class MyWallet : AppCompatActivity() {
                         val amount = doc.getDouble("amount") ?: 0.0
                         val type = doc.getString("type") ?: "expense"
                         val signedAmount = if (type == "expense") -amount else amount
-                        Quintuple(parsedDate, name, category, signedAmount, type)
+                        Quintuple(parsedDate, name, category, signedAmount, type, doc.id)
                     }
                     .groupBy { it.first }
                     .toSortedMap(compareByDescending { it })
@@ -148,7 +150,7 @@ class MyWallet : AppCompatActivity() {
                         )
                     )
 
-                    entries.forEach { (date, name, category, amount, type) ->
+                    entries.forEach { (date, name, category, amount, type, id) ->
                         val displayAmount = "%.2f".format(amount)
                         listItems.add(
                             ExpenseListItem.Item(
@@ -157,7 +159,8 @@ class MyWallet : AppCompatActivity() {
                                 category,
                                 displayAmount,
                                 date.toString(),
-                                type
+                                type,
+                                id // Firestore doc ID
                             )
                         )
                     }
@@ -169,11 +172,12 @@ class MyWallet : AppCompatActivity() {
             }
     }
 
-    private data class Quintuple<A, B, C, D, E>(
+    private data class Quintuple<A, B, C, D, E, F>(
         val first: A,
         val second: B,
         val third: C,
         val fourth: D,
-        val fifth: E
+        val fifth: E,
+        val sixth: F
     )
 }
