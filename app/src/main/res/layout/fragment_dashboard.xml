@@ -56,7 +56,6 @@
                 app:layout_constraintEnd_toEndOf="parent" />
         </androidx.constraintlayout.widget.ConstraintLayout>
 
-        <!-- Receivable Block -->
         <androidx.constraintlayout.widget.ConstraintLayout
             android:id="@+id/receivableBlock"
             android:layout_width="0dp"
@@ -97,7 +96,6 @@
                 app:layout_constraintEnd_toEndOf="parent" />
         </androidx.constraintlayout.widget.ConstraintLayout>
 
-        <!-- Debt Block -->
         <androidx.constraintlayout.widget.ConstraintLayout
             android:id="@+id/debtBlock"
             android:layout_width="0dp"
@@ -138,7 +136,6 @@
         </androidx.constraintlayout.widget.ConstraintLayout>
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <!-- Latest Expenses Section -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/latestExpenses"
         android:layout_width="match_parent"
@@ -159,18 +156,6 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent">
-
-            <ProgressBar
-                android:id="@+id/loadingProgressBar"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_gravity="center"
-                android:layout_marginTop="16dp"
-                android:visibility="gone"
-                app:layout_constraintTop_toTopOf="parent"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintEnd_toEndOf="parent" />
 
             <TextView
                 android:id="@+id/latestExpensesTitle"
@@ -193,6 +178,20 @@
                 android:textColor="@android:color/white"
                 app:cornerRadius="30dp" />
         </LinearLayout>
+
+        <com.google.android.material.progressindicator.CircularProgressIndicator
+            android:id="@+id/loadingProgressBar"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:indeterminate="true"
+            app:indicatorSize="48dp"
+            app:indicatorInset="0dp"
+            app:trackThickness="4dp"
+            app:indicatorColor="@color/orange"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/latestExpensesRecycler"

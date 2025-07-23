@@ -74,6 +74,10 @@ class DashboardFragment : Fragment() {
     private fun loadLatestExpenses() {
         val uid = auth.currentUser?.uid ?: return
 
+        // Show spinner before loading
+        binding.loadingProgressBar.visibility = View.VISIBLE
+        binding.latestExpensesRecycler.visibility = View.GONE
+
         db.collection("users")
             .document(uid)
             .collection("latest")
@@ -124,7 +128,17 @@ class DashboardFragment : Fragment() {
                     }
                 }
 
+                // Update recycler
                 expensesAdapter.updateItems(listItems)
+
+                // Hide spinner, show recycler
+                binding.loadingProgressBar.visibility = View.GONE
+                binding.latestExpensesRecycler.visibility = View.VISIBLE
+            }
+            .addOnFailureListener {
+                // Hide spinner even on failure
+                binding.loadingProgressBar.visibility = View.GONE
+                binding.latestExpensesRecycler.visibility = View.VISIBLE
             }
     }
 
