@@ -48,12 +48,12 @@ class MyWallet : AppCompatActivity() {
         val nextYearBtn = findViewById<ImageButton>(R.id.nextYearBtn)
         val monthLabel = findViewById<TextView>(R.id.monthLabel)
 
-        // Adapter with item click
+        // Adapter with item click -> ripple enabled
         expensesAdapter = ExpensesAdapter(emptyList()) { clickedItem ->
             val intent = Intent(this, ExpenseDetailsWallet::class.java)
             intent.putExtra("selectedYear", selectedYear)
             intent.putExtra("selectedMonth", selectedMonth)
-            intent.putExtra("expense_item", clickedItem) // includes ID now
+            intent.putExtra("expense_item", clickedItem)
             startActivity(intent)
         }
 
@@ -88,7 +88,7 @@ class MyWallet : AppCompatActivity() {
         }
 
         findViewById<Button>(R.id.seeAnalysisButton).setOnClickListener {
-//            startActivity(Intent(this, AnalysisActivity::class.java))
+            // startActivity(Intent(this, AnalysisActivity::class.java))
         }
 
         findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.addExpenseFab).setOnClickListener {
@@ -160,7 +160,7 @@ class MyWallet : AppCompatActivity() {
                                 displayAmount,
                                 date.toString(),
                                 type,
-                                id // Firestore doc ID
+                                id
                             )
                         )
                     }

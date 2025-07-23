@@ -12,7 +12,7 @@ import com.example.budgetmaster.R
 
 class ExpensesAdapter(
     private var items: List<ExpenseListItem>,
-    private val onItemClick: (ExpenseListItem.Item) -> Unit
+    private val onItemClick: ((ExpenseListItem.Item) -> Unit)? = null // nullable
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     companion object {
@@ -25,7 +25,6 @@ class ExpensesAdapter(
         is ExpenseListItem.Item -> TYPE_ITEM
         else -> throw IllegalArgumentException("Unknown view type at position $position")
     }
-
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         return if (viewType == TYPE_HEADER) {
@@ -65,14 +64,14 @@ class ExpensesAdapter(
     }
 
     class ItemViewHolder(
-        itemView: View,
-        private val onItemClick: (ExpenseListItem.Item) -> Unit
-    ) : RecyclerView.ViewHolder(itemView) {
+        private val itemViewRoot: View,
+        private val onItemClick: ((ExpenseListItem.Item) -> Unit)?
+    ) : RecyclerView.ViewHolder(itemViewRoot) {
 
-        private val icon = itemView.findViewById<ImageView>(R.id.iconImage)
-        private val name = itemView.findViewById<TextView>(R.id.dailyExpensesName)
-        private val budget = itemView.findViewById<TextView>(R.id.dailyExpensesDate)
-        private val amount = itemView.findViewById<TextView>(R.id.dailyExpensesSummary)
+        private val icon = itemViewRoot.findViewById<ImageView>(R.id.iconImage)
+        private val name = itemViewRoot.findViewById<TextView>(R.id.dailyExpensesName)
+        private val budget = itemViewRoot.findViewById<TextView>(R.id.dailyExpensesDate)
+        private val amount = itemViewRoot.findViewById<TextView>(R.id.dailyExpensesSummary)
 
         fun bind(item: ExpenseListItem.Item) {
             icon.setImageResource(item.iconResId)
@@ -83,9 +82,18 @@ class ExpensesAdapter(
             val colorRes = if (item.type == "income") R.color.green_success else R.color.red_error
             amount.setTextColor(ContextCompat.getColor(itemView.context, colorRes))
 
-            itemView.setOnClickListener {
-                onItemClick(item)
+            if (onItemClick != null) {
+                itemView.isClickable = true
+                itemView.isFocusable = true
+                itemView.setBackgroundResource(R.drawable.expense_ripple)
+                itemView.setOnClickListener { onItemClick?.invoke(item) }
+            } else {
+                itemView.isClickable = false
+                itemView.isFocusable = false
+                itemView.setBackgroundResource(R.drawable.expense_bg)
+                itemView.setOnClickListener(null)
             }
         }
+
     }
 }

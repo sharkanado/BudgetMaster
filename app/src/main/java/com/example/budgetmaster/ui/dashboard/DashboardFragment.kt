@@ -52,10 +52,10 @@ class DashboardFragment : Fragment() {
             startActivity(Intent(requireContext(), MyWallet::class.java))
         }
 
-        // Adapter with NO click action
+        // Adapter with NO click action (null disables ripple & click)
         expensesAdapter = ExpensesAdapter(
             emptyList(),
-            onItemClick = { /* Clicks disabled for dashboard */ }
+            onItemClick = null
         )
 
         binding.latestExpensesRecycler.apply {
