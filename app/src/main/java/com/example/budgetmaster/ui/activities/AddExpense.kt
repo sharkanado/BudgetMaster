@@ -1,15 +1,19 @@
-package com.example.budgetmaster
+package com.example.budgetmaster.ui.activities
 
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.text.InputType
-import android.widget.*
+import android.widget.ArrayAdapter
+import android.widget.Spinner
+import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.example.budgetmaster.R
+import com.example.budgetmaster.utils.updateLatestExpenses
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.datepicker.MaterialDatePicker
@@ -20,7 +24,9 @@ import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FirebaseFirestore
 import java.text.SimpleDateFormat
 import java.time.LocalDate
-import java.util.*
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 class AddExpense : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -80,25 +86,21 @@ class AddExpense : AppCompatActivity() {
         toggleGroup.addOnButtonCheckedListener { _, _, _ -> updateToggleStyles() }
         updateToggleStyles()
 
-        val currencySpinner = findViewById<Spinner>(R.id.currencySpinner)
-        val currencies = listOf("PLN", "USD", "EUR", "GBP", "JPY")
-        val currencyAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, currencies)
-        currencySpinner.adapter = currencyAdapter
 
         val categorySpinner = findViewById<Spinner>(R.id.categorySpinner)
         val categories = listOf(
             "Food", "Transport", "Entertainment", "Bills",
             "Health", "Shopping", "Savings", "Investment", "Salary", "Gift", "Other"
         )
-        val categoryAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, categories)
+        val categoryAdapter =
+            ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, categories)
         categorySpinner.adapter = categoryAdapter
 
         findViewById<MaterialButton>(R.id.saveTransactionBtn).setOnClickListener {
             val userId = Firebase.auth.currentUser?.uid
             if (userId != null) {
                 saveExpense(this, userId)
-                startActivity(Intent(this, MyWallet::class.java))
-                finish()
+
             }
         }
     }
@@ -106,19 +108,18 @@ class AddExpense : AppCompatActivity() {
     private fun saveExpense(context: Context, uid: String) {
         val amountInput = findViewById<TextInputEditText>(R.id.amountInput)
         val categorySpinner = findViewById<Spinner>(R.id.categorySpinner)
-        val currencySpinner = findViewById<Spinner>(R.id.currencySpinner)
         val descriptionInput = findViewById<TextInputEditText>(R.id.descriptionInput)
         val dateInput = findViewById<TextInputEditText>(R.id.dateInput)
         val btnExpense = findViewById<MaterialButton>(R.id.btnExpense)
 
         val amount = amountInput.text.toString().toDoubleOrNull()
         val category = categorySpinner.selectedItem?.toString() ?: ""
-        val currency = currencySpinner.selectedItem?.toString() ?: ""
         val description = descriptionInput.text.toString()
         val dateStr = dateInput.text.toString()
 
-        if (amount == null || dateStr.isEmpty() || category.isEmpty() || currency.isEmpty()) {
-            Toast.makeText(context, "Please fill in all fields correctly", Toast.LENGTH_SHORT).show()
+        if (amount == null || dateStr.isEmpty() || category.isEmpty()) {
+            Toast.makeText(context, "Please fill in all fields correctly", Toast.LENGTH_SHORT)
+                .show()
             return
         }
 
@@ -130,7 +131,6 @@ class AddExpense : AppCompatActivity() {
         val expenseData = hashMapOf(
             "amount" to amount,
             "category" to category,
-            "currency" to currency,
             "description" to description,
             "type" to transactionType,
             "date" to dateStr,
@@ -146,6 +146,9 @@ class AddExpense : AppCompatActivity() {
             .add(expenseData)
             .addOnSuccessListener {
                 Toast.makeText(context, "Expense added successfully.", Toast.LENGTH_SHORT).show()
+                updateLatestExpenses(uid, expenseData)
+                startActivity(Intent(this, MyWallet::class.java))
+                finish()
             }
             .addOnFailureListener { e ->
                 Toast.makeText(context, "Failed: ${e.message}", Toast.LENGTH_LONG).show()

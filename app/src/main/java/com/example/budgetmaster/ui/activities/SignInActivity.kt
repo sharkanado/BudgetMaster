@@ -1,4 +1,4 @@
-package com.example.budgetmaster
+package com.example.budgetmaster.ui.activities
 
 import android.content.Intent
 import android.os.Bundle
@@ -10,6 +10,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.example.budgetmaster.R
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
@@ -58,7 +59,11 @@ class SignInActivity : AppCompatActivity() {
                         startActivity(intent)
                         finish()
                     } else {
-                        Toast.makeText(this, "Sign-in failed: ${task.exception?.message}", Toast.LENGTH_LONG).show()
+                        Toast.makeText(
+                            this,
+                            "Sign-in failed: ${task.exception?.message}",
+                            Toast.LENGTH_LONG
+                        ).show()
                     }
                 }
         }
@@ -88,7 +93,8 @@ class SignInActivity : AppCompatActivity() {
                 if (task.isSuccessful) {
                     Toast.makeText(this, "Reset link sent to $email", Toast.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(this, "Error: ${task.exception?.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Error: ${task.exception?.message}", Toast.LENGTH_SHORT)
+                        .show()
                 }
             }
     }
