@@ -28,14 +28,14 @@ class ExpenseDetailsWallet : AppCompatActivity() {
     private var isEditMode = false
     private lateinit var editButton: ImageButton
 
-    // View mode
+    // view mode
     private lateinit var categoryText: TextView
     private lateinit var amountText: TextView
     private lateinit var descriptionText: TextView
     private lateinit var typeText: TextView
     private lateinit var dateText: TextView
 
-    // Edit mode
+    // edit mode
     private lateinit var categorySpinner: Spinner
     private lateinit var amountEdit: EditText
     private lateinit var descriptionEdit: EditText
@@ -84,33 +84,31 @@ class ExpenseDetailsWallet : AppCompatActivity() {
     private fun setupViews() {
         editButton = findViewById(R.id.editButton)
 
-        // View mode
+        // view mode
         categoryText = findViewById(R.id.expenseCategory)
         amountText = findViewById(R.id.expenseAmount)
         descriptionText = findViewById(R.id.expenseDescription)
         typeText = findViewById(R.id.expenseType)
         dateText = findViewById(R.id.expenseDate)
 
-        // Edit mode
+        // edit mode
         categorySpinner = findViewById(R.id.expenseCategorySpinner)
         amountEdit = findViewById(R.id.expenseAmountEdit)
         descriptionEdit = findViewById(R.id.expenseDescriptionEdit)
         typeSpinner = findViewById(R.id.expenseTypeSpinner)
         dateEdit = findViewById(R.id.expenseDateEdit)
 
-        // Category spinner
         val categories = listOf("Shopping", "Food", "Bills", "Travel", "Misc")
         val categoryAdapter =
             ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, categories)
         categorySpinner.adapter = categoryAdapter
 
-        // Type spinner
         val types = listOf("Expense", "Income")
         val typeAdapter =
             ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, types)
         typeSpinner.adapter = typeAdapter
 
-        // Amount formatting watcher
+        // amount formatting
         amountEdit.addTextChangedListener(object : TextWatcher {
             private var current = ""
 
@@ -121,24 +119,24 @@ class ExpenseDetailsWallet : AppCompatActivity() {
                 val raw = s?.toString() ?: return
                 if (raw == current) return
 
-                // Replace commas with dots
+                // replaces commas with dots
                 var sanitized = raw.replace(',', '.')
 
-                // Only digits + 1 dot allowed
+                // digits + 1 dot allowed
                 sanitized = sanitized.replace(Regex("[^0-9.]"), "")
                 val dotIndex = sanitized.indexOf('.')
                 if (dotIndex != -1) {
                     sanitized = sanitized.substring(0, dotIndex + 1) +
                             sanitized.substring(dotIndex + 1).replace(".", "")
 
-                    // Max 2 decimals
                     if (sanitized.length > dotIndex + 3) {
                         sanitized = sanitized.substring(0, dotIndex + 3)
                     }
                 }
 
-                // Remove leading zeros
+                // removes leading zeros
                 sanitized = sanitized.replaceFirst(Regex("^0+(?!\\.)"), "0")
+
 
                 current = sanitized
                 amountEdit.setText(sanitized)
@@ -185,12 +183,10 @@ class ExpenseDetailsWallet : AppCompatActivity() {
 
         findViewById<TextView>(R.id.expenseTitle).text = expenseItem.name
 
-        // Prefill with dot-format and 2 decimals (always positive in DB)
         val prefillAmount =
             expenseItem.amount.replace(",", ".").replace("-", "").toDoubleOrNull() ?: 0.0
         val formattedAmount = "%.2f".format(prefillAmount)
 
-        // Display negative sign only for expense type
         amountText.text =
             if (expenseItem.type == "expense") "-$formattedAmount" else formattedAmount
 
@@ -203,7 +199,7 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         descriptionEdit.setText(expenseItem.name)
         dateEdit.setText(expenseItem.date)
 
-        // Set spinners
+        // sets spinners
         val catPos =
             (categorySpinner.adapter as ArrayAdapter<String>).getPosition(expenseItem.budget)
         if (catPos >= 0) categorySpinner.setSelection(catPos)
@@ -265,14 +261,12 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         val newCategory = categorySpinner.selectedItem.toString()
         val newType = typeSpinner.selectedItem.toString().lowercase()
 
-        // Normalize input (always positive)
         val normalizedInput = amountEdit.text.toString().replace(",", ".").replace("-", "")
         val newAmount = normalizedInput.toDoubleOrNull() ?: 0.0
 
         val newDescription = descriptionEdit.text.toString()
         val newDate = dateEdit.text.toString()
 
-        // Update UI (negative only for expense type)
         categoryText.text = newCategory
         typeText.text = newType.replaceFirstChar { it.uppercase() }
         amountText.text =
@@ -280,11 +274,9 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         descriptionText.text = newDescription
         dateText.text = newDate
 
-        // Update page title
         val titleText = if (newType == "income") "Income Details" else "Expense Details"
         findViewById<TextView>(R.id.topBarTitle).text = titleText
 
-        // Save positive value to Firestore
         val updatedData = mapOf(
             "category" to newCategory,
             "amount" to newAmount,

@@ -80,7 +80,7 @@ class ExpensesAdapter(
             amount.text = item.amount
 
             val colorRes = if (item.type == "income") R.color.green_success else R.color.red_error
-            amount.setTextColor(ContextCompat.getColor(itemView.context, colorRes))
+            amount.setTextColor(ContextCompat.getColor(itemViewRoot.context, colorRes))
 
             if (onItemClick != null) {
                 itemView.isClickable = true
