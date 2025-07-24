@@ -4,8 +4,10 @@ import ExpenseListItem
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.ImageButton
+import android.widget.Spinner
 import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -33,8 +35,8 @@ class MyWallet : AppCompatActivity() {
         LocalDate.now().month.name.lowercase().replaceFirstChar { it.uppercase() }
 
     private lateinit var barChart: CustomBarChartView
+    private lateinit var monthSpinner: Spinner
 
-    // Month names for mapping Firestore collections and chart labels
     private val months = listOf(
         "January", "February", "March", "April", "May", "June",
         "July", "August", "September", "October", "November", "December"
@@ -54,8 +56,41 @@ class MyWallet : AppCompatActivity() {
         val yearButton = findViewById<Button>(R.id.yearButton)
         val prevYearBtn = findViewById<ImageButton>(R.id.prevYearBtn)
         val nextYearBtn = findViewById<ImageButton>(R.id.nextYearBtn)
-        val monthLabel = findViewById<TextView>(R.id.monthLabel)
         barChart = findViewById(R.id.barChart)
+        monthSpinner = findViewById(R.id.monthSpinner)
+
+        // Set up month spinner
+        val monthAdapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            months
+        )
+        monthSpinner.adapter = monthAdapter
+
+        // Set spinner to current month
+        val currentMonthIndex = months.indexOf(selectedMonth)
+        if (currentMonthIndex != -1) {
+            monthSpinner.setSelection(currentMonthIndex)
+        }
+
+        // Handle spinner changes
+        monthSpinner.onItemSelectedListener =
+            object : android.widget.AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(
+                    parent: android.widget.AdapterView<*>,
+                    view: View?,
+                    position: Int,
+                    id: Long
+                ) {
+                    selectedMonth = months[position]
+                    barChart.highlightMonth(position)
+                    loadExpenses()
+                }
+
+                override fun onNothingSelected(parent: android.widget.AdapterView<*>) {
+                    // Do nothing
+                }
+            }
 
         // RecyclerView setup
         expensesAdapter = ExpensesAdapter(emptyList()) { clickedItem ->
@@ -88,7 +123,8 @@ class MyWallet : AppCompatActivity() {
         // Bar chart click listener
         barChart.setOnMonthClickListener { monthIndex ->
             selectedMonth = months[monthIndex]
-            barChart.highlightMonth(monthIndex) // bold selected month
+            monthSpinner.setSelection(monthIndex) // update spinner selection
+            barChart.highlightMonth(monthIndex)
             loadExpenses()
         }
 
@@ -109,8 +145,6 @@ class MyWallet : AppCompatActivity() {
 
     private fun loadExpenses() {
         val uid = auth.currentUser?.uid ?: return
-
-        findViewById<TextView>(R.id.monthLabel).text = "$selectedMonth $selectedYear"
 
         val recycler = findViewById<RecyclerView>(R.id.expensesRecyclerView)
         val noDataText = findViewById<TextView>(R.id.noDataText)

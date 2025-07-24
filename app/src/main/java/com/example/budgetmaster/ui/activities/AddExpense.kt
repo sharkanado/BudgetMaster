@@ -3,9 +3,8 @@ package com.example.budgetmaster.ui.activities
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.text.InputType
 import android.widget.ArrayAdapter
-import android.widget.Spinner
+import android.widget.AutoCompleteTextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -18,6 +17,7 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.datepicker.MaterialDatePicker
 import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import com.google.firebase.Firebase
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.auth
@@ -29,6 +29,7 @@ import java.util.Date
 import java.util.Locale
 
 class AddExpense : AppCompatActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -40,15 +41,14 @@ class AddExpense : AppCompatActivity() {
             insets
         }
 
+        // Date Picker Setup with Calendar Icon
+        val dateInputLayout = findViewById<TextInputLayout>(R.id.dateInputLayout)
         val dateInput = findViewById<TextInputEditText>(R.id.dateInput)
         val today = Calendar.getInstance().time
         val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
         dateInput.setText(dateFormat.format(today))
-        dateInput.inputType = InputType.TYPE_NULL
-        dateInput.isFocusable = false
-        dateInput.isClickable = true
 
-        dateInput.setOnClickListener {
+        fun showDatePicker() {
             val picker = MaterialDatePicker.Builder.datePicker()
                 .setTitleText("Select date")
                 .setSelection(MaterialDatePicker.todayInUtcMilliseconds())
@@ -62,6 +62,10 @@ class AddExpense : AppCompatActivity() {
             }
         }
 
+        dateInputLayout.setEndIconOnClickListener { showDatePicker() }
+        dateInput.setOnClickListener { showDatePicker() }
+
+        // Toggle Buttons Setup
         val btnExpense = findViewById<MaterialButton>(R.id.btnExpense)
         val btnIncome = findViewById<MaterialButton>(R.id.btnIncome)
         val toggleGroup = findViewById<MaterialButtonToggleGroup>(R.id.transactionTypeToggle)
@@ -86,34 +90,33 @@ class AddExpense : AppCompatActivity() {
         toggleGroup.addOnButtonCheckedListener { _, _, _ -> updateToggleStyles() }
         updateToggleStyles()
 
-
-        val categorySpinner = findViewById<Spinner>(R.id.categorySpinner)
+        // Category Dropdown
+        val categoryDropdown = findViewById<AutoCompleteTextView>(R.id.categorySpinner)
         val categories = listOf(
             "Food", "Transport", "Entertainment", "Bills",
             "Health", "Shopping", "Savings", "Investment", "Salary", "Gift", "Other"
         )
-        val categoryAdapter =
-            ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, categories)
-        categorySpinner.adapter = categoryAdapter
+        val categoryAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, categories)
+        categoryDropdown.setAdapter(categoryAdapter)
 
+        // Save Button
         findViewById<MaterialButton>(R.id.saveTransactionBtn).setOnClickListener {
             val userId = Firebase.auth.currentUser?.uid
             if (userId != null) {
                 saveExpense(this, userId)
-
             }
         }
     }
 
     private fun saveExpense(context: Context, uid: String) {
         val amountInput = findViewById<TextInputEditText>(R.id.amountInput)
-        val categorySpinner = findViewById<Spinner>(R.id.categorySpinner)
+        val categoryDropdown = findViewById<AutoCompleteTextView>(R.id.categorySpinner)
         val descriptionInput = findViewById<TextInputEditText>(R.id.descriptionInput)
         val dateInput = findViewById<TextInputEditText>(R.id.dateInput)
         val btnExpense = findViewById<MaterialButton>(R.id.btnExpense)
 
         val amount = amountInput.text.toString().toDoubleOrNull()
-        val category = categorySpinner.selectedItem?.toString() ?: ""
+        val category = categoryDropdown.text.toString()
         val description = descriptionInput.text.toString()
         val dateStr = dateInput.text.toString()
 

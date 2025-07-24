@@ -175,10 +175,7 @@ class CustomBarChartView @JvmOverloads constructor(
         // Baseline
         canvas.drawLine(leftPadding, chartHeight, width, chartHeight, axisPaint)
 
-        // "No Data" overlay
-        if (!hasData) {
-            canvas.drawText("No Data", width / 2, chartHeight / 2, noDataPaint)
-        }
+       
     }
 
     override fun onTouchEvent(event: MotionEvent?): Boolean {
