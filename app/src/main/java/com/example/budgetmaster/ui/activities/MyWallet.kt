@@ -5,9 +5,9 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.ArrayAdapter
+import android.widget.AutoCompleteTextView
 import android.widget.Button
 import android.widget.ImageButton
-import android.widget.Spinner
 import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -35,7 +35,7 @@ class MyWallet : AppCompatActivity() {
         LocalDate.now().month.name.lowercase().replaceFirstChar { it.uppercase() }
 
     private lateinit var barChart: CustomBarChartView
-    private lateinit var monthSpinner: Spinner
+    private lateinit var monthDropdown: AutoCompleteTextView
 
     private val months = listOf(
         "January", "February", "March", "April", "May", "June",
@@ -47,6 +47,7 @@ class MyWallet : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_my_wallet)
 
+        // Handle window insets
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
@@ -57,40 +58,28 @@ class MyWallet : AppCompatActivity() {
         val prevYearBtn = findViewById<ImageButton>(R.id.prevYearBtn)
         val nextYearBtn = findViewById<ImageButton>(R.id.nextYearBtn)
         barChart = findViewById(R.id.barChart)
-        monthSpinner = findViewById(R.id.monthSpinner)
+        monthDropdown = findViewById(R.id.monthSpinner)
 
-        // Set up month spinner
+        // --- Setup month dropdown ---
         val monthAdapter = ArrayAdapter(
             this,
-            android.R.layout.simple_spinner_dropdown_item,
+            android.R.layout.simple_list_item_1,
             months
         )
-        monthSpinner.adapter = monthAdapter
+        monthDropdown.setAdapter(monthAdapter)
 
-        // Set spinner to current month
+        // Preselect current month
         val currentMonthIndex = months.indexOf(selectedMonth)
         if (currentMonthIndex != -1) {
-            monthSpinner.setSelection(currentMonthIndex)
+            monthDropdown.setText(months[currentMonthIndex], false)
         }
 
-        // Handle spinner changes
-        monthSpinner.onItemSelectedListener =
-            object : android.widget.AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(
-                    parent: android.widget.AdapterView<*>,
-                    view: View?,
-                    position: Int,
-                    id: Long
-                ) {
-                    selectedMonth = months[position]
-                    barChart.highlightMonth(position)
-                    loadExpenses()
-                }
-
-                override fun onNothingSelected(parent: android.widget.AdapterView<*>) {
-                    // Do nothing
-                }
-            }
+        // Handle dropdown selection changes
+        monthDropdown.setOnItemClickListener { _, _, position, _ ->
+            selectedMonth = months[position]
+            barChart.highlightMonth(position)
+            loadExpenses()
+        }
 
         // RecyclerView setup
         expensesAdapter = ExpensesAdapter(emptyList()) { clickedItem ->
@@ -120,16 +109,16 @@ class MyWallet : AppCompatActivity() {
             loadExpenses()
         }
 
-        // Bar chart click listener
+        // Bar chart month click
         barChart.setOnMonthClickListener { monthIndex ->
             selectedMonth = months[monthIndex]
-            monthSpinner.setSelection(monthIndex) // update spinner selection
+            monthDropdown.setText(months[monthIndex], false)
             barChart.highlightMonth(monthIndex)
             loadExpenses()
         }
 
         findViewById<Button>(R.id.seeAnalysisButton).setOnClickListener {
-            // Future: Navigate to analysis screen
+            // TODO: Implement navigation to analysis screen
         }
 
         findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.addExpenseFab)

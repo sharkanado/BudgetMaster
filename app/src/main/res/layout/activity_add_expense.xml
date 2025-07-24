@@ -11,7 +11,6 @@
         android:layout_height="match_parent"
         android:layout_margin="16dp">
 
-        <!-- Title -->
         <TextView
             android:id="@+id/addExpenseTitle"
             android:layout_width="wrap_content"
@@ -24,7 +23,6 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
-        <!-- Toggle Expense/Income -->
         <com.google.android.material.button.MaterialButtonToggleGroup
             android:id="@+id/transactionTypeToggle"
             android:layout_width="wrap_content"
@@ -59,7 +57,6 @@
                 app:strokeWidth="2dp" />
         </com.google.android.material.button.MaterialButtonToggleGroup>
 
-        <!-- Description -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/descriptionInputLayout"
             android:layout_width="0dp"
@@ -88,7 +85,6 @@
                 android:textColor="@color/white" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Category Dropdown -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/categoryDropdownLayout"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
@@ -116,7 +112,6 @@
                 android:fontFamily="@font/manrope_regular" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Amount -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/amountInputLayout"
             android:layout_width="0dp"
@@ -145,7 +140,6 @@
                 android:textColor="@color/white" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Date Input with Calendar Icon -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/dateInputLayout"
             android:layout_width="0dp"
@@ -176,7 +170,6 @@
                 android:fontFamily="@font/manrope_regular" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Save Button -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/saveTransactionBtn"
             android:layout_width="0dp"
