@@ -118,7 +118,7 @@ class MyWallet : AppCompatActivity() {
         }
 
         findViewById<Button>(R.id.seeAnalysisButton).setOnClickListener {
-            // TODO: Implement navigation to analysis screen
+            startActivity(Intent(this, ExpenseAnalysis::class.java))
         }
 
         findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.addExpenseFab)

@@ -40,6 +40,7 @@ class ExpensesAdapter(
 
     override fun getItemCount(): Int = items.size
 
+
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         when (val item = items[position]) {
             is ExpenseListItem.Header -> (holder as HeaderViewHolder).bind(item)

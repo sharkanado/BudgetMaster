@@ -1,0 +1,223 @@
+package com.example.budgetmaster.ui.activities
+
+import ExpenseListItem
+import android.os.Bundle
+import android.view.View
+import android.widget.ArrayAdapter
+import android.widget.AutoCompleteTextView
+import android.widget.TextView
+import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.example.budgetmaster.R
+import com.example.budgetmaster.ui.components.CustomPieChartView
+import com.example.budgetmaster.ui.components.ExpensesAdapter
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
+class ExpenseAnalysis : AppCompatActivity() {
+
+    private val db = FirebaseFirestore.getInstance()
+    private val auth = FirebaseAuth.getInstance()
+
+    private lateinit var yearSpinner: AutoCompleteTextView
+    private lateinit var monthSpinner: AutoCompleteTextView
+    private lateinit var categorySpinner: AutoCompleteTextView
+    private lateinit var typeSpinner: AutoCompleteTextView
+    private lateinit var pieChart: CustomPieChartView
+    private lateinit var totalSpentText: TextView
+    private lateinit var recyclerView: RecyclerView
+    private lateinit var noDataText: TextView
+
+    private lateinit var expensesAdapter: ExpensesAdapter
+
+    private var selectedYear = LocalDate.now().year
+    private var selectedMonth =
+        LocalDate.now().month.name.lowercase().replaceFirstChar { it.uppercase() }
+    private var selectedCategory: String? = null
+    private var selectedType: String = "Expense" // Default
+
+    private val months = listOf(
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+    )
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContentView(R.layout.activity_expense_analysis)
+
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+            insets
+        }
+
+        // Init views
+        yearSpinner = findViewById(R.id.yearSpinner)
+        monthSpinner = findViewById(R.id.monthSpinner)
+        categorySpinner = findViewById(R.id.categorySpinner)
+        typeSpinner = findViewById(R.id.typeSpinner)
+        pieChart = findViewById(R.id.pieChart)
+        totalSpentText = findViewById(R.id.totalSpentText)
+        recyclerView = findViewById(R.id.expensesRecyclerView)
+        noDataText = findViewById(R.id.noDataText)
+
+        setupYearSpinner()
+        setupMonthSpinner()
+        setupCategorySpinner()
+        setupTypeSpinner()
+
+        recyclerView.layoutManager = LinearLayoutManager(this)
+        expensesAdapter = ExpensesAdapter(emptyList())
+        recyclerView.adapter = expensesAdapter
+
+        loadMonthData()
+    }
+
+    private fun setupYearSpinner() {
+        val currentYear = LocalDate.now().year
+        val years = (currentYear - 5..currentYear + 5).map { it.toString() }
+
+        val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, years)
+        yearSpinner.setAdapter(adapter)
+        yearSpinner.setText(selectedYear.toString(), false)
+
+        yearSpinner.setOnItemClickListener { _, _, position, _ ->
+            selectedYear = years[position].toInt()
+            loadMonthData()
+        }
+    }
+
+    private fun setupMonthSpinner() {
+        val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, months)
+        monthSpinner.setAdapter(adapter)
+
+        val currentMonthIndex = months.indexOf(selectedMonth)
+        if (currentMonthIndex != -1) {
+            monthSpinner.setText(months[currentMonthIndex], false)
+        }
+
+        monthSpinner.setOnItemClickListener { _, _, position, _ ->
+            selectedMonth = months[position]
+            loadMonthData()
+        }
+    }
+
+    private fun setupCategorySpinner() {
+        val categories = listOf(
+            "All", "Food", "Transport", "Entertainment", "Bills",
+            "Health", "Shopping", "Savings", "Investment", "Salary", "Gift", "Other"
+        )
+
+        val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, categories)
+        categorySpinner.setAdapter(adapter)
+        categorySpinner.setText("All", false)
+
+        categorySpinner.setOnItemClickListener { _, _, position, _ ->
+            selectedCategory = if (position == 0) null else categories[position]
+            loadMonthData()
+        }
+    }
+
+    private fun setupTypeSpinner() {
+        val types = listOf("Expense", "Income")
+        val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, types)
+        typeSpinner.setAdapter(adapter)
+        typeSpinner.setText(selectedType, false)
+
+        typeSpinner.setOnItemClickListener { _, _, position, _ ->
+            selectedType = types[position]
+            loadMonthData()
+        }
+    }
+
+    private fun loadMonthData() {
+        val uid = auth.currentUser?.uid ?: return
+
+        db.collection("users")
+            .document(uid)
+            .collection("expenses")
+            .document(selectedYear.toString())
+            .collection(selectedMonth)
+            .get()
+            .addOnSuccessListener { result ->
+                if (result.isEmpty) {
+                    recyclerView.visibility = View.GONE
+                    noDataText.visibility = View.VISIBLE
+                    pieChart.setData(emptyList())
+                    totalSpentText.text = "Total: $0.00"
+                    return@addOnSuccessListener
+                }
+
+                // All entries for month/year (for chart + total)
+                val allEntries = result.documents.mapNotNull { doc ->
+                    val category = doc.getString("category") ?: return@mapNotNull null
+                    val amount = doc.getDouble("amount") ?: 0.0
+                    val type = doc.getString("type") ?: "expense"
+                    val description = doc.getString("description") ?: ""
+                    val dateStr = doc.getString("date") ?: ""
+
+                    if (type != selectedType.lowercase()) return@mapNotNull null
+
+                    ExpenseListItem.Item(
+                        R.drawable.ic_home_white_24dp,
+                        description,
+                        category,
+                        "%.2f".format(if (type == "expense") -amount else amount),
+                        dateStr,
+                        type,
+                        doc.id
+                    )
+                }
+
+                // Chart and total ALWAYS use allEntries (no category filter)
+                val total = allEntries.sumOf { it.amount.replace(",", ".").toDoubleOrNull() ?: 0.0 }
+                totalSpentText.text = "Total: ${"%.2f".format(total)}"
+
+                val categoryTotals = allEntries.groupBy { it.budget }
+                    .map { (cat, items) ->
+                        CustomPieChartView.PieEntry(
+                            items.sumOf { it.amount.replace(",", ".").toDoubleOrNull() ?: 0.0 },
+                            cat
+                        )
+                    }
+
+                pieChart.setData(categoryTotals)
+
+                // List (RecyclerView) is FILTERED by category
+                val listEntries = if (selectedCategory == null) allEntries
+                else allEntries.filter { it.budget == selectedCategory }
+
+                // Group by date for headers
+                val grouped = listEntries.groupBy { it.date }
+                    .toSortedMap(compareByDescending { LocalDate.parse(it) })
+
+                val listItems = mutableListOf<ExpenseListItem>()
+                val formatted = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
+
+                for ((date, items) in grouped) {
+                    val totalForDay =
+                        items.sumOf { it.amount.replace(",", ".").toDoubleOrNull() ?: 0.0 }
+                    listItems.add(
+                        ExpenseListItem.Header(
+                            LocalDate.parse(date).format(formatted),
+                            "%.2f".format(totalForDay),
+                            totalForDay >= 0
+                        )
+                    )
+                    listItems.addAll(items)
+                }
+
+                expensesAdapter.updateItems(listItems)
+                recyclerView.visibility = View.VISIBLE
+                noDataText.visibility = View.GONE
+            }
+    }
+}
