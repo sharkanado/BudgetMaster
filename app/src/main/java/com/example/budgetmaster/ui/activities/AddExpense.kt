@@ -158,11 +158,12 @@ class AddExpense : AppCompatActivity() {
         val description = descriptionInput.text.toString()
         val dateStr = dateInput.text.toString()
 
-        if (amount == null || dateStr.isEmpty() || category.isEmpty()) {
+        if (amount == null || amount == 0.0 || dateStr.isEmpty() || category.isEmpty()) {
             Toast.makeText(context, "Please fill in all fields correctly", Toast.LENGTH_SHORT)
                 .show()
             return
         }
+
 
         val transactionType = if (btnExpense.isChecked) "expense" else "income"
         val date = LocalDate.parse(dateStr)

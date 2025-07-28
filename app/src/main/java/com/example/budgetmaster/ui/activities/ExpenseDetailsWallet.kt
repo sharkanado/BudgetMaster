@@ -17,6 +17,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.example.budgetmaster.R
+import com.google.android.material.button.MaterialButton
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import java.text.SimpleDateFormat
@@ -27,6 +28,7 @@ class ExpenseDetailsWallet : AppCompatActivity() {
 
     private var isEditMode = false
     private lateinit var editButton: ImageButton
+    private lateinit var deleteButton: MaterialButton
 
     // view mode
     private lateinit var categoryText: TextView
@@ -79,10 +81,12 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         setupViews()
         populateData()
         setupEditToggle()
+        setupDeleteButton()
     }
 
     private fun setupViews() {
         editButton = findViewById(R.id.editButton)
+        deleteButton = findViewById(R.id.deleteButton)
 
         // view mode
         categoryText = findViewById(R.id.expenseCategory)
@@ -136,7 +140,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
 
                 // removes leading zeros
                 sanitized = sanitized.replaceFirst(Regex("^0+(?!\\.)"), "0")
-
 
                 current = sanitized
                 amountEdit.setText(sanitized)
@@ -225,6 +228,28 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         }
     }
 
+    private fun setupDeleteButton() {
+        deleteButton.setOnClickListener {
+            val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return@setOnClickListener
+            FirebaseFirestore.getInstance()
+                .collection("users")
+                .document(uid)
+                .collection("expenses")
+                .document(selectedYear.toString())
+                .collection(selectedMonth)
+                .document(expenseItem.id)
+                .delete()
+                .addOnSuccessListener {
+                    Toast.makeText(this, "Successfully removed!", Toast.LENGTH_SHORT).show()
+                    finish()
+                }
+                .addOnFailureListener { e ->
+                    Toast.makeText(this, "Failed to delete: ${e.message}", Toast.LENGTH_SHORT)
+                        .show()
+                }
+        }
+    }
+
     private fun toggleEditMode(enable: Boolean) {
         isEditMode = enable
 
@@ -263,6 +288,11 @@ class ExpenseDetailsWallet : AppCompatActivity() {
 
         val normalizedInput = amountEdit.text.toString().replace(",", ".").replace("-", "")
         val newAmount = normalizedInput.toDoubleOrNull() ?: 0.0
+
+        if (newAmount == 0.0) {
+            Toast.makeText(this, "Amount cannot be 0", Toast.LENGTH_SHORT).show()
+            return
+        }
 
         val newDescription = descriptionEdit.text.toString()
         val newDate = dateEdit.text.toString()

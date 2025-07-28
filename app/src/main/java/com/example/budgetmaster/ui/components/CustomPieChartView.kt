@@ -84,6 +84,7 @@ class CustomPieChartView @JvmOverloads constructor(
 
         var startAngle = -90f
 
+        // First pass: draw slices
         pieData.forEachIndexed { index, entry ->
             val sweepAngle = ((entry.value / total) * 360).toFloat()
             slicePaint.color = colors[index % colors.size]
@@ -100,15 +101,6 @@ class CustomPieChartView @JvmOverloads constructor(
                 startAngle, sweepAngle, true, slicePaint
             )
 
-            // Outline if highlighted
-            if (isHighlighted) {
-                canvas.drawArc(
-                    cx - radius, cy - radius,
-                    cx + radius, cy + radius,
-                    startAngle, sweepAngle, true, outlinePaint
-                )
-            }
-
             // Draw percentage text
             val midAngle = startAngle + sweepAngle / 2
             val labelRadius = radius * 0.6f
@@ -118,6 +110,25 @@ class CustomPieChartView @JvmOverloads constructor(
             val percentage = (entry.value / total * 100).toInt()
             if (percentage > 3) {
                 canvas.drawText("$percentage%", labelX, labelY, textPaint)
+            }
+
+            startAngle += sweepAngle
+        }
+
+        // Second pass: draw outlines on top (only highlighted slices)
+        startAngle = -90f
+        pieData.forEach { entry ->
+            val sweepAngle = ((entry.value / total) * 360).toFloat()
+
+            if (highlightedCategory != null &&
+                entry.label.equals(highlightedCategory, ignoreCase = true)
+            ) {
+                val radius = baseRadius * 1.05f
+                canvas.drawArc(
+                    cx - radius, cy - radius,
+                    cx + radius, cy + radius,
+                    startAngle, sweepAngle, true, outlinePaint
+                )
             }
 
             startAngle += sweepAngle
@@ -136,18 +147,16 @@ class CustomPieChartView @JvmOverloads constructor(
             val radius = min(width, height) * 0.8f / 2
             if (distance > radius) return false // Outside pie
 
-            // Compute angle from center (0° at right, CCW)
+            // Compute angle
             var angle = Math.toDegrees(Math.atan2(dy.toDouble(), dx.toDouble()))
             if (angle < 0) angle += 360.0
-            // Adjust to match startAngle = -90 (top)
             angle = (angle + 90) % 360
 
-            // Find slice by sweeping total angle
+            // Find slice
             var currentStart = 0f
             for (i in pieData.indices) {
                 val sweep = ((pieData[i].value / total) * 360).toFloat()
                 val end = currentStart + sweep
-
                 if (angle >= currentStart && angle < end) {
                     listener?.onSliceClick(pieData[i].label)
                     return true

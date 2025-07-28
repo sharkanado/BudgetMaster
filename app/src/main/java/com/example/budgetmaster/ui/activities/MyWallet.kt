@@ -47,7 +47,6 @@ class MyWallet : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_my_wallet)
 
-        // Handle window insets
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
@@ -60,28 +59,22 @@ class MyWallet : AppCompatActivity() {
         barChart = findViewById(R.id.barChart)
         monthDropdown = findViewById(R.id.monthSpinner)
 
-        // --- Setup month dropdown ---
-        val monthAdapter = ArrayAdapter(
-            this,
-            android.R.layout.simple_list_item_1,
-            months
-        )
+        // Month dropdown setup
+        val monthAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, months)
         monthDropdown.setAdapter(monthAdapter)
 
-        // Preselect current month
         val currentMonthIndex = months.indexOf(selectedMonth)
         if (currentMonthIndex != -1) {
             monthDropdown.setText(months[currentMonthIndex], false)
         }
 
-        // Handle dropdown selection changes
         monthDropdown.setOnItemClickListener { _, _, position, _ ->
             selectedMonth = months[position]
             barChart.highlightMonth(position)
             loadExpenses()
         }
 
-        // RecyclerView setup
+        // RecyclerView setup with click → open ExpenseDetailsWallet
         expensesAdapter = ExpensesAdapter(emptyList()) { clickedItem ->
             val intent = Intent(this, ExpenseDetailsWallet::class.java)
             intent.putExtra("selectedYear", selectedYear)
@@ -117,10 +110,15 @@ class MyWallet : AppCompatActivity() {
             loadExpenses()
         }
 
+        // Pass month/year to ExpenseAnalysis
         findViewById<Button>(R.id.seeAnalysisButton).setOnClickListener {
-            startActivity(Intent(this, ExpenseAnalysis::class.java))
+            val intent = Intent(this, ExpenseAnalysis::class.java)
+            intent.putExtra("selectedYear", selectedYear)
+            intent.putExtra("selectedMonth", selectedMonth)
+            startActivity(intent)
         }
 
+        // Add expense FAB
         findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.addExpenseFab)
             .setOnClickListener {
                 startActivity(Intent(this, AddExpense::class.java))
@@ -138,17 +136,15 @@ class MyWallet : AppCompatActivity() {
         val recycler = findViewById<RecyclerView>(R.id.expensesRecyclerView)
         val noDataText = findViewById<TextView>(R.id.noDataText)
 
-        // Initialize monthly totals for the chart
         val monthlyIncome = MutableList(12) { 0f }
         val monthlyExpenses = MutableList(12) { 0f }
 
-        // Reference to yearly node
         val yearRef = db.collection("users")
             .document(uid)
             .collection("expenses")
             .document(selectedYear.toString())
 
-        // 1) Load yearly data for chart
+        // Load yearly data for chart
         months.forEachIndexed { index, monthName ->
             yearRef.collection(monthName)
                 .get()
@@ -163,10 +159,8 @@ class MyWallet : AppCompatActivity() {
                         }
                     }
 
-                    // Update chart after each month fetch
                     barChart.setData(monthlyIncome, monthlyExpenses)
 
-                    // Highlight currently selected month
                     val currentIndex = months.indexOf(selectedMonth)
                     if (currentIndex != -1) {
                         barChart.highlightMonth(currentIndex)
@@ -174,7 +168,7 @@ class MyWallet : AppCompatActivity() {
                 }
         }
 
-        // 2) Load selected month for RecyclerView list
+        // Load selected month for RecyclerView
         yearRef.collection(selectedMonth)
             .get()
             .addOnSuccessListener { result ->
