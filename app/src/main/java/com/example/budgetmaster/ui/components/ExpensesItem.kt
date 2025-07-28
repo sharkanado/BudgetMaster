@@ -12,10 +12,10 @@ sealed class ExpenseListItem {
     data class Item(
         val iconResId: Int,
         val name: String,
-        val budget: String,
+        val category: String,
         val amount: String,
         val date: String,
         val type: String,
-        val id: String
+        val id: String,
     ) : ExpenseListItem(), Parcelable
 }

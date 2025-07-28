@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.util.AttributeSet
+import android.view.MotionEvent
 import android.view.View
 import kotlin.math.cos
 import kotlin.math.min
@@ -16,6 +17,16 @@ class CustomPieChartView @JvmOverloads constructor(
 ) : View(context, attrs) {
 
     data class PieEntry(val value: Double, val label: String)
+
+    interface OnSliceClickListener {
+        fun onSliceClick(label: String)
+    }
+
+    private var listener: OnSliceClickListener? = null
+
+    fun setOnSliceClickListener(listener: OnSliceClickListener) {
+        this.listener = listener
+    }
 
     private var pieData: List<PieEntry> = emptyList()
     private var total: Double = 0.0
@@ -51,7 +62,7 @@ class CustomPieChartView @JvmOverloads constructor(
     )
 
     /**
-     * Sets the data and highlights a category if provided
+     * Set pie data and optionally highlight a category
      */
     fun setData(data: List<PieEntry>, highlightCategory: String?) {
         pieData = data
@@ -77,7 +88,6 @@ class CustomPieChartView @JvmOverloads constructor(
             val sweepAngle = ((entry.value / total) * 360).toFloat()
             slicePaint.color = colors[index % colors.size]
 
-            // Highlight selected category by enlarging radius
             val isHighlighted = highlightedCategory != null &&
                     entry.label.equals(highlightedCategory, ignoreCase = true)
 
@@ -90,7 +100,7 @@ class CustomPieChartView @JvmOverloads constructor(
                 startAngle, sweepAngle, true, slicePaint
             )
 
-            // Outline for highlighted slice
+            // Outline if highlighted
             if (isHighlighted) {
                 canvas.drawArc(
                     cx - radius, cy - radius,
@@ -99,18 +109,52 @@ class CustomPieChartView @JvmOverloads constructor(
                 )
             }
 
-            // Draw percentage text in the middle of the slice
+            // Draw percentage text
             val midAngle = startAngle + sweepAngle / 2
             val labelRadius = radius * 0.6f
             val labelX = cx + labelRadius * cos(Math.toRadians(midAngle.toDouble())).toFloat()
             val labelY = cy + labelRadius * sin(Math.toRadians(midAngle.toDouble())).toFloat()
 
             val percentage = (entry.value / total * 100).toInt()
-            if (percentage > 3) { // only draw if >3% to avoid clutter
+            if (percentage > 3) {
                 canvas.drawText("$percentage%", labelX, labelY, textPaint)
             }
 
             startAngle += sweepAngle
         }
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (event.action == MotionEvent.ACTION_DOWN) {
+            val cx = width / 2f
+            val cy = height / 2f
+            val dx = event.x - cx
+            val dy = event.y - cy
+
+            // Distance from center
+            val distance = Math.sqrt((dx * dx + dy * dy).toDouble())
+            val radius = min(width, height) * 0.8f / 2
+            if (distance > radius) return false // Outside pie
+
+            // Compute angle from center (0° at right, CCW)
+            var angle = Math.toDegrees(Math.atan2(dy.toDouble(), dx.toDouble()))
+            if (angle < 0) angle += 360.0
+            // Adjust to match startAngle = -90 (top)
+            angle = (angle + 90) % 360
+
+            // Find slice by sweeping total angle
+            var currentStart = 0f
+            for (i in pieData.indices) {
+                val sweep = ((pieData[i].value / total) * 360).toFloat()
+                val end = currentStart + sweep
+
+                if (angle >= currentStart && angle < end) {
+                    listener?.onSliceClick(pieData[i].label)
+                    return true
+                }
+                currentStart = end
+            }
+        }
+        return true
     }
 }

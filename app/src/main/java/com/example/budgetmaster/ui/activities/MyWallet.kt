@@ -227,7 +227,7 @@ class MyWallet : AppCompatActivity() {
                                     displayAmount,
                                     date.toString(),
                                     type,
-                                    id
+                                    id,
                                 )
                             )
                         }

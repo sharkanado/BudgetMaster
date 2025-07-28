@@ -71,13 +71,13 @@ class ExpensesAdapter(
 
         private val icon = itemViewRoot.findViewById<ImageView>(R.id.iconImage)
         private val name = itemViewRoot.findViewById<TextView>(R.id.dailyExpensesName)
-        private val budget = itemViewRoot.findViewById<TextView>(R.id.dailyExpensesDate)
+        private val category = itemViewRoot.findViewById<TextView>(R.id.dailyExpensesCategory)
         private val amount = itemViewRoot.findViewById<TextView>(R.id.dailyExpensesSummary)
 
         fun bind(item: ExpenseListItem.Item) {
             icon.setImageResource(item.iconResId)
             name.text = item.name
-            budget.text = item.budget
+            category.text = item.category
             amount.text = item.amount
 
             val colorRes = if (item.type == "income") R.color.green_success else R.color.red_error

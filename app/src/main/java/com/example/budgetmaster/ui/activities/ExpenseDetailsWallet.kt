@@ -191,7 +191,7 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             if (expenseItem.type == "expense") "-$formattedAmount" else formattedAmount
 
         dateText.text = expenseItem.date
-        categoryText.text = expenseItem.budget
+        categoryText.text = expenseItem.category
         typeText.text = expenseItem.type.replaceFirstChar { it.uppercase() }
         descriptionText.text = expenseItem.name
 
@@ -201,7 +201,7 @@ class ExpenseDetailsWallet : AppCompatActivity() {
 
         // sets spinners
         val catPos =
-            (categorySpinner.adapter as ArrayAdapter<String>).getPosition(expenseItem.budget)
+            (categorySpinner.adapter as ArrayAdapter<String>).getPosition(expenseItem.category)
         if (catPos >= 0) categorySpinner.setSelection(catPos)
 
         val typePos =

@@ -121,7 +121,7 @@ class DashboardFragment : Fragment() {
                                 displayAmount,
                                 date.toString(),
                                 type,
-                                "" // No ID needed for dashboard
+                                "", // No ID needed for dashboard
                             )
                         )
                     }
