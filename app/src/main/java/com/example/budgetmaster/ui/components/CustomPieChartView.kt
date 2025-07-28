@@ -6,7 +6,9 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.util.AttributeSet
 import android.view.View
+import kotlin.math.cos
 import kotlin.math.min
+import kotlin.math.sin
 
 class CustomPieChartView @JvmOverloads constructor(
     context: Context,
@@ -17,29 +19,44 @@ class CustomPieChartView @JvmOverloads constructor(
 
     private var pieData: List<PieEntry> = emptyList()
     private var total: Double = 0.0
-    private var highlightCategory: String? = null
+    private var highlightedCategory: String? = null
 
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val slicePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+    }
 
-    // Category -> Color map
-    private val categoryColors = mapOf(
-        "Food" to Color.parseColor("#FFA726"),
-        "Transport" to Color.parseColor("#29B6F6"),
-        "Entertainment" to Color.parseColor("#AB47BC"),
-        "Bills" to Color.parseColor("#EF5350"),
-        "Health" to Color.parseColor("#66BB6A"),
-        "Shopping" to Color.parseColor("#FFCA28"),
-        "Savings" to Color.parseColor("#26C6DA"),
-        "Investment" to Color.parseColor("#8D6E63"),
-        "Salary" to Color.parseColor("#42A5F5"),
-        "Gift" to Color.parseColor("#EC407A"),
-        "Other" to Color.parseColor("#BDBDBD")
+    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textSize = 32f
+        textAlign = Paint.Align.CENTER
+    }
+
+    private val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 6f
+        color = Color.WHITE
+    }
+
+    private val colors = listOf(
+        Color.parseColor("#FFA726"),
+        Color.parseColor("#66BB6A"),
+        Color.parseColor("#29B6F6"),
+        Color.parseColor("#AB47BC"),
+        Color.parseColor("#EF5350"),
+        Color.parseColor("#FFCA28"),
+        Color.parseColor("#26C6DA"),
+        Color.parseColor("#8D6E63"),
+        Color.parseColor("#42A5F5"),
+        Color.parseColor("#7E57C2")
     )
 
-    fun setData(data: List<PieEntry>, highlight: String? = null) {
+    /**
+     * Sets the data and highlights a category if provided
+     */
+    fun setData(data: List<PieEntry>, highlightCategory: String?) {
         pieData = data
         total = data.sumOf { it.value }
-        highlightCategory = highlight
+        highlightedCategory = highlightCategory
         invalidate()
     }
 
@@ -49,33 +66,49 @@ class CustomPieChartView @JvmOverloads constructor(
 
         val width = width.toFloat()
         val height = height.toFloat()
-        val diameter = min(width, height) * 0.8f
-        val radius = diameter / 2
+        val baseDiameter = min(width, height) * 0.8f
+        val baseRadius = baseDiameter / 2
         val cx = width / 2
         val cy = height / 2
 
         var startAngle = -90f
 
-        pieData.forEach { entry ->
+        pieData.forEachIndexed { index, entry ->
             val sweepAngle = ((entry.value / total) * 360).toFloat()
+            slicePaint.color = colors[index % colors.size]
 
-            // Choose category color or fallback
-            paint.color = categoryColors[entry.label] ?: Color.GRAY
+            // Highlight selected category by enlarging radius
+            val isHighlighted = highlightedCategory != null &&
+                    entry.label.equals(highlightedCategory, ignoreCase = true)
 
-            val isHighlighted = entry.label == highlightCategory
-            val extraRadius = if (isHighlighted) radius * 0.05f else 0f
+            val radius = if (isHighlighted) baseRadius * 1.05f else baseRadius
 
             // Draw slice
             canvas.drawArc(
-                cx - radius - extraRadius,
-                cy - radius - extraRadius,
-                cx + radius + extraRadius,
-                cy + radius + extraRadius,
-                startAngle,
-                sweepAngle,
-                true,
-                paint
+                cx - radius, cy - radius,
+                cx + radius, cy + radius,
+                startAngle, sweepAngle, true, slicePaint
             )
+
+            // Outline for highlighted slice
+            if (isHighlighted) {
+                canvas.drawArc(
+                    cx - radius, cy - radius,
+                    cx + radius, cy + radius,
+                    startAngle, sweepAngle, true, outlinePaint
+                )
+            }
+
+            // Draw percentage text in the middle of the slice
+            val midAngle = startAngle + sweepAngle / 2
+            val labelRadius = radius * 0.6f
+            val labelX = cx + labelRadius * cos(Math.toRadians(midAngle.toDouble())).toFloat()
+            val labelY = cy + labelRadius * sin(Math.toRadians(midAngle.toDouble())).toFloat()
+
+            val percentage = (entry.value / total * 100).toInt()
+            if (percentage > 3) { // only draw if >3% to avoid clutter
+                canvas.drawText("$percentage%", labelX, labelY, textPaint)
+            }
 
             startAngle += sweepAngle
         }
