@@ -136,6 +136,7 @@
                 android:layout_height="wrap_content"
                 android:fontFamily="@font/manrope_regular"
                 android:inputType="numberDecimal"
+                android:digits="0123456789,."
                 android:paddingVertical="16dp"
                 android:textColor="@color/white" />
         </com.google.android.material.textfield.TextInputLayout>

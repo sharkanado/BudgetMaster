@@ -3,6 +3,8 @@ package com.example.budgetmaster.ui.activities
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.Toast
@@ -99,6 +101,41 @@ class AddExpense : AppCompatActivity() {
         val categoryAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, categories)
         categoryDropdown.setAdapter(categoryAdapter)
 
+        // Amount Input (comma/dot handling)
+        val amountInput = findViewById<TextInputEditText>(R.id.amountInput)
+        amountInput.addTextChangedListener(object : TextWatcher {
+            private var current = ""
+
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+
+            override fun afterTextChanged(s: Editable?) {
+                val raw = s?.toString() ?: return
+                if (raw == current) return
+
+                var sanitized = raw.replace(',', '.')
+
+                // Only digits + one dot
+                sanitized = sanitized.replace(Regex("[^0-9.]"), "")
+                val dotIndex = sanitized.indexOf('.')
+                if (dotIndex != -1) {
+                    sanitized = sanitized.substring(0, dotIndex + 1) +
+                            sanitized.substring(dotIndex + 1).replace(".", "")
+
+                    if (sanitized.length > dotIndex + 3) {
+                        sanitized = sanitized.substring(0, dotIndex + 3)
+                    }
+                }
+
+                // Remove leading zeros (except before dot)
+                sanitized = sanitized.replaceFirst(Regex("^0+(?!\\.)"), "0")
+
+                current = sanitized
+                amountInput.setText(sanitized)
+                amountInput.setSelection(sanitized.length)
+            }
+        })
+
         // Save Button
         findViewById<MaterialButton>(R.id.saveTransactionBtn).setOnClickListener {
             val userId = Firebase.auth.currentUser?.uid
@@ -115,7 +152,8 @@ class AddExpense : AppCompatActivity() {
         val dateInput = findViewById<TextInputEditText>(R.id.dateInput)
         val btnExpense = findViewById<MaterialButton>(R.id.btnExpense)
 
-        val amount = amountInput.text.toString().toDoubleOrNull()
+        val amountText = amountInput.text.toString().replace(",", ".")
+        val amount = amountText.toDoubleOrNull()
         val category = categoryDropdown.text.toString()
         val description = descriptionInput.text.toString()
         val dateStr = dateInput.text.toString()
