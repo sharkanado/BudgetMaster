@@ -68,8 +68,7 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                 intent.getParcelableExtra("expense_item", ExpenseListItem.Item::class.java)
             } else {
-                @Suppress("DEPRECATION")
-                intent.getParcelableExtra("expense_item")
+                @Suppress("DEPRECATION") intent.getParcelableExtra("expense_item")
             }
 
         if (item == null) {
@@ -104,15 +103,12 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         dateEdit = findViewById(R.id.expenseDateEdit)
 
         val categoryAdapter = ArrayAdapter(
-            this,
-            android.R.layout.simple_spinner_dropdown_item,
-            Categories.categoryList
+            this, android.R.layout.simple_spinner_dropdown_item, Categories.categoryList
         )
         categorySpinner.adapter = categoryAdapter
 
         val types = listOf("Expense", "Income")
-        val typeAdapter =
-            ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, types)
+        val typeAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, types)
         typeSpinner.adapter = typeAdapter
 
         // amount formatting
@@ -133,8 +129,9 @@ class ExpenseDetailsWallet : AppCompatActivity() {
                 sanitized = sanitized.replace(Regex("[^0-9.]"), "")
                 val dotIndex = sanitized.indexOf('.')
                 if (dotIndex != -1) {
-                    sanitized = sanitized.substring(0, dotIndex + 1) +
-                            sanitized.substring(dotIndex + 1).replace(".", "")
+                    sanitized =
+                        sanitized.substring(0, dotIndex + 1) + sanitized.substring(dotIndex + 1)
+                            .replace(".", "")
 
                     if (sanitized.length > dotIndex + 3) {
                         sanitized = sanitized.substring(0, dotIndex + 3)
@@ -170,14 +167,10 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             val day = calendar.get(Calendar.DAY_OF_MONTH)
 
             val datePicker = DatePickerDialog(
-                this,
-                { _, y, m, d ->
+                this, { _, y, m, d ->
                     val pickedDate = String.format("%04d-%02d-%02d", y, m + 1, d)
                     dateEdit.setText(pickedDate)
-                },
-                year,
-                month,
-                day
+                }, year, month, day
             )
             datePicker.show()
         }
@@ -211,8 +204,7 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         if (catPos >= 0) categorySpinner.setSelection(catPos)
 
         val typePos =
-            (typeSpinner.adapter as ArrayAdapter<String>)
-                .getPosition(expenseItem.type.replaceFirstChar { it.uppercase() })
+            (typeSpinner.adapter as ArrayAdapter<String>).getPosition(expenseItem.type.replaceFirstChar { it.uppercase() })
         if (typePos >= 0) typeSpinner.setSelection(typePos)
     }
 
@@ -237,20 +229,12 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             val db = FirebaseFirestore.getInstance()
 
             // Step 1: Delete from main expenses
-            db.collection("users")
-                .document(uid)
-                .collection("expenses")
-                .document(selectedYear.toString())
-                .collection(selectedMonth)
-                .document(expenseItem.id)
-                .delete()
-                .addOnSuccessListener {
+            db.collection("users").document(uid).collection("expenses")
+                .document(selectedYear.toString()).collection(selectedMonth)
+                .document(expenseItem.id).delete().addOnSuccessListener {
                     // Step 2: Delete matching entry from latest by expenseId
-                    db.collection("users")
-                        .document(uid)
-                        .collection("latest")
-                        .whereEqualTo("expenseId", expenseItem.id)
-                        .get()
+                    db.collection("users").document(uid).collection("latest")
+                        .whereEqualTo("expenseId", expenseItem.id).get()
                         .addOnSuccessListener { snapshot ->
                             val batch = db.batch()
                             for (doc in snapshot.documents) {
@@ -261,8 +245,7 @@ class ExpenseDetailsWallet : AppCompatActivity() {
                                     .show()
                                 finish()
                             }
-                        }
-                        .addOnFailureListener { e ->
+                        }.addOnFailureListener { e ->
                             Toast.makeText(
                                 this,
                                 "Deleted from expenses, but failed to clean latest: ${e.message}",
@@ -270,8 +253,7 @@ class ExpenseDetailsWallet : AppCompatActivity() {
                             ).show()
                             finish()
                         }
-                }
-                .addOnFailureListener { e ->
+                }.addOnFailureListener { e ->
                     Toast.makeText(this, "Failed to delete: ${e.message}", Toast.LENGTH_SHORT)
                         .show()
                 }
@@ -326,6 +308,7 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         val newDescription = descriptionEdit.text.toString()
         val newDate = dateEdit.text.toString()
 
+        // Update all relevant text views
         categoryText.text = newCategory
         typeText.text = newType.replaceFirstChar { it.uppercase() }
         amountText.text =
@@ -333,9 +316,13 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         descriptionText.text = newDescription
         dateText.text = newDate
 
+        // **FIX: also update the title at the top**
+        findViewById<TextView>(R.id.expenseTitle).text = newDescription
+
         val titleText = if (newType == "income") "Income Details" else "Expense Details"
         findViewById<TextView>(R.id.topBarTitle).text = titleText
 
+        // Data map for Firestore
         val updatedData = mapOf(
             "category" to newCategory,
             "amount" to newAmount,
@@ -346,6 +333,8 @@ class ExpenseDetailsWallet : AppCompatActivity() {
 
         val db = FirebaseFirestore.getInstance()
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+
+        // Update main expense
         db.collection("users")
             .document(uid)
             .collection("expenses")
@@ -354,11 +343,35 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             .document(expenseItem.id)
             .update(updatedData)
             .addOnSuccessListener {
-                Toast.makeText(this, "Changes saved!", Toast.LENGTH_SHORT).show()
+                // Update in latest if exists
+                db.collection("users")
+                    .document(uid)
+                    .collection("latest")
+                    .whereEqualTo("expenseId", expenseItem.id)
+                    .get()
+                    .addOnSuccessListener { snapshot ->
+                        if (!snapshot.isEmpty) {
+                            val batch = db.batch()
+                            for (doc in snapshot.documents) {
+                                batch.update(doc.reference, updatedData)
+                            }
+                            batch.commit().addOnSuccessListener {
+                                Toast.makeText(this, "Changes saved!", Toast.LENGTH_SHORT).show()
+                            }
+                        } else {
+                            Toast.makeText(
+                                this,
+                                "Changes saved (not in latest list).",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
             }
             .addOnFailureListener { e ->
                 Toast.makeText(this, "Failed to save changes: ${e.message}", Toast.LENGTH_SHORT)
                     .show()
             }
     }
+
+
 }
