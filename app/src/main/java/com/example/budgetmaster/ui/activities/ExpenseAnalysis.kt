@@ -36,6 +36,7 @@ class ExpenseAnalysis : AppCompatActivity() {
     private lateinit var totalSpentText: TextView
     private lateinit var recyclerView: RecyclerView
     private lateinit var noDataText: TextView
+    private lateinit var loadingProgressBar: View
 
     private lateinit var expensesAdapter: ExpensesAdapter
 
@@ -45,7 +46,6 @@ class ExpenseAnalysis : AppCompatActivity() {
     private var selectedCategory: String? = null
     private var selectedType = "Expense"
 
-    // Instead of storing only Item, we store Pair<Item, Double> for numeric calculations
     private var cachedEntries: List<Pair<ExpenseListItem.Item, Double>> = emptyList()
     private var cachedPieData: List<CustomPieChartView.PieEntry> = emptyList()
 
@@ -65,7 +65,6 @@ class ExpenseAnalysis : AppCompatActivity() {
             insets
         }
 
-        // --- Prefill year/month from MyWallet ---
         intent.getIntExtra("selectedYear", -1).let {
             if (it != -1) selectedYear = it
         }
@@ -73,7 +72,7 @@ class ExpenseAnalysis : AppCompatActivity() {
             selectedMonth = it
         }
 
-        // Init views
+        // Initialize views
         typeSpinner = findViewById(R.id.typeSpinner)
         yearSpinner = findViewById(R.id.yearSpinner)
         monthSpinner = findViewById(R.id.monthSpinner)
@@ -82,6 +81,7 @@ class ExpenseAnalysis : AppCompatActivity() {
         totalSpentText = findViewById(R.id.totalSpentText)
         recyclerView = findViewById(R.id.expensesRecyclerView)
         noDataText = findViewById(R.id.noDataText)
+        loadingProgressBar = findViewById(R.id.loadingProgressBar)
 
         setupTypeSpinner()
         setupYearSpinner()
@@ -90,7 +90,6 @@ class ExpenseAnalysis : AppCompatActivity() {
 
         recyclerView.layoutManager = LinearLayoutManager(this)
 
-        // Adapter with click → open ExpenseDetailsWallet
         expensesAdapter = ExpensesAdapter(emptyList()) { clickedItem ->
             val intent = Intent(this, ExpenseDetailsWallet::class.java)
             intent.putExtra("selectedYear", selectedYear)
@@ -100,7 +99,6 @@ class ExpenseAnalysis : AppCompatActivity() {
         }
         recyclerView.adapter = expensesAdapter
 
-        // Pie chart slice click toggles category filter
         pieChart.setOnSliceClickListener(object : CustomPieChartView.OnSliceClickListener {
             override fun onSliceClick(label: String) {
                 if (selectedCategory == label) {
@@ -120,7 +118,7 @@ class ExpenseAnalysis : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        loadMonthData() // Refresh when returning from details
+        loadMonthData()
     }
 
     private fun setupTypeSpinner() {
@@ -166,7 +164,6 @@ class ExpenseAnalysis : AppCompatActivity() {
 
     private fun setupCategorySpinner() {
         val categories = listOf("All") + Categories.categoryList
-
         val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, categories)
         categorySpinner.setAdapter(adapter)
         categorySpinner.setText("All", false)
@@ -181,6 +178,11 @@ class ExpenseAnalysis : AppCompatActivity() {
     private fun loadMonthData() {
         val uid = auth.currentUser?.uid ?: return
 
+        // Show spinner
+        loadingProgressBar.visibility = View.VISIBLE
+        recyclerView.visibility = View.GONE
+        noDataText.visibility = View.GONE
+
         db.collection("users")
             .document(uid)
             .collection("expenses")
@@ -188,6 +190,8 @@ class ExpenseAnalysis : AppCompatActivity() {
             .collection(selectedMonth)
             .get()
             .addOnSuccessListener { result ->
+                loadingProgressBar.visibility = View.GONE
+
                 if (result.isEmpty) {
                     recyclerView.visibility = View.GONE
                     noDataText.visibility = View.VISIBLE
@@ -196,7 +200,6 @@ class ExpenseAnalysis : AppCompatActivity() {
                     return@addOnSuccessListener
                 }
 
-                // Prepare pie chart data
                 val allCategoryTotals = result.documents
                     .filter {
                         it.getString("type")?.equals(selectedType, ignoreCase = true) == true
@@ -213,7 +216,6 @@ class ExpenseAnalysis : AppCompatActivity() {
                 cachedPieData = allCategoryTotals
                 pieChart.setData(cachedPieData, selectedCategory)
 
-                // Cache entries with numeric amount stored separately
                 cachedEntries = result.documents.mapNotNull { doc ->
                     val category = doc.getString("category") ?: "Other"
                     val amount = doc.getDouble("amount") ?: 0.0
@@ -240,6 +242,11 @@ class ExpenseAnalysis : AppCompatActivity() {
 
                 updateRecyclerView(selectedCategory)
             }
+            .addOnFailureListener {
+                loadingProgressBar.visibility = View.GONE
+                recyclerView.visibility = View.GONE
+                noDataText.visibility = View.VISIBLE
+            }
     }
 
     private fun updateRecyclerView(category: String?) {
@@ -249,7 +256,6 @@ class ExpenseAnalysis : AppCompatActivity() {
         val total = filteredPairs.sumOf { it.second }
         totalSpentText.text = "Total: ${"%.2f".format(total)}"
 
-        // Group by date using only ExpenseListItem.Item
         val grouped = filteredPairs.map { it.first }.groupBy { it.date }
             .toSortedMap(compareByDescending { LocalDate.parse(it) })
 
