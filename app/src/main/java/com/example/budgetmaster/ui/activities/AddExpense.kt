@@ -167,7 +167,6 @@ class AddExpense : AppCompatActivity() {
             return
         }
 
-
         val transactionType = if (btnExpense.isChecked) "expense" else "income"
         val date = LocalDate.parse(dateStr)
         val year = date.year.toString()
@@ -182,16 +181,21 @@ class AddExpense : AppCompatActivity() {
             "timestamp" to Timestamp.now()
         )
 
-        FirebaseFirestore.getInstance()
-            .collection("users")
+        val db = FirebaseFirestore.getInstance()
+        val expensesRef = db.collection("users")
             .document(uid)
             .collection("expenses")
             .document(year)
             .collection(month)
-            .add(expenseData)
-            .addOnSuccessListener {
+
+        expensesRef.add(expenseData)
+            .addOnSuccessListener { docRef ->
+                // Attach the ID for later deletion from `latest`
+                expenseData["expenseId"] = docRef.id
+
                 Toast.makeText(context, "Expense added successfully.", Toast.LENGTH_SHORT).show()
                 updateLatestExpenses(uid, expenseData)
+
                 startActivity(Intent(this, MyWallet::class.java))
                 finish()
             }
@@ -199,4 +203,5 @@ class AddExpense : AppCompatActivity() {
                 Toast.makeText(context, "Failed: ${e.message}", Toast.LENGTH_LONG).show()
             }
     }
+
 }

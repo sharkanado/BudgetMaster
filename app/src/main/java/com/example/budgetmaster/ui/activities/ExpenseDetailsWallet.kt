@@ -234,8 +234,10 @@ class ExpenseDetailsWallet : AppCompatActivity() {
     private fun setupDeleteButton() {
         deleteButton.setOnClickListener {
             val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return@setOnClickListener
-            FirebaseFirestore.getInstance()
-                .collection("users")
+            val db = FirebaseFirestore.getInstance()
+
+            // Step 1: Delete from main expenses
+            db.collection("users")
                 .document(uid)
                 .collection("expenses")
                 .document(selectedYear.toString())
@@ -243,8 +245,31 @@ class ExpenseDetailsWallet : AppCompatActivity() {
                 .document(expenseItem.id)
                 .delete()
                 .addOnSuccessListener {
-                    Toast.makeText(this, "Successfully removed!", Toast.LENGTH_SHORT).show()
-                    finish()
+                    // Step 2: Delete matching entry from latest by expenseId
+                    db.collection("users")
+                        .document(uid)
+                        .collection("latest")
+                        .whereEqualTo("expenseId", expenseItem.id)
+                        .get()
+                        .addOnSuccessListener { snapshot ->
+                            val batch = db.batch()
+                            for (doc in snapshot.documents) {
+                                batch.delete(doc.reference)
+                            }
+                            batch.commit().addOnSuccessListener {
+                                Toast.makeText(this, "Successfully removed!", Toast.LENGTH_SHORT)
+                                    .show()
+                                finish()
+                            }
+                        }
+                        .addOnFailureListener { e ->
+                            Toast.makeText(
+                                this,
+                                "Deleted from expenses, but failed to clean latest: ${e.message}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            finish()
+                        }
                 }
                 .addOnFailureListener { e ->
                     Toast.makeText(this, "Failed to delete: ${e.message}", Toast.LENGTH_SHORT)
@@ -252,6 +277,7 @@ class ExpenseDetailsWallet : AppCompatActivity() {
                 }
         }
     }
+
 
     private fun toggleEditMode(enable: Boolean) {
         isEditMode = enable
