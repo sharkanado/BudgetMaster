@@ -45,7 +45,8 @@ class ExpenseAnalysis : AppCompatActivity() {
     private var selectedCategory: String? = null
     private var selectedType = "Expense"
 
-    private var cachedEntries: List<ExpenseListItem.Item> = emptyList()
+    // Instead of storing only Item, we store Pair<Item, Double> for numeric calculations
+    private var cachedEntries: List<Pair<ExpenseListItem.Item, Double>> = emptyList()
     private var cachedPieData: List<CustomPieChartView.PieEntry> = emptyList()
 
     private val months = listOf(
@@ -166,12 +167,10 @@ class ExpenseAnalysis : AppCompatActivity() {
     private fun setupCategorySpinner() {
         val categories = listOf("All") + Categories.categoryList
 
-        // Set up adapter
         val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, categories)
         categorySpinner.setAdapter(adapter)
-        categorySpinner.setText("All", false) // Default selection
+        categorySpinner.setText("All", false)
 
-        // Handle selection
         categorySpinner.setOnItemClickListener { _, _, position, _ ->
             selectedCategory = if (position == 0) null else categories[position]
             pieChart.setData(cachedPieData, selectedCategory)
@@ -197,7 +196,7 @@ class ExpenseAnalysis : AppCompatActivity() {
                     return@addOnSuccessListener
                 }
 
-                // Prepare pie chart data and sort by value
+                // Prepare pie chart data
                 val allCategoryTotals = result.documents
                     .filter {
                         it.getString("type")?.equals(selectedType, ignoreCase = true) == true
@@ -214,7 +213,7 @@ class ExpenseAnalysis : AppCompatActivity() {
                 cachedPieData = allCategoryTotals
                 pieChart.setData(cachedPieData, selectedCategory)
 
-                // Cache entries for RecyclerView
+                // Cache entries with numeric amount stored separately
                 cachedEntries = result.documents.mapNotNull { doc ->
                     val category = doc.getString("category") ?: "Other"
                     val amount = doc.getDouble("amount") ?: 0.0
@@ -224,15 +223,19 @@ class ExpenseAnalysis : AppCompatActivity() {
 
                     if (!type.equals(selectedType, ignoreCase = true)) return@mapNotNull null
 
-                    ExpenseListItem.Item(
+                    val signedAmount = if (type == "expense") -amount else amount
+
+                    val item = ExpenseListItem.Item(
                         R.drawable.ic_home_white_24dp,
-                        description,   // name
-                        category,      // category
-                        "%.2f".format(if (type == "expense") -amount else amount),
+                        description,
+                        category,
+                        "%.2f".format(signedAmount),
                         dateStr,
                         type,
                         doc.id
                     )
+
+                    Pair(item, signedAmount)
                 }
 
                 updateRecyclerView(selectedCategory)
@@ -240,27 +243,21 @@ class ExpenseAnalysis : AppCompatActivity() {
     }
 
     private fun updateRecyclerView(category: String?) {
-        // Filter by category (if null = all)
-        val filtered =
-            if (category == null) cachedEntries else cachedEntries.filter { it.category == category }
+        val filteredPairs =
+            if (category == null) cachedEntries else cachedEntries.filter { it.first.category == category }
 
-        // Compute total for filtered items
-        val total = filtered.sumOf { it.amount.replace(",", ".").toDoubleOrNull() ?: 0.0 }
-
-        // Update label text based on filter
+        val total = filteredPairs.sumOf { it.second }
         totalSpentText.text = "Total: ${"%.2f".format(total)}"
 
-
-        // Group by date
-        val grouped = filtered.groupBy { it.date }
+        // Group by date using only ExpenseListItem.Item
+        val grouped = filteredPairs.map { it.first }.groupBy { it.date }
             .toSortedMap(compareByDescending { LocalDate.parse(it) })
 
         val listItems = mutableListOf<ExpenseListItem>()
         val formatted = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
 
         for ((date, items) in grouped) {
-            val totalForDay =
-                items.sumOf { it.amount.replace(",", ".").toDoubleOrNull() ?: 0.0 }
+            val totalForDay = filteredPairs.filter { it.first.date == date }.sumOf { it.second }
             listItems.add(
                 ExpenseListItem.Header(
                     LocalDate.parse(date).format(formatted),
@@ -275,5 +272,4 @@ class ExpenseAnalysis : AppCompatActivity() {
         recyclerView.visibility = if (listItems.isEmpty()) View.GONE else View.VISIBLE
         noDataText.visibility = if (listItems.isEmpty()) View.VISIBLE else View.GONE
     }
-
 }
