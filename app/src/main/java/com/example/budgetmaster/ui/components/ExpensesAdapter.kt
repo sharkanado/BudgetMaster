@@ -9,10 +9,11 @@ import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
+import com.example.budgetmaster.utils.Categories
 
 class ExpensesAdapter(
     private var items: List<ExpenseListItem>,
-    private val onItemClick: ((ExpenseListItem.Item) -> Unit)? = null // nullable
+    private val onItemClick: ((ExpenseListItem.Item) -> Unit)? = null
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     companion object {
@@ -40,7 +41,6 @@ class ExpensesAdapter(
 
     override fun getItemCount(): Int = items.size
 
-
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         when (val item = items[position]) {
             is ExpenseListItem.Header -> (holder as HeaderViewHolder).bind(item)
@@ -54,6 +54,7 @@ class ExpensesAdapter(
         notifyDataSetChanged()
     }
 
+    // Header ViewHolder
     class HeaderViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val dateText = itemView.findViewById<TextView>(R.id.dailyExpensesDate)
         private val totalText = itemView.findViewById<TextView>(R.id.dailyExpensesSummary)
@@ -64,30 +65,44 @@ class ExpensesAdapter(
         }
     }
 
+    // Item ViewHolder
     class ItemViewHolder(
         private val itemViewRoot: View,
         private val onItemClick: ((ExpenseListItem.Item) -> Unit)?
     ) : RecyclerView.ViewHolder(itemViewRoot) {
 
         private val icon = itemViewRoot.findViewById<ImageView>(R.id.iconImage)
-        private val name = itemViewRoot.findViewById<TextView>(R.id.dailyExpensesName)
-        private val category = itemViewRoot.findViewById<TextView>(R.id.dailyExpensesCategory)
-        private val amount = itemViewRoot.findViewById<TextView>(R.id.dailyExpensesSummary)
+        private val categoryText = itemViewRoot.findViewById<TextView>(R.id.dailyExpensesCategory)
+        private val nameText = itemViewRoot.findViewById<TextView>(R.id.dailyExpensesName)
+        private val amountText = itemViewRoot.findViewById<TextView>(R.id.dailyExpensesSummary)
+        private val iconContainer = itemViewRoot.findViewById<View>(R.id.iconContainer)
 
         fun bind(item: ExpenseListItem.Item) {
-            icon.setImageResource(item.iconResId)
-            name.text = item.name
-            category.text = item.category
-            amount.text = item.amount
+            // Set category text & name
+            categoryText.text = item.category
+            nameText.text = item.name
 
+            // Amount with color for income/expense
+            amountText.text = item.amount
             val colorRes = if (item.type == "income") R.color.green_success else R.color.red_error
-            amount.setTextColor(ContextCompat.getColor(itemViewRoot.context, colorRes))
+            amountText.setTextColor(ContextCompat.getColor(itemViewRoot.context, colorRes))
 
+            // Set round background with category color
+            val color = Categories.getColor(item.category)
+            val circleDrawable =
+                ContextCompat.getDrawable(itemViewRoot.context, R.drawable.bg_circle)
+            circleDrawable?.setTint(color)
+            iconContainer.background = circleDrawable
+
+            // Set category-specific icon
+            icon.setImageResource(Categories.getIcon(item.category))
+
+            // Click handler
             if (onItemClick != null) {
                 itemView.isClickable = true
                 itemView.isFocusable = true
                 itemView.setBackgroundResource(R.drawable.expense_ripple)
-                itemView.setOnClickListener { onItemClick?.invoke(item) }
+                itemView.setOnClickListener { onItemClick.invoke(item) }
             } else {
                 itemView.isClickable = false
                 itemView.isFocusable = false
@@ -95,6 +110,5 @@ class ExpensesAdapter(
                 itemView.setOnClickListener(null)
             }
         }
-
     }
 }

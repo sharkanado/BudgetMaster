@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
+import com.example.budgetmaster.utils.Categories
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
@@ -48,18 +49,6 @@ class CustomPieChartView @JvmOverloads constructor(
         color = Color.WHITE
     }
 
-    private val colors = listOf(
-        Color.parseColor("#FFA726"),
-        Color.parseColor("#66BB6A"),
-        Color.parseColor("#29B6F6"),
-        Color.parseColor("#AB47BC"),
-        Color.parseColor("#EF5350"),
-        Color.parseColor("#FFCA28"),
-        Color.parseColor("#26C6DA"),
-        Color.parseColor("#8D6E63"),
-        Color.parseColor("#42A5F5"),
-        Color.parseColor("#7E57C2")
-    )
 
     /**
      * Set pie data and optionally highlight a category
@@ -87,7 +76,9 @@ class CustomPieChartView @JvmOverloads constructor(
         // First pass: draw slices
         pieData.forEachIndexed { index, entry ->
             val sweepAngle = ((entry.value / total) * 360).toFloat()
-            slicePaint.color = colors[index % colors.size]
+
+            slicePaint.color = Categories.getColor(entry.label)
+
 
             val isHighlighted = highlightedCategory != null &&
                     entry.label.equals(highlightedCategory, ignoreCase = true)
