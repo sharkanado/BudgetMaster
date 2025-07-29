@@ -16,6 +16,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
 import com.example.budgetmaster.ui.components.CustomPieChartView
 import com.example.budgetmaster.ui.components.ExpensesAdapter
+import com.example.budgetmaster.utils.Categories
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import java.time.LocalDate
@@ -163,15 +164,14 @@ class ExpenseAnalysis : AppCompatActivity() {
     }
 
     private fun setupCategorySpinner() {
-        val categories = listOf(
-            "All", "Food", "Transport", "Entertainment", "Bills",
-            "Health", "Shopping", "Savings", "Investment", "Salary", "Gift", "Other"
-        )
+        val categories = listOf("All") + Categories.categoryList
 
+        // Set up adapter
         val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, categories)
         categorySpinner.setAdapter(adapter)
-        categorySpinner.setText("All", false)
+        categorySpinner.setText("All", false) // Default selection
 
+        // Handle selection
         categorySpinner.setOnItemClickListener { _, _, position, _ ->
             selectedCategory = if (position == 0) null else categories[position]
             pieChart.setData(cachedPieData, selectedCategory)

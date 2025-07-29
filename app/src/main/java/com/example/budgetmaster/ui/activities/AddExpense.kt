@@ -14,6 +14,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.example.budgetmaster.R
+import com.example.budgetmaster.utils.Categories
 import com.example.budgetmaster.utils.updateLatestExpenses
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.button.MaterialButtonToggleGroup
@@ -94,12 +95,14 @@ class AddExpense : AppCompatActivity() {
 
         // Category Dropdown
         val categoryDropdown = findViewById<AutoCompleteTextView>(R.id.categorySpinner)
-        val categories = listOf(
-            "Food", "Transport", "Entertainment", "Bills",
-            "Health", "Shopping", "Savings", "Investment", "Salary", "Gift", "Other"
+
+        val categoryAdapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_list_item_1,
+            Categories.categoryList
         )
-        val categoryAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, categories)
         categoryDropdown.setAdapter(categoryAdapter)
+
 
         // Amount Input (comma/dot handling)
         val amountInput = findViewById<TextInputEditText>(R.id.amountInput)

@@ -17,6 +17,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.example.budgetmaster.R
+import com.example.budgetmaster.utils.Categories
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -102,9 +103,11 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         typeSpinner = findViewById(R.id.expenseTypeSpinner)
         dateEdit = findViewById(R.id.expenseDateEdit)
 
-        val categories = listOf("Shopping", "Food", "Bills", "Travel", "Misc")
-        val categoryAdapter =
-            ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, categories)
+        val categoryAdapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            Categories.categoryList
+        )
         categorySpinner.adapter = categoryAdapter
 
         val types = listOf("Expense", "Income")
