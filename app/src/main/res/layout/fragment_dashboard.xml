@@ -193,17 +193,34 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 
+        <TextView
+            android:id="@+id/noDataText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:padding="24dp"
+            android:gravity="center"
+            android:visibility="gone"
+            android:text="No data to show."
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/headerRow" />
+
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/latestExpensesRecycler"
             android:layout_width="0dp"
             android:layout_height="0dp"
+            android:layout_marginBottom="105dp"
             android:clipToPadding="false"
             android:paddingTop="4dp"
-            android:layout_marginBottom="105dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.0"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/headerRow" />
+            app:layout_constraintTop_toBottomOf="@id/headerRow"
+            app:layout_constraintVertical_bias="0.0" />
 
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/addExpenseButton"

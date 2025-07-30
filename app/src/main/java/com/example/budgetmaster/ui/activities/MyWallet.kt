@@ -4,9 +4,10 @@ import ExpenseListItem
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import android.widget.ArrayAdapter
+import android.widget.AutoCompleteTextView
 import android.widget.Button
 import android.widget.ImageButton
-import android.widget.ImageView
 import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -15,6 +16,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
+import com.example.budgetmaster.ui.components.CustomBarChartView
 import com.example.budgetmaster.ui.components.ExpensesAdapter
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -32,6 +34,14 @@ class MyWallet : AppCompatActivity() {
     private var selectedMonth =
         LocalDate.now().month.name.lowercase().replaceFirstChar { it.uppercase() }
 
+    private lateinit var barChart: CustomBarChartView
+    private lateinit var monthDropdown: AutoCompleteTextView
+
+    private val months = listOf(
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+    )
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -46,9 +56,25 @@ class MyWallet : AppCompatActivity() {
         val yearButton = findViewById<Button>(R.id.yearButton)
         val prevYearBtn = findViewById<ImageButton>(R.id.prevYearBtn)
         val nextYearBtn = findViewById<ImageButton>(R.id.nextYearBtn)
-        val monthLabel = findViewById<TextView>(R.id.monthLabel)
+        barChart = findViewById(R.id.barChart)
+        monthDropdown = findViewById(R.id.monthSpinner)
 
-        // Adapter with item click -> ripple enabled
+        // Month dropdown setup
+        val monthAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, months)
+        monthDropdown.setAdapter(monthAdapter)
+
+        val currentMonthIndex = months.indexOf(selectedMonth)
+        if (currentMonthIndex != -1) {
+            monthDropdown.setText(months[currentMonthIndex], false)
+        }
+
+        monthDropdown.setOnItemClickListener { _, _, position, _ ->
+            selectedMonth = months[position]
+            barChart.highlightMonth(position)
+            loadExpenses()
+        }
+
+        // RecyclerView setup with click → open ExpenseDetailsWallet
         expensesAdapter = ExpensesAdapter(emptyList()) { clickedItem ->
             val intent = Intent(this, ExpenseDetailsWallet::class.java)
             intent.putExtra("selectedYear", selectedYear)
@@ -63,6 +89,7 @@ class MyWallet : AppCompatActivity() {
 
         yearButton.text = selectedYear.toString()
 
+        // Year navigation
         prevYearBtn.setOnClickListener {
             selectedYear--
             yearButton.text = selectedYear.toString()
@@ -75,25 +102,27 @@ class MyWallet : AppCompatActivity() {
             loadExpenses()
         }
 
-        val barChart = findViewById<ImageView>(R.id.barChart)
-        barChart.setOnClickListener {
-            selectedMonth = when (selectedMonth) {
-                "June" -> "July"
-                "July" -> "August"
-                "August" -> "September"
-                else -> "June"
-            }
-            monthLabel.text = "$selectedMonth $selectedYear"
+        // Bar chart month click
+        barChart.setOnMonthClickListener { monthIndex ->
+            selectedMonth = months[monthIndex]
+            monthDropdown.setText(months[monthIndex], false)
+            barChart.highlightMonth(monthIndex)
             loadExpenses()
         }
 
+        // Pass month/year to ExpenseAnalysis
         findViewById<Button>(R.id.seeAnalysisButton).setOnClickListener {
-            // startActivity(Intent(this, AnalysisActivity::class.java))
+            val intent = Intent(this, ExpenseAnalysis::class.java)
+            intent.putExtra("selectedYear", selectedYear)
+            intent.putExtra("selectedMonth", selectedMonth)
+            startActivity(intent)
         }
 
-        findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.addExpenseFab).setOnClickListener {
-            startActivity(Intent(this, AddExpense::class.java))
-        }
+        // Add expense FAB
+        findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.addExpenseFab)
+            .setOnClickListener {
+                startActivity(Intent(this, AddExpense::class.java))
+            }
     }
 
     override fun onResume() {
@@ -104,80 +133,113 @@ class MyWallet : AppCompatActivity() {
     private fun loadExpenses() {
         val uid = auth.currentUser?.uid ?: return
 
-        findViewById<TextView>(R.id.monthLabel).text = "$selectedMonth $selectedYear"
-
         val recycler = findViewById<RecyclerView>(R.id.expensesRecyclerView)
         val noDataText = findViewById<TextView>(R.id.noDataText)
 
-        db.collection("users")
+        val monthlyIncome = MutableList(12) { 0f }
+        val monthlyExpenses = MutableList(12) { 0f }
+
+        val yearRef = db.collection("users")
             .document(uid)
             .collection("expenses")
             .document(selectedYear.toString())
-            .collection(selectedMonth)
+
+        // Load yearly data for chart
+        months.forEachIndexed { index, monthName ->
+            yearRef.collection(monthName)
+                .get()
+                .addOnSuccessListener { docs ->
+                    docs.forEach { doc ->
+                        val amount = doc.getDouble("amount")?.toFloat() ?: 0f
+                        val type = doc.getString("type") ?: "expense"
+                        if (type == "expense") {
+                            monthlyExpenses[index] += amount
+                        } else {
+                            monthlyIncome[index] += amount
+                        }
+                    }
+
+                    barChart.setData(monthlyIncome, monthlyExpenses)
+
+                    val currentIndex = months.indexOf(selectedMonth)
+                    if (currentIndex != -1) {
+                        barChart.highlightMonth(currentIndex)
+                    }
+                }
+        }
+
+        // Load selected month for RecyclerView
+        yearRef.collection(selectedMonth)
             .get()
             .addOnSuccessListener { result ->
                 if (result.isEmpty) {
                     recycler.visibility = View.GONE
                     noDataText.visibility = View.VISIBLE
-                    return@addOnSuccessListener
-                }
-
-                val grouped = result.documents
-                    .mapNotNull { doc ->
-                        val dateStr = doc.getString("date") ?: return@mapNotNull null
-                        val parsedDate = LocalDate.parse(dateStr)
-                        val name = doc.getString("description") ?: ""
-                        val category = doc.getString("category") ?: ""
-                        val amount = doc.getDouble("amount") ?: 0.0
-                        val type = doc.getString("type") ?: "expense"
-                        val signedAmount = if (type == "expense") -amount else amount
-                        Quintuple(parsedDate, name, category, signedAmount, type, doc.id)
-                    }
-                    .groupBy { it.first }
-                    .toSortedMap(compareByDescending { it })
-
-                val listItems = mutableListOf<ExpenseListItem>()
-                val formatted = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
-
-                for ((date, entries) in grouped) {
-                    val total = entries.sumOf { it.fourth }
-                    val label = "%.2f".format(total)
-                    listItems.add(
-                        ExpenseListItem.Header(
-                            date.format(formatted),
-                            label,
-                            total >= 0
-                        )
-                    )
-
-                    entries.forEach { (date, name, category, amount, type, id) ->
-                        val displayAmount = "%.2f".format(amount)
-                        listItems.add(
-                            ExpenseListItem.Item(
-                                R.drawable.ic_home_white_24dp,
+                } else {
+                    val grouped = result.documents
+                        .mapNotNull { doc ->
+                            val dateStr = doc.getString("date") ?: return@mapNotNull null
+                            val parsedDate = LocalDate.parse(dateStr)
+                            val name = doc.getString("description") ?: ""
+                            val category = doc.getString("category") ?: ""
+                            val amount = doc.getDouble("amount") ?: 0.0
+                            val type = doc.getString("type") ?: "expense"
+                            val signedAmount = if (type == "expense") -amount else amount
+                            ExpenseDetailsWithId(
+                                parsedDate,
                                 name,
                                 category,
-                                displayAmount,
-                                date.toString(),
+                                signedAmount,
                                 type,
-                                id
+                                doc.id
+                            )
+                        }
+                        .groupBy { it.date }
+                        .toSortedMap(compareByDescending { it })
+
+                    val listItems = mutableListOf<ExpenseListItem>()
+                    val formatted = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
+
+                    for ((date, entries) in grouped) {
+                        val total = entries.sumOf { it.amount }
+                        val label = "%.2f".format(total)
+                        listItems.add(
+                            ExpenseListItem.Header(
+                                date.format(formatted),
+                                label,
+                                total >= 0
                             )
                         )
-                    }
-                }
 
-                expensesAdapter.updateItems(listItems)
-                recycler.visibility = View.VISIBLE
-                noDataText.visibility = View.GONE
+                        entries.forEach { (date, name, category, amount, type, id) ->
+                            val displayAmount = "%.2f".format(amount)
+                            listItems.add(
+                                ExpenseListItem.Item(
+                                    R.drawable.ic_home_white_24dp,
+                                    name,
+                                    category,
+                                    displayAmount,
+                                    date.toString(),
+                                    type,
+                                    id,
+                                )
+                            )
+                        }
+                    }
+
+                    expensesAdapter.updateItems(listItems)
+                    recycler.visibility = View.VISIBLE
+                    noDataText.visibility = View.GONE
+                }
             }
     }
 
-    private data class Quintuple<A, B, C, D, E, F>(
-        val first: A,
-        val second: B,
-        val third: C,
-        val fourth: D,
-        val fifth: E,
-        val sixth: F
+    private data class ExpenseDetailsWithId(
+        val date: LocalDate,
+        val name: String,
+        val category: String,
+        val amount: Double,
+        val type: String,
+        val id: String
     )
 }

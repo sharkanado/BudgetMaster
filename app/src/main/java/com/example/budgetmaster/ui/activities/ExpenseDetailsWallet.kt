@@ -17,6 +17,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.example.budgetmaster.R
+import com.example.budgetmaster.utils.Categories
+import com.google.android.material.button.MaterialButton
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import java.text.SimpleDateFormat
@@ -27,6 +29,7 @@ class ExpenseDetailsWallet : AppCompatActivity() {
 
     private var isEditMode = false
     private lateinit var editButton: ImageButton
+    private lateinit var deleteButton: MaterialButton
 
     // view mode
     private lateinit var categoryText: TextView
@@ -65,8 +68,7 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                 intent.getParcelableExtra("expense_item", ExpenseListItem.Item::class.java)
             } else {
-                @Suppress("DEPRECATION")
-                intent.getParcelableExtra("expense_item")
+                @Suppress("DEPRECATION") intent.getParcelableExtra("expense_item")
             }
 
         if (item == null) {
@@ -79,10 +81,12 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         setupViews()
         populateData()
         setupEditToggle()
+        setupDeleteButton()
     }
 
     private fun setupViews() {
         editButton = findViewById(R.id.editButton)
+        deleteButton = findViewById(R.id.deleteButton)
 
         // view mode
         categoryText = findViewById(R.id.expenseCategory)
@@ -98,14 +102,13 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         typeSpinner = findViewById(R.id.expenseTypeSpinner)
         dateEdit = findViewById(R.id.expenseDateEdit)
 
-        val categories = listOf("Shopping", "Food", "Bills", "Travel", "Misc")
-        val categoryAdapter =
-            ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, categories)
+        val categoryAdapter = ArrayAdapter(
+            this, android.R.layout.simple_spinner_dropdown_item, Categories.categoryList
+        )
         categorySpinner.adapter = categoryAdapter
 
         val types = listOf("Expense", "Income")
-        val typeAdapter =
-            ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, types)
+        val typeAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, types)
         typeSpinner.adapter = typeAdapter
 
         // amount formatting
@@ -126,8 +129,9 @@ class ExpenseDetailsWallet : AppCompatActivity() {
                 sanitized = sanitized.replace(Regex("[^0-9.]"), "")
                 val dotIndex = sanitized.indexOf('.')
                 if (dotIndex != -1) {
-                    sanitized = sanitized.substring(0, dotIndex + 1) +
-                            sanitized.substring(dotIndex + 1).replace(".", "")
+                    sanitized =
+                        sanitized.substring(0, dotIndex + 1) + sanitized.substring(dotIndex + 1)
+                            .replace(".", "")
 
                     if (sanitized.length > dotIndex + 3) {
                         sanitized = sanitized.substring(0, dotIndex + 3)
@@ -136,7 +140,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
 
                 // removes leading zeros
                 sanitized = sanitized.replaceFirst(Regex("^0+(?!\\.)"), "0")
-
 
                 current = sanitized
                 amountEdit.setText(sanitized)
@@ -164,14 +167,10 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             val day = calendar.get(Calendar.DAY_OF_MONTH)
 
             val datePicker = DatePickerDialog(
-                this,
-                { _, y, m, d ->
+                this, { _, y, m, d ->
                     val pickedDate = String.format("%04d-%02d-%02d", y, m + 1, d)
                     dateEdit.setText(pickedDate)
-                },
-                year,
-                month,
-                day
+                }, year, month, day
             )
             datePicker.show()
         }
@@ -191,7 +190,7 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             if (expenseItem.type == "expense") "-$formattedAmount" else formattedAmount
 
         dateText.text = expenseItem.date
-        categoryText.text = expenseItem.budget
+        categoryText.text = expenseItem.category
         typeText.text = expenseItem.type.replaceFirstChar { it.uppercase() }
         descriptionText.text = expenseItem.name
 
@@ -201,12 +200,11 @@ class ExpenseDetailsWallet : AppCompatActivity() {
 
         // sets spinners
         val catPos =
-            (categorySpinner.adapter as ArrayAdapter<String>).getPosition(expenseItem.budget)
+            (categorySpinner.adapter as ArrayAdapter<String>).getPosition(expenseItem.category)
         if (catPos >= 0) categorySpinner.setSelection(catPos)
 
         val typePos =
-            (typeSpinner.adapter as ArrayAdapter<String>)
-                .getPosition(expenseItem.type.replaceFirstChar { it.uppercase() })
+            (typeSpinner.adapter as ArrayAdapter<String>).getPosition(expenseItem.type.replaceFirstChar { it.uppercase() })
         if (typePos >= 0) typeSpinner.setSelection(typePos)
     }
 
@@ -224,6 +222,44 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             }
         }
     }
+
+    private fun setupDeleteButton() {
+        deleteButton.setOnClickListener {
+            val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return@setOnClickListener
+            val db = FirebaseFirestore.getInstance()
+
+            // Step 1: Delete from main expenses
+            db.collection("users").document(uid).collection("expenses")
+                .document(selectedYear.toString()).collection(selectedMonth)
+                .document(expenseItem.id).delete().addOnSuccessListener {
+                    // Step 2: Delete matching entry from latest by expenseId
+                    db.collection("users").document(uid).collection("latest")
+                        .whereEqualTo("expenseId", expenseItem.id).get()
+                        .addOnSuccessListener { snapshot ->
+                            val batch = db.batch()
+                            for (doc in snapshot.documents) {
+                                batch.delete(doc.reference)
+                            }
+                            batch.commit().addOnSuccessListener {
+                                Toast.makeText(this, "Successfully removed!", Toast.LENGTH_SHORT)
+                                    .show()
+                                finish()
+                            }
+                        }.addOnFailureListener { e ->
+                            Toast.makeText(
+                                this,
+                                "Deleted from expenses, but failed to clean latest: ${e.message}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            finish()
+                        }
+                }.addOnFailureListener { e ->
+                    Toast.makeText(this, "Failed to delete: ${e.message}", Toast.LENGTH_SHORT)
+                        .show()
+                }
+        }
+    }
+
 
     private fun toggleEditMode(enable: Boolean) {
         isEditMode = enable
@@ -264,9 +300,15 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         val normalizedInput = amountEdit.text.toString().replace(",", ".").replace("-", "")
         val newAmount = normalizedInput.toDoubleOrNull() ?: 0.0
 
+        if (newAmount == 0.0) {
+            Toast.makeText(this, "Amount cannot be 0", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         val newDescription = descriptionEdit.text.toString()
         val newDate = dateEdit.text.toString()
 
+        // Update all relevant text views
         categoryText.text = newCategory
         typeText.text = newType.replaceFirstChar { it.uppercase() }
         amountText.text =
@@ -274,9 +316,13 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         descriptionText.text = newDescription
         dateText.text = newDate
 
+        // **FIX: also update the title at the top**
+        findViewById<TextView>(R.id.expenseTitle).text = newDescription
+
         val titleText = if (newType == "income") "Income Details" else "Expense Details"
         findViewById<TextView>(R.id.topBarTitle).text = titleText
 
+        // Data map for Firestore
         val updatedData = mapOf(
             "category" to newCategory,
             "amount" to newAmount,
@@ -287,6 +333,8 @@ class ExpenseDetailsWallet : AppCompatActivity() {
 
         val db = FirebaseFirestore.getInstance()
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+
+        // Update main expense
         db.collection("users")
             .document(uid)
             .collection("expenses")
@@ -295,11 +343,35 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             .document(expenseItem.id)
             .update(updatedData)
             .addOnSuccessListener {
-                Toast.makeText(this, "Changes saved!", Toast.LENGTH_SHORT).show()
+                // Update in latest if exists
+                db.collection("users")
+                    .document(uid)
+                    .collection("latest")
+                    .whereEqualTo("expenseId", expenseItem.id)
+                    .get()
+                    .addOnSuccessListener { snapshot ->
+                        if (!snapshot.isEmpty) {
+                            val batch = db.batch()
+                            for (doc in snapshot.documents) {
+                                batch.update(doc.reference, updatedData)
+                            }
+                            batch.commit().addOnSuccessListener {
+                                Toast.makeText(this, "Changes saved!", Toast.LENGTH_SHORT).show()
+                            }
+                        } else {
+                            Toast.makeText(
+                                this,
+                                "Changes saved (not in latest list).",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
             }
             .addOnFailureListener { e ->
                 Toast.makeText(this, "Failed to save changes: ${e.message}", Toast.LENGTH_SHORT)
                     .show()
             }
     }
+
+
 }

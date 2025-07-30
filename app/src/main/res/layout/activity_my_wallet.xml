@@ -6,7 +6,7 @@
     android:layout_height="match_parent"
     android:background="@color/grey">
 
-
+    <!-- Year Selector -->
     <LinearLayout
         android:id="@+id/yearPicker"
         android:layout_width="wrap_content"
@@ -44,71 +44,100 @@
             android:contentDescription="Next Year" />
     </LinearLayout>
 
-    <!-- Bar Chart Placeholder -->
-    <ImageView
+    <!-- Custom Bar Chart -->
+    <com.example.budgetmaster.ui.components.CustomBarChartView
         android:id="@+id/barChart"
         android:layout_width="0dp"
-        android:layout_height="120dp"
+        android:layout_height="200dp"
         android:layout_marginTop="16dp"
-        android:scaleType="fitCenter"
-        android:src="@drawable/bm_logo"
         app:layout_constraintTop_toBottomOf="@id/yearPicker"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- See Analysis Button -->
-    <Button
-        android:id="@+id/seeAnalysisButton"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:id="@+id/monthAndAnalysisLayout"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:text="See Analysis"
-        android:textColor="@android:color/white"
-        android:backgroundTint="#FF8C32"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
         android:layout_marginTop="8dp"
-        app:cornerRadius="24dp"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
         app:layout_constraintTop_toBottomOf="@id/barChart"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent">
 
-    <!-- Section Header -->
-    <TextView
-        android:id="@+id/monthLabel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="January 2025"
-        android:textColor="#FF8C32"
-        android:textStyle="bold"
-        android:textSize="18sp"
-        android:layout_marginTop="16dp"
-        android:layout_marginStart="16dp"
-        app:layout_constraintTop_toBottomOf="@id/seeAnalysisButton"
-        app:layout_constraintStart_toStartOf="parent" />
+        <!-- Month Dropdown -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/monthDropdownLayout"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            app:boxBackgroundColor="@color/grey_dark"
+            app:boxCornerRadiusTopStart="12dp"
+            app:boxCornerRadiusTopEnd="12dp"
+            app:boxCornerRadiusBottomStart="12dp"
+            app:boxCornerRadiusBottomEnd="12dp"
+            app:boxStrokeWidth="0dp">
 
+            <AutoCompleteTextView
+                android:id="@+id/monthSpinner"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:paddingStart="16dp"
+                android:layout_marginBottom="4dp"
+                android:paddingEnd="16dp"
+                android:textColor="@color/white"
+                android:popupBackground="@color/grey_dark"
+                android:fontFamily="@font/manrope_regular"
+                android:inputType="none" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- See Analysis Button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/seeAnalysisButton"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_gravity="center_vertical"
+            android:text="See Analysis"
+            android:textAllCaps="false"
+            android:fontFamily="@font/manrope_semibold"
+            android:textColor="@color/grey"
+            android:backgroundTint="@color/grey_light"
+            android:layout_marginStart="8dp"
+            app:cornerRadius="12dp" />
+    </LinearLayout>
+
+
+    <!-- No Data Text -->
     <TextView
         android:id="@+id/noDataText"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:text="No expenses to be shown."
+        android:text="No data to be shown."
         android:textSize="14sp"
         android:textColor="@color/white"
         android:gravity="center"
-        android:visibility="gone"
         android:padding="24dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/monthLabel"
+        android:visibility="gone"
+        app:layout_constraintTop_toBottomOf="@id/monthAndAnalysisLayout"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
+    <!-- RecyclerView for Expenses -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/expensesRecyclerView"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:layout_marginTop="8dp"
-        app:layout_constraintTop_toBottomOf="@id/monthLabel"
+        app:layout_constraintTop_toBottomOf="@id/monthAndAnalysisLayout"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toBottomOf="parent" />
 
+    <!-- Floating Action Button -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/addExpenseFab"
         android:layout_width="wrap_content"

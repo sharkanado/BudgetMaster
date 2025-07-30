@@ -15,4 +15,19 @@
     <string name="sign_up_old_user_text">
     Already on Budget Master? <font color="#FF9C3F">Sign in!</font>
     </string>
+    <string-array name="month_names">
+        <item>January</item>
+        <item>February</item>
+        <item>March</item>
+        <item>April</item>
+        <item>May</item>
+        <item>June</item>
+        <item>July</item>
+        <item>August</item>
+        <item>September</item>
+        <item>October</item>
+        <item>November</item>
+        <item>December</item>
+    </string-array>
+
 </resources>

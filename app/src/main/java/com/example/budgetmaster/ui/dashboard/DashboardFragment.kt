@@ -11,6 +11,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.budgetmaster.R
 import com.example.budgetmaster.databinding.FragmentDashboardBinding
 import com.example.budgetmaster.ui.activities.AddExpense
+import com.example.budgetmaster.ui.activities.ExpenseDetailsWallet
 import com.example.budgetmaster.ui.activities.MyWallet
 import com.example.budgetmaster.ui.components.ExpensesAdapter
 import com.google.firebase.auth.FirebaseAuth
@@ -33,12 +34,9 @@ class DashboardFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-//        ViewModelProvider(this).get(DashboardViewModel::class.java)
-
         _binding = FragmentDashboardBinding.inflate(inflater, container, false)
         val root = binding.root
 
-        // Buttons remain functional
         binding.addExpenseButton.setOnClickListener {
             startActivity(Intent(requireContext(), AddExpense::class.java))
         }
@@ -51,10 +49,13 @@ class DashboardFragment : Fragment() {
             startActivity(Intent(requireContext(), MyWallet::class.java))
         }
 
-        // Adapter with NO click action (null disables ripple & click)
         expensesAdapter = ExpensesAdapter(
             emptyList(),
-            onItemClick = null
+            onItemClick = { item ->
+                if (item is ExpenseListItem.Item) {
+                    openExpenseDetails(item)
+                }
+            }
         )
 
         binding.latestExpensesRecycler.apply {
@@ -73,8 +74,8 @@ class DashboardFragment : Fragment() {
     private fun loadLatestExpenses() {
         val uid = auth.currentUser?.uid ?: return
 
-        // Show spinner before loading
         binding.loadingProgressBar.visibility = View.VISIBLE
+        binding.noDataText.visibility = View.GONE
         binding.latestExpensesRecycler.visibility = View.GONE
 
         db.collection("users")
@@ -91,8 +92,9 @@ class DashboardFragment : Fragment() {
                         val amount = doc.getDouble("amount") ?: return@mapNotNull null
                         val type = doc.getString("type") ?: "expense"
                         val signedAmount = if (type == "expense") -amount else amount
+                        val expenseId = doc.getString("expenseId") ?: ""
 
-                        ExpenseDetails(parsedDate, name, category, signedAmount, type)
+                        ExpenseDetails(parsedDate, name, category, signedAmount, type, expenseId)
                     }
                     .groupBy { it.date }
                     .toSortedMap(compareByDescending { it })
@@ -111,7 +113,7 @@ class DashboardFragment : Fragment() {
                         )
                     )
 
-                    entries.forEach { (date, name, category, amount, type) ->
+                    entries.forEach { (date, name, category, amount, type, expenseId) ->
                         val displayAmount = "%.2f".format(amount)
                         listItems.add(
                             ExpenseListItem.Item(
@@ -121,24 +123,42 @@ class DashboardFragment : Fragment() {
                                 displayAmount,
                                 date.toString(),
                                 type,
-                                "" // No ID needed for dashboard
+                                expenseId
                             )
                         )
                     }
                 }
 
-                // Update recycler
-                expensesAdapter.updateItems(listItems)
-
-                // Hide spinner, show recycler
                 binding.loadingProgressBar.visibility = View.GONE
-                binding.latestExpensesRecycler.visibility = View.VISIBLE
+
+                if (listItems.isEmpty()) {
+                    binding.noDataText.visibility = View.VISIBLE
+                    binding.latestExpensesRecycler.visibility = View.GONE
+                } else {
+                    binding.noDataText.visibility = View.GONE
+                    binding.latestExpensesRecycler.visibility = View.VISIBLE
+                    expensesAdapter.updateItems(listItems)
+                }
             }
             .addOnFailureListener {
-                // Hide spinner even on failure
                 binding.loadingProgressBar.visibility = View.GONE
-                binding.latestExpensesRecycler.visibility = View.VISIBLE
+                binding.noDataText.visibility = View.VISIBLE
+                binding.latestExpensesRecycler.visibility = View.GONE
             }
+    }
+
+    private fun openExpenseDetails(item: ExpenseListItem.Item) {
+        val intent = Intent(requireContext(), ExpenseDetailsWallet::class.java)
+        intent.putExtra("expense_item", item)
+
+        val date = LocalDate.parse(item.date)
+        val year = date.year
+        val month = date.month.name.lowercase().replaceFirstChar { it.uppercase() }
+
+        intent.putExtra("selectedYear", year)
+        intent.putExtra("selectedMonth", month)
+
+        startActivity(intent)
     }
 
     override fun onDestroyView() {
@@ -152,5 +172,6 @@ class DashboardFragment : Fragment() {
         val category: String,
         val amount: Double,
         val type: String,
+        val expenseId: String
     )
 }
