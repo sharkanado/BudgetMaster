@@ -37,7 +37,6 @@ class DashboardFragment : Fragment() {
         _binding = FragmentDashboardBinding.inflate(inflater, container, false)
         val root = binding.root
 
-        // Buttons
         binding.addExpenseButton.setOnClickListener {
             startActivity(Intent(requireContext(), AddExpense::class.java))
         }
@@ -50,7 +49,6 @@ class DashboardFragment : Fragment() {
             startActivity(Intent(requireContext(), MyWallet::class.java))
         }
 
-        // Adapter with click listener
         expensesAdapter = ExpensesAdapter(
             emptyList(),
             onItemClick = { item ->
@@ -77,6 +75,7 @@ class DashboardFragment : Fragment() {
         val uid = auth.currentUser?.uid ?: return
 
         binding.loadingProgressBar.visibility = View.VISIBLE
+        binding.noDataText.visibility = View.GONE
         binding.latestExpensesRecycler.visibility = View.GONE
 
         db.collection("users")
@@ -124,30 +123,34 @@ class DashboardFragment : Fragment() {
                                 displayAmount,
                                 date.toString(),
                                 type,
-                                expenseId // Pass real ID here
+                                expenseId
                             )
                         )
                     }
                 }
 
-                expensesAdapter.updateItems(listItems)
-
                 binding.loadingProgressBar.visibility = View.GONE
-                binding.latestExpensesRecycler.visibility = View.VISIBLE
+
+                if (listItems.isEmpty()) {
+                    binding.noDataText.visibility = View.VISIBLE
+                    binding.latestExpensesRecycler.visibility = View.GONE
+                } else {
+                    binding.noDataText.visibility = View.GONE
+                    binding.latestExpensesRecycler.visibility = View.VISIBLE
+                    expensesAdapter.updateItems(listItems)
+                }
             }
             .addOnFailureListener {
                 binding.loadingProgressBar.visibility = View.GONE
-                binding.latestExpensesRecycler.visibility = View.VISIBLE
+                binding.noDataText.visibility = View.VISIBLE
+                binding.latestExpensesRecycler.visibility = View.GONE
             }
     }
 
     private fun openExpenseDetails(item: ExpenseListItem.Item) {
         val intent = Intent(requireContext(), ExpenseDetailsWallet::class.java)
-
-        // Pass the item
         intent.putExtra("expense_item", item)
 
-        // Extract year & month for details activity
         val date = LocalDate.parse(item.date)
         val year = date.year
         val month = date.month.name.lowercase().replaceFirstChar { it.uppercase() }

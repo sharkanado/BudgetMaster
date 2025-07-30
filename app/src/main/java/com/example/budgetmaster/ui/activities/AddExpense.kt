@@ -135,7 +135,9 @@ class AddExpense : AppCompatActivity() {
 
                 current = sanitized
                 amountInput.setText(sanitized)
-                amountInput.setSelection(sanitized.length)
+                if (amountInput.isFocused && sanitized.length <= (amountInput.text?.length ?: 0)) {
+                    amountInput.setSelection(sanitized.length)
+                }
             }
         })
 

@@ -228,7 +228,7 @@ class ExpenseAnalysis : AppCompatActivity() {
                     val signedAmount = if (type == "expense") -amount else amount
 
                     val item = ExpenseListItem.Item(
-                        R.drawable.ic_home_white_24dp,
+                        Categories.getIcon(category),
                         description,
                         category,
                         "%.2f".format(signedAmount),
