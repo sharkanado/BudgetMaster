@@ -3,6 +3,7 @@ package com.example.budgetmaster.ui.activities
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -35,8 +36,13 @@ class SignUpActivity : AppCompatActivity() {
         val emailEditText = findViewById<TextInputEditText>(R.id.emailEditText)
         val passwordEditText = findViewById<TextInputEditText>(R.id.passwordEditText)
         val repeatPasswordEditText = findViewById<TextInputEditText>(R.id.repeatPasswordEditText)
-
         val signUpButton = findViewById<Button>(R.id.signUpButton)
+        val signUpSignInText = findViewById<TextView>(R.id.signUpSignInText)
+
+        signUpSignInText.setOnClickListener {
+            val intent = Intent(this, SignInActivity::class.java)
+            startActivity(intent)
+        }
         signUpButton.setOnClickListener {
             val name = nameEditText.text.toString().trim()
             val email = emailEditText.text.toString().trim()
@@ -65,13 +71,15 @@ class SignUpActivity : AppCompatActivity() {
         }
     }
 
+
     private fun createAccount(email: String, password: String, name: String) {
         auth.createUserWithEmailAndPassword(email, password)
             .addOnCompleteListener(this) { task ->
                 if (task.isSuccessful) {
                     sendEmailVerification()
                     Toast.makeText(this, "Sign-up successful!", Toast.LENGTH_SHORT).show()
-                    val uid = auth.currentUser?.uid
+
+                    val uid = auth.currentUser?.uid ?: return@addOnCompleteListener
                     val db = Firebase.firestore
 
                     val user = hashMapOf(
@@ -81,19 +89,36 @@ class SignUpActivity : AppCompatActivity() {
                         "createdAt" to System.currentTimeMillis()
                     )
 
-                    db.collection("users").document(uid!!)
+                    // 1. Save full user data in `users` collection
+                    db.collection("users").document(uid)
                         .set(user)
                         .addOnSuccessListener {
                             Toast.makeText(this, "User added to Firestore", Toast.LENGTH_SHORT)
                                 .show()
+
+                            // 2. Create email → uid mapping in `usersByEmail`
+                            db.collection("usersByEmail").document(email)
+                                .set(mapOf("uid" to uid))
+                                .addOnSuccessListener {
+                                    // Mapping created
+                                }
+                                .addOnFailureListener { e ->
+                                    Toast.makeText(
+                                        this,
+                                        "Mapping error: ${e.message}",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
                         }
                         .addOnFailureListener { e ->
                             Toast.makeText(this, "Error: ${e.message}", Toast.LENGTH_LONG).show()
                         }
 
+                    // Navigate to SignInActivity
                     val intent = Intent(this, SignInActivity::class.java)
                     startActivity(intent)
                     finish()
+
                 } else {
                     Toast.makeText(
                         this,

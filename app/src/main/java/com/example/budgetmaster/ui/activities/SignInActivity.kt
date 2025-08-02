@@ -37,9 +37,15 @@ class SignInActivity : AppCompatActivity() {
         val passwordEditText = findViewById<TextInputEditText>(R.id.passwordEditText)
         val signInButton = findViewById<MaterialButton>(R.id.signInButton)
         val resetPassword = findViewById<TextView>(R.id.resetPassword)
+        val signInJoinUsText = findViewById<TextView>(R.id.signInJoinUsText)
 
         resetPassword.setOnClickListener {
             showResetPasswordDialog()
+        }
+
+        signInJoinUsText.setOnClickListener {
+            val intent = Intent(this, SignUpActivity::class.java)
+            startActivity(intent)
         }
 
         signInButton.setOnClickListener {
