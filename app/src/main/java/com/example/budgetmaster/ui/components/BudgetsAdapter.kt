@@ -1,0 +1,75 @@
+package com.example.budgetmaster.ui.components
+
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
+import androidx.recyclerview.widget.RecyclerView
+import com.example.budgetmaster.R
+import com.example.budgetmaster.ui.budgets.BudgetItem
+
+class BudgetsAdapter(
+    private val budgets: List<BudgetItem>
+) : RecyclerView.Adapter<BudgetsAdapter.BudgetViewHolder>() {
+
+    inner class BudgetViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        val walletName: TextView = itemView.findViewById(R.id.walletName)
+        val balanceText: TextView = itemView.findViewById(R.id.balanceText)
+        val avatarsLayout: LinearLayout = itemView.findViewById(R.id.avatarsLayout)
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): BudgetViewHolder {
+        val view = LayoutInflater.from(parent.context)
+            .inflate(R.layout.item_budgets, parent, false)
+        return BudgetViewHolder(view)
+    }
+
+    override fun onBindViewHolder(holder: BudgetViewHolder, position: Int) {
+        val budget = budgets[position]
+
+        // Set name and balance
+        holder.walletName.text = budget.name
+        holder.balanceText.text = "${budget.balance.toInt()} ${budget.preferredCurrency}"
+
+        // Clear previous avatars (avoid recycling issues)
+        holder.avatarsLayout.removeAllViews()
+
+        // Add first member icon
+        val icon = ImageView(holder.itemView.context).apply {
+            layoutParams = LinearLayout.LayoutParams(48, 48)
+            setImageResource(R.drawable.ic_person)
+            setPadding(8, 8, 8, 8)
+        }
+        holder.avatarsLayout.addView(icon)
+
+        // Add "+N" text if there are more members
+        if (budget.members.size > 1) {
+            val textView = TextView(holder.itemView.context).apply {
+                text = "+${budget.members.size - 1}"
+                setTextColor(holder.itemView.context.getColor(R.color.grey_light))
+                textSize = 12f
+                setPadding(8, 0, 0, 0)
+            }
+            holder.avatarsLayout.addView(textView)
+        }
+
+        // Apply ripple background and handle click
+        holder.itemView.isClickable = true
+        holder.itemView.isFocusable = true
+        holder.itemView.setBackgroundResource(R.drawable.expense_ripple)
+        holder.itemView.setOnClickListener {
+            Toast.makeText(
+                holder.itemView.context,
+                "Clicked: ${budget.name}",
+                Toast.LENGTH_SHORT
+            ).show()
+
+            // Future: replace with Intent to open details, passing `budget`
+        }
+    }
+
+    override fun getItemCount(): Int = budgets.size
+}

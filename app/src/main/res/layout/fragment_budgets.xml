@@ -57,9 +57,10 @@
         <androidx.cardview.widget.CardView
             android:id="@+id/myWalletCard"
             android:layout_width="0dp"
+            android:foreground="?attr/selectableItemBackground"
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp"
-            android:backgroundTint="#3C3C3C"
+            android:backgroundTint="@color/grey_dark"
             app:cardCornerRadius="12dp"
             app:cardElevation="0dp"
             app:layout_constraintEnd_toEndOf="parent"
@@ -67,6 +68,7 @@
             app:layout_constraintTop_toBottomOf="@id/myWalletLabel">
 
             <TextView
+
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:fontFamily="@font/manrope_bold"
@@ -110,8 +112,7 @@
                 android:textColor="@android:color/white"
                 android:textAllCaps="false"
                 android:fontFamily="@font/manrope_bold"
-                app:cornerRadius="30dp"
-                 />
+                app:cornerRadius="30dp" />
 
 
         </LinearLayout>
