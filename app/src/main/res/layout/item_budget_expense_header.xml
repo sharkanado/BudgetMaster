@@ -3,7 +3,8 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="@color/grey_dark"
+    android:background="#6C6A6A"
+    android:layout_marginBottom="8dp"
     android:padding="12dp">
 
     <!-- Header Title -->
@@ -12,7 +13,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:textSize="18sp"
-        android:textColor="@color/orange"
+        android:textColor="@color/white"
         android:fontFamily="@font/manrope_bold"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
@@ -29,7 +30,7 @@
         android:layout_marginStart="8dp"
         android:src="@drawable/ic_arrow_right"
         android:contentDescription="@null"
-        app:tint="@color/orange"
+        app:tint="@color/white"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent" />

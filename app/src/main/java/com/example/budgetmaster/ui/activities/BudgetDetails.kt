@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.widget.Button
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -40,14 +41,14 @@ class BudgetDetails : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_budget_details)
 
-        // Apply system bar insets
+        // Apply window insets
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
 
-        // Get BudgetItem from intent
+        // Get budget object
         budget = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent.getParcelableExtra("budget", BudgetItem::class.java)
         } else {
@@ -59,11 +60,14 @@ class BudgetDetails : AppCompatActivity() {
             return
         }
 
-        // Setup members RecyclerView
+        // Set budget name + placeholder balance
+        findViewById<TextView>(R.id.budgetNameText).text = budget.name
+        findViewById<TextView>(R.id.userBalanceText).text = "+0 PLN" // TODO: Calculate real balance
+
+        // Setup members RecyclerView (vertical fixed height)
         val membersRecycler = findViewById<RecyclerView>(R.id.membersRecycler)
         membersAdapter = BudgetMembersAdapter(membersList)
-        membersRecycler.layoutManager =
-            LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        membersRecycler.layoutManager = LinearLayoutManager(this)
         membersRecycler.adapter = membersAdapter
 
         // Setup expenses RecyclerView (accordion)
@@ -71,14 +75,13 @@ class BudgetDetails : AppCompatActivity() {
         expensesAdapter = BudgetExpensesAdapter(expensesList) { headerPosition ->
             toggleAccordion(headerPosition)
         }
-        expensesRecycler.layoutManager =
-            LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
+        expensesRecycler.layoutManager = LinearLayoutManager(this)
         expensesRecycler.adapter = expensesAdapter
 
         // Load members
         loadMembers()
 
-        // Add new expense button
+        // New Expense button
         val newExpenseBtn = findViewById<Button>(R.id.newExpenseBtn)
         newExpenseBtn.setOnClickListener {
             val intent = Intent(this, CreateGroupExpense::class.java)
@@ -90,7 +93,7 @@ class BudgetDetails : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Refresh expenses when returning from CreateGroupExpense
+        // Refresh expenses when coming back
         loadExpenses()
     }
 
@@ -114,7 +117,7 @@ class BudgetDetails : AppCompatActivity() {
                     parseMonthYear(dateStr) // e.g., "June 2025"
                 }
 
-                // Sort keys descending (latest first)
+                // Sort descending (latest first)
                 val sortedKeys = grouped.keys.sortedByDescending { key ->
                     val parts = key.split(" ")
                     if (parts.size == 2) {
@@ -124,7 +127,7 @@ class BudgetDetails : AppCompatActivity() {
                     } else 0
                 }
 
-                // Build accordion data
+                // Add headers and items
                 for (monthKey in sortedKeys) {
                     val monthExpenses = grouped[monthKey]!!.map { doc ->
                         BudgetExpenseItem(
@@ -144,7 +147,7 @@ class BudgetDetails : AppCompatActivity() {
             }
     }
 
-    /** Add header + children to the adapter list */
+    /** Add header + children to list */
     private fun addMonthHeader(monthYear: String, expenses: List<BudgetExpenseItem>) {
         val headerItem = BudgetExpenseItem(
             id = "header_$monthYear",
@@ -153,7 +156,6 @@ class BudgetDetails : AppCompatActivity() {
             isHeader = true,
             isExpanded = true
         )
-
         expensesList.add(headerItem)
         expensesList.addAll(expenses)
         expensesAdapter.notifyDataSetChanged()
@@ -167,7 +169,7 @@ class BudgetDetails : AppCompatActivity() {
         header.isExpanded = !header.isExpanded
 
         if (!header.isExpanded) {
-            // Collapse: remove children until next header
+            // Collapse
             val toRemove = mutableListOf<BudgetExpenseItem>()
             var i = headerPosition + 1
             while (i < expensesList.size && !expensesList[i].isHeader) {
@@ -176,7 +178,7 @@ class BudgetDetails : AppCompatActivity() {
             }
             expensesList.removeAll(toRemove)
         } else {
-            // Expand: reinsert children from cache
+            // Expand
             val monthKey = header.description
             val children = monthExpenseMap[monthKey] ?: return
             expensesList.addAll(headerPosition + 1, children)
@@ -185,7 +187,7 @@ class BudgetDetails : AppCompatActivity() {
         expensesAdapter.notifyDataSetChanged()
     }
 
-    /** Load members horizontally */
+    /** Load members into list */
     private fun loadMembers() {
         if (budget.members.isEmpty()) return
 
@@ -214,7 +216,7 @@ class BudgetDetails : AppCompatActivity() {
         }
     }
 
-    /** Parse "yyyy-MM-dd" → "MonthName Year" (e.g., 2025-06-10 → June 2025) */
+    /** Parse "yyyy-MM-dd" → "MonthName Year" */
     private fun parseMonthYear(dateStr: String): String {
         return try {
             val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH)
@@ -226,7 +228,7 @@ class BudgetDetails : AppCompatActivity() {
         }
     }
 
-    /** Convert month name (e.g., June) → number (6) for sorting */
+    /** Convert month name → number */
     private fun monthToNumber(month: String): Int {
         val months = listOf(
             "January", "February", "March", "April", "May", "June",

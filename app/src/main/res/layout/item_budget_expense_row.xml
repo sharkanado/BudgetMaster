@@ -4,7 +4,9 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:padding="8dp"
-    android:background="@color/grey">
+    android:layout_marginBottom="8dp"
+    android:layout_marginHorizontal="8dp"
+    android:background="@drawable/expense_bg">
 
     <TextView
         android:id="@+id/expenseDescription"

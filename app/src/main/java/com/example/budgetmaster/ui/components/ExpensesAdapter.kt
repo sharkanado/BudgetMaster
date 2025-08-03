@@ -30,7 +30,7 @@ class ExpensesAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         return if (viewType == TYPE_HEADER) {
             val view = LayoutInflater.from(parent.context)
-                .inflate(R.layout.item_recyclerview_header, parent, false)
+                .inflate(R.layout.item_expenses_header, parent, false)
             HeaderViewHolder(view)
         } else {
             val view = LayoutInflater.from(parent.context)

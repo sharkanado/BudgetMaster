@@ -1,5 +1,6 @@
 package com.example.budgetmaster.ui.activities
 
+import android.app.DatePickerDialog
 import android.os.Bundle
 import android.view.View
 import android.widget.CheckBox
@@ -18,6 +19,8 @@ import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Calendar
 
 class CreateGroupExpense : AppCompatActivity() {
 
@@ -29,8 +32,10 @@ class CreateGroupExpense : AppCompatActivity() {
     private lateinit var membersAdapter: BudgetMembersAdapter
     private val membersList = mutableListOf<BudgetMemberItem>()
 
-    // Track selected members (for "who did you pay for?")
+    // Track selected members
     private val selectedMembers = mutableSetOf<String>()
+
+    private lateinit var dateInput: TextInputEditText
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -38,15 +43,13 @@ class CreateGroupExpense : AppCompatActivity() {
         setContentView(R.layout.activity_create_group_expense)
 
         val root = findViewById<View>(R.id.main)
-
-        // Apply insets dynamically
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
 
-        // Get budget data from Intent
+        // Get budget data
         budgetId = intent.getStringExtra("budgetId") ?: run {
             Toast.makeText(this, "No budget provided", Toast.LENGTH_SHORT).show()
             finish()
@@ -54,22 +57,62 @@ class CreateGroupExpense : AppCompatActivity() {
         }
         budgetName = intent.getStringExtra("budgetName") ?: "Unknown Budget"
 
+        // Init date field
+        dateInput = findViewById(R.id.dateInput)
+        prefillTodayDate()
+
+        dateInput.setOnClickListener {
+            showDatePicker()
+        }
+
         // Init members Recycler
         membersRecycler = findViewById(R.id.membersRecycler)
         membersRecycler.layoutManager =
             LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
 
-        // Load members for this budget
+        // Load members
         loadBudgetMembers()
 
-        // Handle save button
+        // Save button
         findViewById<View>(R.id.saveExpenseBtn).setOnClickListener {
             saveGroupExpense()
         }
     }
 
+    private fun prefillTodayDate() {
+        val today = LocalDate.now()
+        dateInput.setText(today.format(DateTimeFormatter.ISO_LOCAL_DATE)) // yyyy-MM-dd
+    }
+
+    private fun showDatePicker() {
+        val calendar = Calendar.getInstance()
+
+        val currentDate = dateInput.text?.toString()
+        val formatter = DateTimeFormatter.ISO_LOCAL_DATE
+        try {
+            if (!currentDate.isNullOrEmpty()) {
+                val parsedDate = LocalDate.parse(currentDate, formatter)
+                calendar.set(parsedDate.year, parsedDate.monthValue - 1, parsedDate.dayOfMonth)
+            }
+        } catch (_: Exception) {
+        }
+
+        val year = calendar.get(Calendar.YEAR)
+        val month = calendar.get(Calendar.MONTH)
+        val day = calendar.get(Calendar.DAY_OF_MONTH)
+
+        val picker = DatePickerDialog(
+            this,
+            { _, y, m, d ->
+                val selected = LocalDate.of(y, m + 1, d)
+                dateInput.setText(selected.format(DateTimeFormatter.ISO_LOCAL_DATE))
+            },
+            year, month, day
+        )
+        picker.show()
+    }
+
     private fun loadBudgetMembers() {
-        // Fetch members from budget doc
         db.collection("budgets").document(budgetId).get()
             .addOnSuccessListener { doc ->
                 val memberIds = doc.get("members") as? List<String> ?: emptyList()
@@ -88,7 +131,7 @@ class CreateGroupExpense : AppCompatActivity() {
                                     uid = uid,
                                     name = userDoc.getString("name") ?: "Unknown",
                                     email = userDoc.getString("email") ?: "",
-                                    balance = 0.0 // Placeholder for now
+                                    balance = 0.0
                                 )
                                 membersList.add(member)
                             }
@@ -96,8 +139,7 @@ class CreateGroupExpense : AppCompatActivity() {
                         .addOnCompleteListener {
                             processed++
                             if (processed == memberIds.size) {
-                                // For now, select all by default
-                                selectedMembers.addAll(memberIds)
+                                selectedMembers.addAll(memberIds) // default: all selected
                                 membersAdapter = BudgetMembersAdapter(membersList)
                                 membersRecycler.adapter = membersAdapter
                             }
@@ -113,23 +155,21 @@ class CreateGroupExpense : AppCompatActivity() {
             return
         }
 
-        // Gather fields
+        // Fields
         val descriptionInput = findViewById<TextInputEditText>(R.id.descriptionInput)
         val amountInput = findViewById<TextInputEditText>(R.id.amountInput)
         val addPrivateCheck = findViewById<CheckBox>(R.id.addToPrivateWalletCheckbox)
 
         val description = descriptionInput.text?.toString()?.trim()
         val amount = amountInput.text?.toString()?.replace(",", ".")?.toDoubleOrNull()
+        val dateStr = dateInput.text?.toString()?.trim()
 
-        if (description.isNullOrEmpty() || amount == null || amount <= 0.0) {
+        if (description.isNullOrEmpty() || amount == null || amount <= 0.0 || dateStr.isNullOrEmpty()) {
             Toast.makeText(this, "Please enter valid data", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // Prepare date info
-        val date = LocalDate.now()
-        val year = date.year.toString()
-        val month = date.month.name.lowercase().replaceFirstChar { it.uppercase() }
+        val date = LocalDate.parse(dateStr)
 
         // Expense object
         val expenseData = hashMapOf(
@@ -150,7 +190,6 @@ class CreateGroupExpense : AppCompatActivity() {
             .addOnSuccessListener {
                 Toast.makeText(this, "Expense added to group", Toast.LENGTH_SHORT).show()
 
-                // If checkbox is checked, also add to private wallet
                 if (addPrivateCheck.isChecked) {
                     addToPrivateWallet(uid, expenseData)
                 } else {
@@ -167,7 +206,6 @@ class CreateGroupExpense : AppCompatActivity() {
         val year = date.year.toString()
         val month = date.month.name.lowercase().replaceFirstChar { it.uppercase() }
 
-        // Override budgetName for private wallet
         expenseData["budgetName"] = "personal"
 
         db.collection("users").document(uid)
