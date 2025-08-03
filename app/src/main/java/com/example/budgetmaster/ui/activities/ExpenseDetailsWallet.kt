@@ -308,21 +308,18 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         val newDescription = descriptionEdit.text.toString()
         val newDate = dateEdit.text.toString()
 
-        // Update all relevant text views
+        // Update UI
         categoryText.text = newCategory
         typeText.text = newType.replaceFirstChar { it.uppercase() }
         amountText.text =
             if (newType == "expense") "-%.2f".format(newAmount) else "%.2f".format(newAmount)
         descriptionText.text = newDescription
         dateText.text = newDate
-
-        // **FIX: also update the title at the top**
         findViewById<TextView>(R.id.expenseTitle).text = newDescription
+        findViewById<TextView>(R.id.topBarTitle).text =
+            if (newType == "income") "Income Details" else "Expense Details"
 
-        val titleText = if (newType == "income") "Income Details" else "Expense Details"
-        findViewById<TextView>(R.id.topBarTitle).text = titleText
-
-        // Data map for Firestore
+        // Build updated data map
         val updatedData = mapOf(
             "category" to newCategory,
             "amount" to newAmount,
@@ -334,43 +331,94 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         val db = FirebaseFirestore.getInstance()
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
 
-        // Update main expense
-        db.collection("users")
-            .document(uid)
-            .collection("expenses")
-            .document(selectedYear.toString())
-            .collection(selectedMonth)
-            .document(expenseItem.id)
-            .update(updatedData)
-            .addOnSuccessListener {
-                // Update in latest if exists
-                db.collection("users")
-                    .document(uid)
-                    .collection("latest")
-                    .whereEqualTo("expenseId", expenseItem.id)
-                    .get()
-                    .addOnSuccessListener { snapshot ->
-                        if (!snapshot.isEmpty) {
+        // Parse new year/month from newDate
+        val parts = newDate.split("-")
+        val newYear = parts[0].toIntOrNull() ?: selectedYear
+        val newMonth = parts[1].toIntOrNull()?.let {
+            val cal = Calendar.getInstance()
+            cal.set(Calendar.MONTH, it - 1)
+            // Always English month names
+            cal.getDisplayName(Calendar.MONTH, Calendar.LONG, Locale.ENGLISH)
+        } ?: selectedMonth
+
+        // If year/month changed → move document
+        if (newYear != selectedYear || newMonth != selectedMonth) {
+            // 1. Delete from old location
+            val oldRef = db.collection("users")
+                .document(uid)
+                .collection("expenses")
+                .document(selectedYear.toString())
+                .collection(selectedMonth)
+                .document(expenseItem.id)
+
+            oldRef.get().addOnSuccessListener { snapshot ->
+                if (snapshot.exists()) {
+                    val oldData = snapshot.data
+
+                    // 2. Save to new location
+                    db.collection("users")
+                        .document(uid)
+                        .collection("expenses")
+                        .document(newYear.toString())
+                        .collection(newMonth)
+                        .document(expenseItem.id)
+                        .set(updatedData)
+                        .addOnSuccessListener {
+                            // 3. Delete old doc
+                            oldRef.delete()
+
+                            // 4. Update "latest"
+                            db.collection("users")
+                                .document(uid)
+                                .collection("latest")
+                                .whereEqualTo("expenseId", expenseItem.id)
+                                .get()
+                                .addOnSuccessListener { latestSnap ->
+                                    val batch = db.batch()
+                                    for (doc in latestSnap.documents) {
+                                        batch.update(doc.reference, updatedData)
+                                    }
+                                    batch.commit().addOnSuccessListener {
+                                        Toast.makeText(
+                                            this,
+                                            "Changes saved & moved!",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                }
+                        }
+                }
+            }
+        } else {
+            // Same year/month → just update
+            db.collection("users")
+                .document(uid)
+                .collection("expenses")
+                .document(selectedYear.toString())
+                .collection(selectedMonth)
+                .document(expenseItem.id)
+                .update(updatedData)
+                .addOnSuccessListener {
+                    db.collection("users")
+                        .document(uid)
+                        .collection("latest")
+                        .whereEqualTo("expenseId", expenseItem.id)
+                        .get()
+                        .addOnSuccessListener { latestSnap ->
                             val batch = db.batch()
-                            for (doc in snapshot.documents) {
+                            for (doc in latestSnap.documents) {
                                 batch.update(doc.reference, updatedData)
                             }
                             batch.commit().addOnSuccessListener {
                                 Toast.makeText(this, "Changes saved!", Toast.LENGTH_SHORT).show()
                             }
-                        } else {
-                            Toast.makeText(
-                                this,
-                                "Changes saved (not in latest list).",
-                                Toast.LENGTH_SHORT
-                            ).show()
                         }
-                    }
-            }
-            .addOnFailureListener { e ->
-                Toast.makeText(this, "Failed to save changes: ${e.message}", Toast.LENGTH_SHORT)
-                    .show()
-            }
+                }
+                .addOnFailureListener { e ->
+                    Toast.makeText(this, "Failed to save changes: ${e.message}", Toast.LENGTH_SHORT)
+                        .show()
+                }
+        }
     }
 
 
