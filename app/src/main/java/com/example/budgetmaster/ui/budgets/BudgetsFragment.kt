@@ -11,11 +11,11 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.budgetmaster.databinding.FragmentBudgetsBinding
 import com.example.budgetmaster.ui.activities.AddNewBudget
+import com.example.budgetmaster.ui.activities.BudgetDetails
 import com.example.budgetmaster.ui.activities.MyWallet
 import com.example.budgetmaster.ui.components.BudgetsAdapter
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-
 
 class BudgetsFragment : Fragment() {
 
@@ -36,6 +36,7 @@ class BudgetsFragment : Fragment() {
         _binding = FragmentBudgetsBinding.inflate(inflater, container, false)
         val root: View = binding.root
 
+        // Greeting text
         val textView: TextView = binding.greetingText
         budgetsViewModel.text.observe(viewLifecycleOwner) {
             textView.text = it
@@ -48,16 +49,24 @@ class BudgetsFragment : Fragment() {
         }
 
         // Navigate to MyWallet activity
-
         binding.myWalletCard.setOnClickListener {
             val intent = Intent(requireContext(), MyWallet::class.java)
             startActivity(intent)
         }
 
-        // Setup RecyclerView
-        binding.budgetListRecycler.layoutManager = LinearLayoutManager(requireContext())
-        adapter = BudgetsAdapter(budgets)
-        binding.budgetListRecycler.adapter = adapter
+        // Setup RecyclerView with click callback
+        adapter = BudgetsAdapter(budgets) { clickedBudget ->
+            // Navigate to MyWallet (later: pass full budget details via Intent)
+            val intent = Intent(requireContext(), BudgetDetails::class.java)
+            // Example: passing ID
+            intent.putExtra("budget", clickedBudget)
+            startActivity(intent)
+        }
+
+        binding.budgetListRecycler.apply {
+            layoutManager = LinearLayoutManager(requireContext())
+            adapter = this@BudgetsFragment.adapter
+        }
 
         // Load budgets from Firestore
         loadBudgets()

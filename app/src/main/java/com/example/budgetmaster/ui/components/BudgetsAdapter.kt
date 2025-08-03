@@ -6,13 +6,13 @@ import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
 import com.example.budgetmaster.ui.budgets.BudgetItem
 
 class BudgetsAdapter(
-    private val budgets: List<BudgetItem>
+    private val budgets: List<BudgetItem>,
+    private val onItemClick: (BudgetItem) -> Unit
 ) : RecyclerView.Adapter<BudgetsAdapter.BudgetViewHolder>() {
 
     inner class BudgetViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
@@ -30,11 +30,10 @@ class BudgetsAdapter(
     override fun onBindViewHolder(holder: BudgetViewHolder, position: Int) {
         val budget = budgets[position]
 
-        // Set name and balance
         holder.walletName.text = budget.name
         holder.balanceText.text = "${budget.balance.toInt()} ${budget.preferredCurrency}"
 
-        // Clear previous avatars (avoid recycling issues)
+        // Clear previous views (if recycled)
         holder.avatarsLayout.removeAllViews()
 
         // Add first member icon
@@ -56,18 +55,13 @@ class BudgetsAdapter(
             holder.avatarsLayout.addView(textView)
         }
 
-        // Apply ripple background and handle click
+        // Ripple effect & click
         holder.itemView.isClickable = true
         holder.itemView.isFocusable = true
         holder.itemView.setBackgroundResource(R.drawable.expense_ripple)
-        holder.itemView.setOnClickListener {
-            Toast.makeText(
-                holder.itemView.context,
-                "Clicked: ${budget.name}",
-                Toast.LENGTH_SHORT
-            ).show()
 
-            // Future: replace with Intent to open details, passing `budget`
+        holder.itemView.setOnClickListener {
+            onItemClick(budget)
         }
     }
 
