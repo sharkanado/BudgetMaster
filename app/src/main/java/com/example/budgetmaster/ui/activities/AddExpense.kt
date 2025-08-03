@@ -180,7 +180,8 @@ class AddExpense : AppCompatActivity() {
             "description" to description,
             "type" to transactionType,
             "date" to dateStr,
-            "timestamp" to Timestamp.now()
+            "timestamp" to Timestamp.now(),
+            "budgetName" to "personal"
         )
 
         val db = FirebaseFirestore.getInstance()

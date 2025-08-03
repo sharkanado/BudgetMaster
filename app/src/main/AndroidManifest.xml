@@ -34,9 +34,6 @@
             android:name=".ui.activities.AddExpense"
             android:exported="false" />
         <activity
-            android:name=".ui.activities.CreateBudget"
-            android:exported="false" />
-        <activity
             android:name=".ui.activities.MainActivity"
             android:exported="true">
             <intent-filter>

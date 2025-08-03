@@ -2,13 +2,18 @@ package com.example.budgetmaster.ui.activities
 
 import android.os.Bundle
 import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.Toast
+import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.example.budgetmaster.R
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.auth.FirebaseAuth
@@ -32,7 +37,22 @@ class AddNewBudget : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         setContentView(R.layout.activity_create_budget)
+
+        // Apply system bars insets dynamically (no XML changes)
+        val contentView = findViewById<View>(android.R.id.content)
+        val rootChild = (contentView as? ViewGroup)?.getChildAt(0)
+        ViewCompat.setOnApplyWindowInsetsListener(contentView) { _, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            rootChild?.setPadding(
+                systemBars.left,
+                systemBars.top,
+                systemBars.right,
+                systemBars.bottom
+            )
+            insets
+        }
 
         // Initialize views
         currencySpinner = findViewById(R.id.currencySpinner)
@@ -111,7 +131,6 @@ class AddNewBudget : AppCompatActivity() {
 
         // Resolve emails to UIDs, then save budget
         resolveEmailsToUids(memberEmails) { resolvedMemberIds ->
-            // Combine owner + resolved members
             val allMembers = listOf(ownerId) + resolvedMemberIds
 
             val metadata = hashMapOf(
@@ -119,13 +138,13 @@ class AddNewBudget : AppCompatActivity() {
                 "ownerId" to ownerId,
                 "members" to allMembers,
                 "preferredCurrency" to currency,
-                "createdAt" to com.google.firebase.Timestamp.now()
+                "createdAt" to com.google.firebase.Timestamp.now(),
+                "budget" to "personal"
             )
 
             db.collection("budgets").document(budgetId)
                 .set(metadata)
                 .addOnSuccessListener {
-                    // Update budgetsAccessed for all members
                     updateBudgetsAccessedForMembers(allMembers, budgetId)
                 }
                 .addOnFailureListener { e ->
@@ -135,9 +154,7 @@ class AddNewBudget : AppCompatActivity() {
         }
     }
 
-    /**
-     * Look up UIDs for emails from usersByEmail mapping
-     */
+    /** Look up UIDs for emails from usersByEmail mapping **/
     private fun resolveEmailsToUids(emails: List<String>, callback: (List<String>) -> Unit) {
         if (emails.isEmpty()) {
             callback(emptyList())
@@ -169,7 +186,7 @@ class AddNewBudget : AppCompatActivity() {
         }
     }
 
- 
+    /** Update budgetsAccessed for each member **/
     private fun updateBudgetsAccessedForMembers(memberIds: List<String>, budgetId: String) {
         var updated = 0
         for (uid in memberIds) {
