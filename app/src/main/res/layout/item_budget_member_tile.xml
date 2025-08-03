@@ -3,10 +3,10 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
-    android:paddingVertical="8dp"
     android:layout_marginVertical="4dp"
     android:background="@drawable/expense_bg"
-    android:paddingHorizontal="12dp"
+    android:paddingHorizontal="16dp"
+    android:paddingVertical="12dp"
     android:gravity="center_vertical">
 
     <LinearLayout

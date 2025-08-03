@@ -72,7 +72,7 @@ class BudgetDetails : AppCompatActivity() {
 
         // Setup expenses RecyclerView (accordion)
         val expensesRecycler = findViewById<RecyclerView>(R.id.accordionRecycler)
-        expensesAdapter = BudgetExpensesAdapter(expensesList) { headerPosition ->
+        expensesAdapter = BudgetExpensesAdapter(expensesList, userNames) { headerPosition ->
             toggleAccordion(headerPosition)
         }
         expensesRecycler.layoutManager = LinearLayoutManager(this)
@@ -187,7 +187,8 @@ class BudgetDetails : AppCompatActivity() {
         expensesAdapter.notifyDataSetChanged()
     }
 
-    /** Load members into list */
+    private val userNames = mutableMapOf<String, String>() // NEW
+
     private fun loadMembers() {
         if (budget.members.isEmpty()) return
 
@@ -198,23 +199,35 @@ class BudgetDetails : AppCompatActivity() {
             db.collection("users").document(uid).get()
                 .addOnSuccessListener { doc ->
                     if (doc.exists()) {
+                        val name = doc.getString("name") ?: "Unknown"
                         val member = BudgetMemberItem(
                             uid = uid,
-                            name = doc.getString("name") ?: "Unknown",
+                            name = name,
                             email = doc.getString("email") ?: "",
                             balance = 0.0
                         )
                         membersList.add(member)
+
+                        // Store name for expense lookups
+                        userNames[uid] = name
                     }
                 }
                 .addOnCompleteListener {
                     processed++
                     if (processed == budget.members.size) {
                         membersAdapter.notifyDataSetChanged()
+
+                        // Important: refresh expenses with names
+                        expensesAdapter =
+                            BudgetExpensesAdapter(expensesList, userNames) { headerPosition ->
+                                toggleAccordion(headerPosition)
+                            }
+                        findViewById<RecyclerView>(R.id.accordionRecycler).adapter = expensesAdapter
                     }
                 }
         }
     }
+
 
     /** Parse "yyyy-MM-dd" → "MonthName Year" */
     private fun parseMonthYear(dateStr: String): String {

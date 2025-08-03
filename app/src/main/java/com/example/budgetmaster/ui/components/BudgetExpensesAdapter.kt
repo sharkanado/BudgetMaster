@@ -11,7 +11,8 @@ import com.example.budgetmaster.ui.budgets.BudgetExpenseItem
 
 class BudgetExpensesAdapter(
     private val expenses: MutableList<BudgetExpenseItem>,
-    private val onHeaderClick: (Int) -> Unit
+    private val userNames: Map<String, String>,          // UID → Name map
+    private val onHeaderClick: (Int) -> Unit             // Lambda last
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     private val TYPE_HEADER = 0
@@ -38,17 +39,27 @@ class BudgetExpensesAdapter(
 
         if (holder is HeaderViewHolder) {
             holder.title.text = item.description
-
-            // Rotate arrow based on expanded state
             holder.arrow.rotation = if (item.isExpanded) 90f else 0f
 
             holder.itemView.setOnClickListener {
                 onHeaderClick(position)
             }
+
         } else if (holder is ItemViewHolder) {
+            // Set main description (expense name)
             holder.description.text = item.description
-            holder.amount.text = "${item.amount}"
-            holder.date.text = item.date
+
+            // Format amount with currency
+            holder.amount.text = String.format("%.2f", item.amount)
+
+            // Set date
+            holder.date.text = formatDate(item.date)
+
+            // Resolve name from userNames map
+            val payerName = userNames[item.createdBy] ?: "Unknown"
+
+            // Show "who paid"
+            holder.paidBy.text = "$payerName"
         }
     }
 
@@ -64,5 +75,17 @@ class BudgetExpensesAdapter(
         val description: TextView = view.findViewById(R.id.expenseDescription)
         val amount: TextView = view.findViewById(R.id.expenseAmount)
         val date: TextView = view.findViewById(R.id.expenseDate)
+        val paidBy: TextView = view.findViewById(R.id.expensePaidBy)
+    }
+}
+
+private fun formatDate(dateStr: String): String {
+    return try {
+        val inputFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ENGLISH)
+        val outputFormat = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.ENGLISH)
+        val date = inputFormat.parse(dateStr)
+        outputFormat.format(date!!)
+    } catch (e: Exception) {
+        dateStr
     }
 }
