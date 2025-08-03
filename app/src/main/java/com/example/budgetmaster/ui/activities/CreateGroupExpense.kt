@@ -145,8 +145,7 @@ class CreateGroupExpense : AppCompatActivity() {
 
         // Save to group expenses
         db.collection("budgets").document(budgetId)
-            .collection("expenses").document(year)
-            .collection(month)
+            .collection("expenses")
             .add(expenseData)
             .addOnSuccessListener {
                 Toast.makeText(this, "Expense added to group", Toast.LENGTH_SHORT).show()
