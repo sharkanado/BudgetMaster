@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingVertical="8dp"
+    android:layout_marginBottom="8dp"
+    android:paddingHorizontal="12dp"
+    android:background="@drawable/expense_bg">
+
+    <!-- Checkbox -->
+    <CheckBox
+        android:id="@+id/memberCheckbox"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:buttonTint="@color/orange"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+    <!-- Member Name -->
+    <TextView
+        android:id="@+id/memberName"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Member Name"
+        android:textColor="@color/white"
+        android:textSize="16sp"
+        android:fontFamily="@font/manrope_bold"
+        app:layout_constraintStart_toEndOf="@id/memberCheckbox"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginStart="8dp" />
+
+    <!-- Member Email (smaller under name) -->
+    <TextView
+        android:id="@+id/memberEmail"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="email@example.com"
+        android:textColor="@color/grey_light"
+        android:textSize="12sp"
+        android:fontFamily="@font/manrope_regular"
+        app:layout_constraintStart_toStartOf="@id/memberName"
+        app:layout_constraintTop_toBottomOf="@id/memberName"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:ellipsize="end"
+        android:singleLine="true" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

@@ -12,7 +12,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.budgetmaster.R
 import com.example.budgetmaster.ui.components.BudgetMemberItem
-import com.example.budgetmaster.ui.components.BudgetMembersAdapter
+import com.example.budgetmaster.ui.components.BudgetSelectMembersInDebtAdapter
 import com.example.budgetmaster.utils.updateLatestExpenses
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.Timestamp
@@ -29,7 +29,8 @@ class CreateGroupExpense : AppCompatActivity() {
     private lateinit var budgetName: String
 
     private lateinit var membersRecycler: androidx.recyclerview.widget.RecyclerView
-    private lateinit var membersAdapter: BudgetMembersAdapter
+    private lateinit var membersAdapter: BudgetSelectMembersInDebtAdapter
+    private lateinit var selectAllCheckbox: CheckBox
     private val membersList = mutableListOf<BudgetMemberItem>()
 
     // Track selected members
@@ -65,10 +66,18 @@ class CreateGroupExpense : AppCompatActivity() {
             showDatePicker()
         }
 
-        // Init members Recycler
+        // Init Recycler
         membersRecycler = findViewById(R.id.membersRecycler)
         membersRecycler.layoutManager =
             LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
+
+        // Select All checkbox
+        selectAllCheckbox = findViewById(R.id.selectAllCheckbox)
+        selectAllCheckbox.setOnCheckedChangeListener { _, isChecked ->
+            if (::membersAdapter.isInitialized) {
+                membersAdapter.toggleSelectAll(isChecked)
+            }
+        }
 
         // Load members
         loadBudgetMembers()
@@ -139,9 +148,21 @@ class CreateGroupExpense : AppCompatActivity() {
                         .addOnCompleteListener {
                             processed++
                             if (processed == memberIds.size) {
-                                selectedMembers.addAll(memberIds) // default: all selected
-                                membersAdapter = BudgetMembersAdapter(membersList)
+                                // Default: all selected
+                                selectedMembers.addAll(memberIds)
+
+                                membersAdapter =
+                                    BudgetSelectMembersInDebtAdapter(membersList, selectedMembers) {
+                                        // Update Select All state dynamically
+                                        selectAllCheckbox.setOnCheckedChangeListener(null)
+                                        selectAllCheckbox.isChecked =
+                                            selectedMembers.size == membersList.size
+                                        selectAllCheckbox.setOnCheckedChangeListener { _, isChecked ->
+                                            membersAdapter.toggleSelectAll(isChecked)
+                                        }
+                                    }
                                 membersRecycler.adapter = membersAdapter
+                                selectAllCheckbox.isChecked = true
                             }
                         }
                 }
