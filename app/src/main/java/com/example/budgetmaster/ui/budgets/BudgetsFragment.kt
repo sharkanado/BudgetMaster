@@ -56,9 +56,7 @@ class BudgetsFragment : Fragment() {
 
         // Setup RecyclerView with click callback
         adapter = BudgetsAdapter(budgets) { clickedBudget ->
-            // Navigate to MyWallet (later: pass full budget details via Intent)
             val intent = Intent(requireContext(), BudgetDetails::class.java)
-            // Example: passing ID
             intent.putExtra("budget", clickedBudget)
             startActivity(intent)
         }
@@ -68,10 +66,16 @@ class BudgetsFragment : Fragment() {
             adapter = this@BudgetsFragment.adapter
         }
 
-        // Load budgets from Firestore
+        // Initial load
         loadBudgets()
 
         return root
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Refresh budgets whenever the fragment comes back into view
+        loadBudgets()
     }
 
     private fun loadBudgets() {
