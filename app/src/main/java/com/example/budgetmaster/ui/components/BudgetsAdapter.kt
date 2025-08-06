@@ -44,16 +44,14 @@ class BudgetsAdapter(
         }
         holder.avatarsLayout.addView(icon)
 
-        // Add "+N" text if there are more members
-        if (budget.members.size > 1) {
-            val textView = TextView(holder.itemView.context).apply {
-                text = "+${budget.members.size - 1}"
-                setTextColor(holder.itemView.context.getColor(R.color.grey_light))
-                textSize = 12f
-                setPadding(8, 0, 0, 0)
-            }
-            holder.avatarsLayout.addView(textView)
+
+        val textView = TextView(holder.itemView.context).apply {
+            text = "${budget.members.size}"
+            setTextColor(holder.itemView.context.getColor(R.color.grey_light))
+            textSize = 12f
+            setPadding(8, 0, 0, 0)
         }
+        holder.avatarsLayout.addView(textView)
 
         // Ripple effect & click
         holder.itemView.isClickable = true
