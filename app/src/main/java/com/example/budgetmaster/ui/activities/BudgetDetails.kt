@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.widget.Button
+import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
@@ -33,15 +34,14 @@ class BudgetDetails : AppCompatActivity() {
     private val expensesList = mutableListOf<BudgetExpenseItem>()
     private lateinit var expensesAdapter: BudgetExpensesAdapter
 
-    // Cache for accordion expand/collapse
     private val monthExpenseMap = mutableMapOf<String, List<BudgetExpenseItem>>()
+    private val userNames = mutableMapOf<String, String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_budget_details)
 
-        // Apply window insets
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
@@ -60,26 +60,23 @@ class BudgetDetails : AppCompatActivity() {
             return
         }
 
-        // Set budget name + placeholder balance
+        // Set budget name
         findViewById<TextView>(R.id.budgetNameText).text = budget.name
-        findViewById<TextView>(R.id.userBalanceText).text = "+0 PLN" // TODO: Calculate real balance
+        findViewById<TextView>(R.id.userBalanceText).text = "+0 PLN" // Placeholder
 
-        // Setup members RecyclerView (vertical fixed height)
+        // Setup members RecyclerView
         val membersRecycler = findViewById<RecyclerView>(R.id.membersRecycler)
         membersAdapter = BudgetMembersAdapter(membersList)
         membersRecycler.layoutManager = LinearLayoutManager(this)
         membersRecycler.adapter = membersAdapter
 
-        // Setup expenses RecyclerView (accordion)
+        // Setup expenses RecyclerView
         val expensesRecycler = findViewById<RecyclerView>(R.id.accordionRecycler)
         expensesAdapter = BudgetExpensesAdapter(expensesList, userNames) { headerPosition ->
             toggleAccordion(headerPosition)
         }
         expensesRecycler.layoutManager = LinearLayoutManager(this)
         expensesRecycler.adapter = expensesAdapter
-
-        // Load members
-        loadMembers()
 
         // New Expense button
         val newExpenseBtn = findViewById<Button>(R.id.newExpenseBtn)
@@ -89,18 +86,33 @@ class BudgetDetails : AppCompatActivity() {
             intent.putExtra("budgetName", budget.name)
             startActivity(intent)
         }
+
+        // Edit Budget button
+        val settingsBtn = findViewById<ImageButton>(R.id.settingsBtn)
+        settingsBtn.setOnClickListener {
+            val intent = Intent(this, EditBudget::class.java)
+            intent.putExtra("budgetId", budget.id)
+            startActivity(intent)
+        }
     }
 
     override fun onResume() {
         super.onResume()
-        // Refresh expenses when coming back
+        refreshData()
+    }
+
+    /** Refresh both members and expenses */
+    private fun refreshData() {
+        loadMembers()
         loadExpenses()
     }
 
-    /** Load and group expenses by "Month Year" */
+    /** Load expenses grouped by month-year */
     private fun loadExpenses() {
+        // Clear old data
         expensesList.clear()
         monthExpenseMap.clear()
+        expensesAdapter.notifyDataSetChanged()
 
         db.collection("budgets").document(budget.id)
             .collection("expenses")
@@ -114,10 +126,10 @@ class BudgetDetails : AppCompatActivity() {
                 // Group by month-year
                 val grouped = snapshot.documents.groupBy { doc ->
                     val dateStr = doc.getString("date") ?: ""
-                    parseMonthYear(dateStr) // e.g., "June 2025"
+                    parseMonthYear(dateStr)
                 }
 
-                // Sort descending (latest first)
+                // Sort descending
                 val sortedKeys = grouped.keys.sortedByDescending { key ->
                     val parts = key.split(" ")
                     if (parts.size == 2) {
@@ -127,7 +139,7 @@ class BudgetDetails : AppCompatActivity() {
                     } else 0
                 }
 
-                // Add headers and items
+                // Add headers + items
                 for (monthKey in sortedKeys) {
                     val monthExpenses = grouped[monthKey]!!.map { doc ->
                         BudgetExpenseItem(
@@ -187,14 +199,15 @@ class BudgetDetails : AppCompatActivity() {
         expensesAdapter.notifyDataSetChanged()
     }
 
-    private val userNames = mutableMapOf<String, String>() // NEW
-
+    /** Load members and refresh adapter */
     private fun loadMembers() {
+        membersList.clear()
+        userNames.clear()
+        membersAdapter.notifyDataSetChanged()
+
         if (budget.members.isEmpty()) return
 
-        membersList.clear()
         var processed = 0
-
         for (uid in budget.members) {
             db.collection("users").document(uid).get()
                 .addOnSuccessListener { doc ->
@@ -207,8 +220,6 @@ class BudgetDetails : AppCompatActivity() {
                             balance = 0.0
                         )
                         membersList.add(member)
-
-                        // Store name for expense lookups
                         userNames[uid] = name
                     }
                 }
@@ -217,7 +228,7 @@ class BudgetDetails : AppCompatActivity() {
                     if (processed == budget.members.size) {
                         membersAdapter.notifyDataSetChanged()
 
-                        // Important: refresh expenses with names
+                        // Rebind expenses adapter so names update in UI
                         expensesAdapter =
                             BudgetExpensesAdapter(expensesList, userNames) { headerPosition ->
                                 toggleAccordion(headerPosition)
@@ -227,7 +238,6 @@ class BudgetDetails : AppCompatActivity() {
                 }
         }
     }
-
 
     /** Parse "yyyy-MM-dd" → "MonthName Year" */
     private fun parseMonthYear(dateStr: String): String {
