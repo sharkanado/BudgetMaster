@@ -70,17 +70,24 @@ class BudgetDetails : AppCompatActivity() {
         membersRecycler.layoutManager = LinearLayoutManager(this)
         membersRecycler.adapter = membersAdapter
 
-        // Setup expenses RecyclerView
+        // Setup expenses RecyclerView (only once)
         val expensesRecycler = findViewById<RecyclerView>(R.id.accordionRecycler)
-        expensesAdapter = BudgetExpensesAdapter(expensesList, userNames) { headerPosition ->
-            toggleAccordion(headerPosition)
-        }
+        expensesAdapter = BudgetExpensesAdapter(
+            expensesList,
+            userNames,
+            onHeaderClick = { headerPosition -> toggleAccordion(headerPosition) },
+            onExpenseClick = { expenseItem ->
+                val intent = Intent(this, BudgetExpenseDetails::class.java)
+                intent.putExtra("expenseItem", expenseItem) // Pass the whole object
+                intent.putExtra("budgetId", budget.id)
+                startActivity(intent)
+            }
+        )
         expensesRecycler.layoutManager = LinearLayoutManager(this)
         expensesRecycler.adapter = expensesAdapter
 
         // New Expense button
-        val newExpenseBtn = findViewById<Button>(R.id.newExpenseBtn)
-        newExpenseBtn.setOnClickListener {
+        findViewById<Button>(R.id.newExpenseBtn).setOnClickListener {
             val intent = Intent(this, CreateGroupExpense::class.java)
             intent.putExtra("budgetId", budget.id)
             intent.putExtra("budgetName", budget.name)
@@ -88,8 +95,7 @@ class BudgetDetails : AppCompatActivity() {
         }
 
         // Edit Budget button
-        val settingsBtn = findViewById<ImageButton>(R.id.settingsBtn)
-        settingsBtn.setOnClickListener {
+        findViewById<ImageButton>(R.id.settingsBtn).setOnClickListener {
             val intent = Intent(this, EditBudget::class.java)
             intent.putExtra("budgetId", budget.id)
             startActivity(intent)
@@ -109,7 +115,6 @@ class BudgetDetails : AppCompatActivity() {
 
     /** Load expenses grouped by month-year */
     private fun loadExpenses() {
-        // Clear old data
         expensesList.clear()
         monthExpenseMap.clear()
         expensesAdapter.notifyDataSetChanged()
@@ -123,13 +128,11 @@ class BudgetDetails : AppCompatActivity() {
                     return@addOnSuccessListener
                 }
 
-                // Group by month-year
                 val grouped = snapshot.documents.groupBy { doc ->
                     val dateStr = doc.getString("date") ?: ""
                     parseMonthYear(dateStr)
                 }
 
-                // Sort descending
                 val sortedKeys = grouped.keys.sortedByDescending { key ->
                     val parts = key.split(" ")
                     if (parts.size == 2) {
@@ -139,7 +142,6 @@ class BudgetDetails : AppCompatActivity() {
                     } else 0
                 }
 
-                // Add headers + items
                 for (monthKey in sortedKeys) {
                     val monthExpenses = grouped[monthKey]!!.map { doc ->
                         BudgetExpenseItem(
@@ -152,14 +154,12 @@ class BudgetDetails : AppCompatActivity() {
                             budgetName = doc.getString("budgetName") ?: ""
                         )
                     }
-
                     monthExpenseMap[monthKey] = monthExpenses
                     addMonthHeader(monthKey, monthExpenses)
                 }
             }
     }
 
-    /** Add header + children to list */
     private fun addMonthHeader(monthYear: String, expenses: List<BudgetExpenseItem>) {
         val headerItem = BudgetExpenseItem(
             id = "header_$monthYear",
@@ -173,7 +173,6 @@ class BudgetDetails : AppCompatActivity() {
         expensesAdapter.notifyDataSetChanged()
     }
 
-    /** Toggle expand/collapse for accordion sections */
     private fun toggleAccordion(headerPosition: Int) {
         val header = expensesList[headerPosition]
         if (!header.isHeader) return
@@ -181,7 +180,6 @@ class BudgetDetails : AppCompatActivity() {
         header.isExpanded = !header.isExpanded
 
         if (!header.isExpanded) {
-            // Collapse
             val toRemove = mutableListOf<BudgetExpenseItem>()
             var i = headerPosition + 1
             while (i < expensesList.size && !expensesList[i].isHeader) {
@@ -190,7 +188,6 @@ class BudgetDetails : AppCompatActivity() {
             }
             expensesList.removeAll(toRemove)
         } else {
-            // Expand
             val monthKey = header.description
             val children = monthExpenseMap[monthKey] ?: return
             expensesList.addAll(headerPosition + 1, children)
@@ -199,7 +196,6 @@ class BudgetDetails : AppCompatActivity() {
         expensesAdapter.notifyDataSetChanged()
     }
 
-    /** Load members and refresh adapter */
     private fun loadMembers() {
         membersList.clear()
         userNames.clear()
@@ -227,19 +223,12 @@ class BudgetDetails : AppCompatActivity() {
                     processed++
                     if (processed == budget.members.size) {
                         membersAdapter.notifyDataSetChanged()
-
-                        // Rebind expenses adapter so names update in UI
-                        expensesAdapter =
-                            BudgetExpensesAdapter(expensesList, userNames) { headerPosition ->
-                                toggleAccordion(headerPosition)
-                            }
-                        findViewById<RecyclerView>(R.id.accordionRecycler).adapter = expensesAdapter
+                        expensesAdapter.notifyDataSetChanged() // Just refresh, no re-init
                     }
                 }
         }
     }
 
-    /** Parse "yyyy-MM-dd" → "MonthName Year" */
     private fun parseMonthYear(dateStr: String): String {
         return try {
             val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH)
@@ -251,7 +240,6 @@ class BudgetDetails : AppCompatActivity() {
         }
     }
 
-    /** Convert month name → number */
     private fun monthToNumber(month: String): Int {
         val months = listOf(
             "January", "February", "March", "April", "May", "June",

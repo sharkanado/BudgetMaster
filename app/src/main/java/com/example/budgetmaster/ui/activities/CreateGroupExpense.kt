@@ -195,6 +195,7 @@ class CreateGroupExpense : AppCompatActivity() {
         // Expense object
         val expenseData = hashMapOf(
             "amount" to amount,
+            "category" to "Other",
             "description" to description,
             "date" to date.toString(),
             "timestamp" to Timestamp.now(),

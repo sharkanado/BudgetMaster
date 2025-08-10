@@ -11,8 +11,9 @@ import com.example.budgetmaster.ui.budgets.BudgetExpenseItem
 
 class BudgetExpensesAdapter(
     private val expenses: MutableList<BudgetExpenseItem>,
-    private val userNames: Map<String, String>,          // UID → Name map
-    private val onHeaderClick: (Int) -> Unit             // Lambda last
+    private val userNames: Map<String, String>,             // UID → Name map
+    private val onHeaderClick: (Int) -> Unit,               // For accordion toggle
+    private val onExpenseClick: (BudgetExpenseItem) -> Unit // For navigation
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     private val TYPE_HEADER = 0
@@ -40,26 +41,20 @@ class BudgetExpensesAdapter(
         if (holder is HeaderViewHolder) {
             holder.title.text = item.description
             holder.arrow.rotation = if (item.isExpanded) 90f else 0f
-
-            holder.itemView.setOnClickListener {
-                onHeaderClick(position)
-            }
+            holder.itemView.setOnClickListener { onHeaderClick(position) }
 
         } else if (holder is ItemViewHolder) {
-            // Set main description (expense name)
             holder.description.text = item.description
-
-            // Format amount with currency
             holder.amount.text = String.format("%.2f", item.amount)
-
-            // Set date
             holder.date.text = formatDate(item.date)
 
-            // Resolve name from userNames map
             val payerName = userNames[item.createdBy] ?: "Unknown"
+            holder.paidBy.text = payerName
 
-            // Show "who paid"
-            holder.paidBy.text = "$payerName"
+            // Navigate when clicked
+            holder.itemView.setOnClickListener {
+                onExpenseClick(item)
+            }
         }
     }
 
