@@ -24,7 +24,7 @@
         android:id="@+id/balanceText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="213 PLN"
+        android:text="21"
         android:textSize="16sp"
         android:textColor="#FF6666"
         android:fontFamily="@font/manrope_regular"

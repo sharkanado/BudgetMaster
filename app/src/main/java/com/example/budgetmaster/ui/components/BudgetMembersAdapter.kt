@@ -27,7 +27,7 @@ class BudgetMembersAdapter(
         val member = members[position]
         holder.nameText.text = member.name
         holder.emailText.text = member.email
-        holder.balanceText.text = "${member.balance} PLN"
+        holder.balanceText.text = "${member.balance}"
     }
 
     override fun getItemCount(): Int = members.size

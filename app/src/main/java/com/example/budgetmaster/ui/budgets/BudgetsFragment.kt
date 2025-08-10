@@ -180,7 +180,7 @@ class BudgetsFragment : Fragment() {
 
                 val text = String.format(
                     Locale.ENGLISH,
-                    "%s%.2f PLN",
+                    "%s%.2f",
                     if (net >= 0) "+" else "-",
                     abs(net)
                 )
@@ -192,7 +192,7 @@ class BudgetsFragment : Fragment() {
                 )
             } catch (e: Exception) {
                 // Fallback: show 0 if something goes wrong
-                binding.walletBalanceText.text = "0.00 PLN"
+                binding.walletBalanceText.text = "0.00"
             }
         }
     }

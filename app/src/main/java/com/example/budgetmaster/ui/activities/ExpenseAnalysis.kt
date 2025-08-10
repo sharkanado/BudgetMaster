@@ -196,7 +196,7 @@ class ExpenseAnalysis : AppCompatActivity() {
                     recyclerView.visibility = View.GONE
                     noDataText.visibility = View.VISIBLE
                     pieChart.setData(emptyList(), null)
-                    totalSpentText.text = "Total: $0.00"
+                    totalSpentText.text = "0.00"
                     return@addOnSuccessListener
                 }
 
@@ -255,7 +255,7 @@ class ExpenseAnalysis : AppCompatActivity() {
             if (category == null) cachedEntries else cachedEntries.filter { it.first.category == category }
 
         val total = filteredPairs.sumOf { it.second }
-        totalSpentText.text = "Total: ${"%.2f".format(total)}"
+        totalSpentText.text = "${"%.2f".format(total)}"
 
         val grouped = filteredPairs.map { it.first }.groupBy { it.date }
             .toSortedMap(compareByDescending { LocalDate.parse(it) })

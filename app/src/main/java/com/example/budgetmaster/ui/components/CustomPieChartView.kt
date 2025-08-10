@@ -7,6 +7,8 @@ import android.graphics.Paint
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
+import androidx.core.content.res.ResourcesCompat
+import com.example.budgetmaster.R
 import com.example.budgetmaster.utils.Categories
 import kotlin.math.cos
 import kotlin.math.min
@@ -41,6 +43,13 @@ class CustomPieChartView @JvmOverloads constructor(
         color = Color.WHITE
         textSize = 32f
         textAlign = Paint.Align.CENTER
+        // Try to apply Manrope SemiBold (put manrope_semibold.ttf in res/font/)
+        try {
+            val tf = ResourcesCompat.getFont(context, R.font.manrope_semibold)
+            if (tf != null) typeface = tf
+        } catch (_: Exception) {
+            // ignore, fallback to default typeface
+        }
     }
 
     private val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -49,10 +58,7 @@ class CustomPieChartView @JvmOverloads constructor(
         color = Color.WHITE
     }
 
-
-    /**
-     * Set pie data and optionally highlight a category
-     */
+    /** Set pie data and optionally highlight a category */
     fun setData(data: List<PieEntry>, highlightCategory: String?) {
         pieData = data
         total = data.sumOf { it.value }
@@ -74,11 +80,10 @@ class CustomPieChartView @JvmOverloads constructor(
         var startAngle = -90f
 
         // First pass: draw slices
-        pieData.forEachIndexed { index, entry ->
+        pieData.forEach { entry ->
             val sweepAngle = ((entry.value / total) * 360).toFloat()
 
             slicePaint.color = Categories.getColor(entry.label)
-
 
             val isHighlighted = highlightedCategory != null &&
                     entry.label.equals(highlightedCategory, ignoreCase = true)

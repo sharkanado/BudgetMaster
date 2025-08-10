@@ -63,7 +63,7 @@ class BudgetDetails : AppCompatActivity() {
 
         // Set budget name
         findViewById<TextView>(R.id.budgetNameText).text = budget.name
-        findViewById<TextView>(R.id.userBalanceText).text = "+0 PLN" // Placeholder
+        findViewById<TextView>(R.id.userBalanceText).text = "+0" // Placeholder
 
         // Setup members RecyclerView
         val membersRecycler = findViewById<RecyclerView>(R.id.membersRecycler)

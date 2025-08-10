@@ -92,7 +92,7 @@
             android:id="@+id/expenseAmount"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="21587 PLN"
+            android:text="21587"
             android:textColor="@android:color/white"
             android:textSize="32sp"
             android:textStyle="bold"
