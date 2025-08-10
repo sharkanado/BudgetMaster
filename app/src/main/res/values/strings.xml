@@ -3,6 +3,7 @@
     <string name="title_budgets">Budgets</string>
     <string name="title_dashboard">Dashboard</string>
     <string name="title_settings">Settings</string>
+    <string name="loading_ellipsis">Loading…</string>
     <string name="welcome_text">
     Welcome to <font color="#FF9C3F">Budget Master!</font>
     </string>

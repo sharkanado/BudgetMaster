@@ -51,11 +51,8 @@ class DashboardFragment : Fragment() {
 
         expensesAdapter = ExpensesAdapter(
             emptyList(),
-            onItemClick = { item ->
-                if (item is ExpenseListItem.Item) {
-                    openExpenseDetails(item)
-                }
-            }
+            onItemClick = null
+
         )
 
         binding.latestExpensesRecycler.apply {

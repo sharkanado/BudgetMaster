@@ -163,7 +163,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:fontFamily="@font/manrope_bold"
-                android:text="Latest Expenses"
+                android:text="Latest Events"
                 android:textColor="@color/orange"
                 android:textSize="18sp" />
 
