@@ -230,6 +230,7 @@ class ExpenseAnalysis : AppCompatActivity() {
                     val item = ExpenseListItem.Item(
                         Categories.getIcon(category),
                         description,
+                        budgetId = "null", expenseIdInBudget = "null",
                         category,
                         "%.2f".format(signedAmount),
                         dateStr,

@@ -182,6 +182,7 @@ class AddExpense : AppCompatActivity() {
             "date" to dateStr,
             "timestamp" to Timestamp.now(),
             "budgetName" to "personal"
+            
         )
 
         val db = FirebaseFirestore.getInstance()

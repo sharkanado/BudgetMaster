@@ -33,7 +33,6 @@ class CreateGroupExpense : AppCompatActivity() {
     private lateinit var selectAllCheckbox: CheckBox
     private val membersList = mutableListOf<BudgetMemberItem>()
 
-    // Track selected members
     private val selectedMembers = mutableSetOf<String>()
 
     private lateinit var dateInput: TextInputEditText
@@ -61,31 +60,23 @@ class CreateGroupExpense : AppCompatActivity() {
         // Init date field
         dateInput = findViewById(R.id.dateInput)
         prefillTodayDate()
-
-        dateInput.setOnClickListener {
-            showDatePicker()
-        }
+        dateInput.setOnClickListener { showDatePicker() }
 
         // Init Recycler
         membersRecycler = findViewById(R.id.membersRecycler)
-        membersRecycler.layoutManager =
-            LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
+        membersRecycler.layoutManager = LinearLayoutManager(this)
 
         // Select All checkbox
         selectAllCheckbox = findViewById(R.id.selectAllCheckbox)
         selectAllCheckbox.setOnCheckedChangeListener { _, isChecked ->
-            if (::membersAdapter.isInitialized) {
-                membersAdapter.toggleSelectAll(isChecked)
-            }
+            if (::membersAdapter.isInitialized) membersAdapter.toggleSelectAll(isChecked)
         }
 
         // Load members
         loadBudgetMembers()
 
         // Save button
-        findViewById<View>(R.id.saveExpenseBtn).setOnClickListener {
-            saveGroupExpense()
-        }
+        findViewById<View>(R.id.saveExpenseBtn).setOnClickListener { saveGroupExpense() }
     }
 
     private fun prefillTodayDate() {
@@ -95,7 +86,6 @@ class CreateGroupExpense : AppCompatActivity() {
 
     private fun showDatePicker() {
         val calendar = Calendar.getInstance()
-
         val currentDate = dateInput.text?.toString()
         val formatter = DateTimeFormatter.ISO_LOCAL_DATE
         try {
@@ -103,7 +93,7 @@ class CreateGroupExpense : AppCompatActivity() {
                 val parsedDate = LocalDate.parse(currentDate, formatter)
                 calendar.set(parsedDate.year, parsedDate.monthValue - 1, parsedDate.dayOfMonth)
             }
-        } catch (_: Exception) {
+        } catch (_: Exception) { /* ignore */
         }
 
         val year = calendar.get(Calendar.YEAR)
@@ -148,19 +138,21 @@ class CreateGroupExpense : AppCompatActivity() {
                         .addOnCompleteListener {
                             processed++
                             if (processed == memberIds.size) {
-                                // Default: all selected
+                                // Default: select all
                                 selectedMembers.addAll(memberIds)
 
-                                membersAdapter =
-                                    BudgetSelectMembersInDebtAdapter(membersList, selectedMembers) {
-                                        // Update Select All state dynamically
-                                        selectAllCheckbox.setOnCheckedChangeListener(null)
-                                        selectAllCheckbox.isChecked =
-                                            selectedMembers.size == membersList.size
-                                        selectAllCheckbox.setOnCheckedChangeListener { _, isChecked ->
-                                            membersAdapter.toggleSelectAll(isChecked)
-                                        }
+                                membersAdapter = BudgetSelectMembersInDebtAdapter(
+                                    membersList,
+                                    selectedMembers
+                                ) {
+                                    // Update Select All state dynamically
+                                    selectAllCheckbox.setOnCheckedChangeListener(null)
+                                    selectAllCheckbox.isChecked =
+                                        selectedMembers.size == membersList.size
+                                    selectAllCheckbox.setOnCheckedChangeListener { _, isChecked ->
+                                        membersAdapter.toggleSelectAll(isChecked)
                                     }
+                                }
                                 membersRecycler.adapter = membersAdapter
                                 selectAllCheckbox.isChecked = true
                             }
@@ -170,13 +162,11 @@ class CreateGroupExpense : AppCompatActivity() {
     }
 
     private fun saveGroupExpense() {
-        val currentUser = FirebaseAuth.getInstance().currentUser
-        val uid = currentUser?.uid ?: run {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: run {
             Toast.makeText(this, "Not authenticated", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // Fields
         val descriptionInput = findViewById<TextInputEditText>(R.id.descriptionInput)
         val amountInput = findViewById<TextInputEditText>(R.id.amountInput)
         val addPrivateCheck = findViewById<CheckBox>(R.id.addToPrivateWalletCheckbox)
@@ -192,28 +182,28 @@ class CreateGroupExpense : AppCompatActivity() {
 
         val date = LocalDate.parse(dateStr)
 
-        // Expense object
         val expenseData = hashMapOf(
             "amount" to amount,
-            "category" to "Other",
+            "category" to "No Category",
             "description" to description,
-            "date" to date.toString(),
+            "date" to date.toString(),       // yyyy-MM-dd
             "timestamp" to Timestamp.now(),
             "type" to "expense",
             "createdBy" to uid,
             "paidFor" to selectedMembers.toList(),
-            "budgetName" to budgetName
         )
 
-        // Save to group expenses
+        // 1) Create in group → get its doc id
         db.collection("budgets").document(budgetId)
             .collection("expenses")
             .add(expenseData)
-            .addOnSuccessListener {
+            .addOnSuccessListener { groupDocRef ->
+                val groupExpenseId = groupDocRef.id   // <-- THIS is the id you need
                 Toast.makeText(this, "Expense added to group", Toast.LENGTH_SHORT).show()
 
                 if (addPrivateCheck.isChecked) {
-                    addToPrivateWallet(uid, expenseData)
+                    // 2) Mirror into private wallet with both ids set
+                    addToPrivateWallet(uid, expenseData, groupExpenseId)
                 } else {
                     finish()
                 }
@@ -223,19 +213,45 @@ class CreateGroupExpense : AppCompatActivity() {
             }
     }
 
-    private fun addToPrivateWallet(uid: String, expenseData: HashMap<String, Any>) {
+    /**
+     * Save a mirrored copy in the user's private wallet. We also store:
+     * - budgetId (the group budget doc id)
+     * - expenseIdInBudget (the expense doc id created in the group)
+     */
+    private fun addToPrivateWallet(
+        uid: String,
+        expenseData: HashMap<String, Any>,
+        groupExpenseId: String
+    ) {
         val date = LocalDate.parse(expenseData["date"] as String)
         val year = date.year.toString()
         val month = date.month.name.lowercase().replaceFirstChar { it.uppercase() }
 
-        expenseData["budgetName"] = "personal"
+        val privateExpenseData = hashMapOf(
+            "amount" to expenseData["amount"]!!,
+            "category" to expenseData["category"]!!,
+            "description" to expenseData["description"]!!,
+            "type" to expenseData["type"]!!,
+            "date" to expenseData["date"]!!,
+            "timestamp" to Timestamp.now(),
+            "budgetId" to budgetId,                    // so wallet can propagate edits
+            "expenseIdInBudget" to groupExpenseId      // <-- carry the group expense id
+        )
+
+        // (Optional) also store budgetName in private doc if you use/need it elsewhere:
+        (expenseData["budgetName"] as? String)?.let { privateExpenseData["budgetName"] = it }
 
         db.collection("users").document(uid)
             .collection("expenses").document(year)
             .collection(month)
-            .add(expenseData)
-            .addOnSuccessListener {
-                updateLatestExpenses(uid, expenseData)
+            .add(privateExpenseData)
+            .addOnSuccessListener { privateDocRef ->
+                // If your "latest" feed expects the wallet doc id, include it:
+                val latestPayload = HashMap(privateExpenseData).apply {
+                    put("expenseId", privateDocRef.id)
+                }
+                updateLatestExpenses(uid, latestPayload)
+
                 Toast.makeText(this, "Also added to private wallet", Toast.LENGTH_SHORT).show()
                 finish()
             }

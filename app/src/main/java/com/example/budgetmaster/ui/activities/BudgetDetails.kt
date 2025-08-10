@@ -19,6 +19,7 @@ import com.example.budgetmaster.ui.budgets.BudgetItem
 import com.example.budgetmaster.ui.components.BudgetExpensesAdapter
 import com.example.budgetmaster.ui.components.BudgetMemberItem
 import com.example.budgetmaster.ui.components.BudgetMembersAdapter
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -146,17 +147,20 @@ class BudgetDetails : AppCompatActivity() {
                     val monthExpenses = grouped[monthKey]!!.map { doc ->
                         BudgetExpenseItem(
                             id = doc.id,
-                            amount = doc.getDouble("amount") ?: 0.0,
+                            amount = readAmount(doc), // <-- SAFE READ
                             description = doc.getString("description") ?: "",
                             date = doc.getString("date") ?: "",
                             createdBy = doc.getString("createdBy") ?: "",
-                            paidFor = doc.get("paidFor") as? List<String> ?: emptyList(),
-                            budgetName = doc.getString("budgetName") ?: ""
+                            paidFor = readStringList(doc.get("paidFor")),
                         )
                     }
                     monthExpenseMap[monthKey] = monthExpenses
                     addMonthHeader(monthKey, monthExpenses)
                 }
+            }
+            .addOnFailureListener { e ->
+                Toast.makeText(this, "Failed to load expenses: ${e.message}", Toast.LENGTH_SHORT)
+                    .show()
             }
     }
 
@@ -223,7 +227,7 @@ class BudgetDetails : AppCompatActivity() {
                     processed++
                     if (processed == budget.members.size) {
                         membersAdapter.notifyDataSetChanged()
-                        expensesAdapter.notifyDataSetChanged() // Just refresh, no re-init
+                        expensesAdapter.notifyDataSetChanged() // refresh names in expense rows
                     }
                 }
         }
@@ -235,7 +239,7 @@ class BudgetDetails : AppCompatActivity() {
             val date = sdf.parse(dateStr)
             val monthFormat = SimpleDateFormat("MMMM yyyy", Locale.ENGLISH)
             monthFormat.format(date!!)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             "Unknown"
         }
     }
@@ -245,6 +249,23 @@ class BudgetDetails : AppCompatActivity() {
             "January", "February", "March", "April", "May", "June",
             "July", "August", "September", "October", "November", "December"
         )
-        return months.indexOf(month) + 1
+        return months.indexOf(month).let { if (it >= 0) it + 1 else 0 }
+    }
+
+    /** Safely read amount as Double from Number | String | null */
+    private fun readAmount(doc: DocumentSnapshot): Double {
+        val raw = doc.get("amount")
+        return when (raw) {
+            is Number -> raw.toDouble()
+            is String -> raw.replace(",", ".").toDoubleOrNull() ?: 0.0
+            else -> 0.0
+        }
+    }
+
+    /** Safely coerce Arrays/Lists of any to List<String> */
+    @Suppress("UNCHECKED_CAST")
+    private fun readStringList(raw: Any?): List<String> = when (raw) {
+        is List<*> -> raw.mapNotNull { it?.toString() }
+        else -> emptyList()
     }
 }

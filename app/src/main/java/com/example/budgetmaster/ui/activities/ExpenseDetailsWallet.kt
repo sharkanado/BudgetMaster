@@ -5,6 +5,7 @@ import android.app.DatePickerDialog
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.util.Log
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.EditText
@@ -19,6 +20,7 @@ import androidx.core.view.WindowInsetsCompat
 import com.example.budgetmaster.R
 import com.example.budgetmaster.utils.Categories
 import com.google.android.material.button.MaterialButton
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import java.text.SimpleDateFormat
@@ -49,6 +51,7 @@ class ExpenseDetailsWallet : AppCompatActivity() {
 
     private var selectedYear: Int = 0
     private var selectedMonth: String = ""
+    private var expenseDocumentId: String = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,18 +66,18 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         // Get extras
         selectedYear = intent.getIntExtra("selectedYear", 0)
         selectedMonth = intent.getStringExtra("selectedMonth") ?: ""
+        expenseDocumentId = intent.getStringExtra("expenseId") ?: ""
 
         val item: ExpenseListItem.Item? =
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                intent.getParcelableExtra("expense_item", ExpenseListItem.Item::class.java)
+                intent.getParcelableExtra("expenseItem", ExpenseListItem.Item::class.java)
             } else {
-                @Suppress("DEPRECATION") intent.getParcelableExtra("expense_item")
+                @Suppress("DEPRECATION") intent.getParcelableExtra("expenseItem")
             }
 
         if (item == null) {
             Toast.makeText(this, "No expense data received", Toast.LENGTH_SHORT).show()
-            finish()
-            return
+            finish(); return
         }
         expenseItem = item
 
@@ -114,72 +117,49 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         // amount formatting
         amountEdit.addTextChangedListener(object : TextWatcher {
             private var current = ""
-
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-
             override fun afterTextChanged(s: Editable?) {
                 val raw = s?.toString() ?: return
                 if (raw == current) return
-
-                // replaces commas with dots
                 var sanitized = raw.replace(',', '.')
-
-                // digits + 1 dot allowed
                 sanitized = sanitized.replace(Regex("[^0-9.]"), "")
                 val dotIndex = sanitized.indexOf('.')
                 if (dotIndex != -1) {
-                    sanitized =
-                        sanitized.substring(0, dotIndex + 1) + sanitized.substring(dotIndex + 1)
-                            .replace(".", "")
-
+                    sanitized = sanitized.substring(0, dotIndex + 1) +
+                            sanitized.substring(dotIndex + 1).replace(".", "")
                     if (sanitized.length > dotIndex + 3) {
                         sanitized = sanitized.substring(0, dotIndex + 3)
                     }
                 }
-
-                // removes leading zeros
                 sanitized = sanitized.replaceFirst(Regex("^0+(?!\\.)"), "0")
-
                 current = sanitized
                 amountEdit.setText(sanitized)
                 amountEdit.setSelection(sanitized.length)
             }
         })
 
-        // Date picker logic
+        // date picker
         dateEdit.setOnClickListener {
             val calendar = Calendar.getInstance()
             val currentDate = dateEdit.text.toString()
-            val format = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-
-            // Parse current date if valid
+            val format = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH)
             try {
-                val parsedDate = format.parse(currentDate)
-                parsedDate?.let {
-                    calendar.time = it
-                }
+                format.parse(currentDate)?.let { calendar.time = it }
             } catch (_: Exception) {
             }
-
-            val year = calendar.get(Calendar.YEAR)
-            val month = calendar.get(Calendar.MONTH)
-            val day = calendar.get(Calendar.DAY_OF_MONTH)
-
-            val datePicker = DatePickerDialog(
-                this, { _, y, m, d ->
-                    val pickedDate = String.format("%04d-%02d-%02d", y, m + 1, d)
-                    dateEdit.setText(pickedDate)
-                }, year, month, day
-            )
-            datePicker.show()
+            val y = calendar.get(Calendar.YEAR)
+            val m = calendar.get(Calendar.MONTH)
+            val d = calendar.get(Calendar.DAY_OF_MONTH)
+            DatePickerDialog(this, { _, yy, mm, dd ->
+                dateEdit.setText(String.format("%04d-%02d-%02d", yy, mm + 1, dd))
+            }, y, m, d).show()
         }
     }
 
     private fun populateData() {
         val titleText = if (expenseItem.type == "income") "Income Details" else "Expense Details"
         findViewById<TextView>(R.id.topBarTitle).text = titleText
-
         findViewById<TextView>(R.id.expenseTitle).text = expenseItem.name
 
         val prefillAmount =
@@ -188,7 +168,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
 
         amountText.text =
             if (expenseItem.type == "expense") "-$formattedAmount" else formattedAmount
-
         dateText.text = expenseItem.date
         categoryText.text = expenseItem.category
         typeText.text = expenseItem.type.replaceFirstChar { it.uppercase() }
@@ -198,13 +177,12 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         descriptionEdit.setText(expenseItem.name)
         dateEdit.setText(expenseItem.date)
 
-        // sets spinners
         val catPos =
             (categorySpinner.adapter as ArrayAdapter<String>).getPosition(expenseItem.category)
         if (catPos >= 0) categorySpinner.setSelection(catPos)
 
-        val typePos =
-            (typeSpinner.adapter as ArrayAdapter<String>).getPosition(expenseItem.type.replaceFirstChar { it.uppercase() })
+        val typePos = (typeSpinner.adapter as ArrayAdapter<String>)
+            .getPosition(expenseItem.type.replaceFirstChar { it.uppercase() })
         if (typePos >= 0) typeSpinner.setSelection(typePos)
     }
 
@@ -212,14 +190,8 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         findViewById<ImageButton>(R.id.backButton).setOnClickListener {
             onBackPressedDispatcher.onBackPressed()
         }
-
         editButton.setOnClickListener {
-            if (!isEditMode) {
-                toggleEditMode(true)
-            } else {
-                saveData()
-                toggleEditMode(false)
-            }
+            if (!isEditMode) toggleEditMode(true) else saveData()
         }
     }
 
@@ -228,18 +200,16 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return@setOnClickListener
             val db = FirebaseFirestore.getInstance()
 
-            // Step 1: Delete from main expenses
+            // Delete from wallet
             db.collection("users").document(uid).collection("expenses")
                 .document(selectedYear.toString()).collection(selectedMonth)
-                .document(expenseItem.id).delete().addOnSuccessListener {
-                    // Step 2: Delete matching entry from latest by expenseId
+                .document(expenseDocumentId).delete().addOnSuccessListener {
+                    // Clean "latest"
                     db.collection("users").document(uid).collection("latest")
-                        .whereEqualTo("expenseId", expenseItem.id).get()
-                        .addOnSuccessListener { snapshot ->
+                        .whereEqualTo("expenseId", expenseDocumentId).get()
+                        .addOnSuccessListener { snap ->
                             val batch = db.batch()
-                            for (doc in snapshot.documents) {
-                                batch.delete(doc.reference)
-                            }
+                            for (doc in snap.documents) batch.delete(doc.reference)
                             batch.commit().addOnSuccessListener {
                                 Toast.makeText(this, "Successfully removed!", Toast.LENGTH_SHORT)
                                     .show()
@@ -248,7 +218,7 @@ class ExpenseDetailsWallet : AppCompatActivity() {
                         }.addOnFailureListener { e ->
                             Toast.makeText(
                                 this,
-                                "Deleted from expenses, but failed to clean latest: ${e.message}",
+                                "Deleted from expenses, failed to clean latest: ${e.message}",
                                 Toast.LENGTH_SHORT
                             ).show()
                             finish()
@@ -260,166 +230,82 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         }
     }
 
-
     private fun toggleEditMode(enable: Boolean) {
         isEditMode = enable
-
         editButton.setImageResource(if (enable) R.drawable.ic_save else R.drawable.ic_edit)
 
-        if (enable) {
-            categoryText.visibility = View.GONE
-            typeText.visibility = View.GONE
-            amountText.visibility = View.GONE
-            descriptionText.visibility = View.GONE
-            dateText.visibility = View.GONE
+        val viewVis = if (enable) View.GONE else View.VISIBLE
+        val editVis = if (enable) View.VISIBLE else View.GONE
 
-            categorySpinner.visibility = View.VISIBLE
-            typeSpinner.visibility = View.VISIBLE
-            amountEdit.visibility = View.VISIBLE
-            descriptionEdit.visibility = View.VISIBLE
-            dateEdit.visibility = View.VISIBLE
-        } else {
-            categoryText.visibility = View.VISIBLE
-            typeText.visibility = View.VISIBLE
-            amountText.visibility = View.VISIBLE
-            descriptionText.visibility = View.VISIBLE
-            dateText.visibility = View.VISIBLE
+        categoryText.visibility = viewVis
+        typeText.visibility = viewVis
+        amountText.visibility = viewVis
+        descriptionText.visibility = viewVis
+        dateText.visibility = viewVis
 
-            categorySpinner.visibility = View.GONE
-            typeSpinner.visibility = View.GONE
-            amountEdit.visibility = View.GONE
-            descriptionEdit.visibility = View.GONE
-            dateEdit.visibility = View.GONE
-        }
+        categorySpinner.visibility = editVis
+        typeSpinner.visibility = editVis
+        amountEdit.visibility = editVis
+        descriptionEdit.visibility = editVis
+        dateEdit.visibility = editVis
     }
 
     private fun saveData() {
-        val newCategory = categorySpinner.selectedItem.toString()
-        val newType = typeSpinner.selectedItem.toString().lowercase()
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val year = dateEdit.text.toString().substring(0, 4)
+        val month = SimpleDateFormat("MMMM", Locale.ENGLISH)
+            .format(
+                SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH)
+                    .parse(dateEdit.text.toString())!!
+            )
 
-        val normalizedInput = amountEdit.text.toString().replace(",", ".").replace("-", "")
-        val newAmount = normalizedInput.toDoubleOrNull() ?: 0.0
+        val amountStr = amountEdit.text.toString().trim()
+        val amount = amountStr.toDoubleOrNull() ?: 0.0
 
-        if (newAmount == 0.0) {
-            Toast.makeText(this, "Amount cannot be 0", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        val newDescription = descriptionEdit.text.toString()
-        val newDate = dateEdit.text.toString()
-
-        // Update UI
-        categoryText.text = newCategory
-        typeText.text = newType.replaceFirstChar { it.uppercase() }
-        amountText.text =
-            if (newType == "expense") "-%.2f".format(newAmount) else "%.2f".format(newAmount)
-        descriptionText.text = newDescription
-        dateText.text = newDate
-        findViewById<TextView>(R.id.expenseTitle).text = newDescription
-        findViewById<TextView>(R.id.topBarTitle).text =
-            if (newType == "income") "Income Details" else "Expense Details"
-
-        // Build updated data map
         val updatedData = mapOf(
-            "category" to newCategory,
-            "amount" to newAmount,
-            "description" to newDescription,
-            "type" to newType,
-            "date" to newDate
+            "category" to categorySpinner.selectedItem.toString(),
+            "description" to descriptionEdit.text.toString().trim(),
+            "amount" to amountStr,
+            "date" to dateEdit.text.toString(),
+            "type" to typeSpinner.selectedItem.toString().lowercase(),
+            "timestamp" to Timestamp.now()
         )
 
+        val bid = expenseItem.budgetId.trim()
+        val eid = expenseItem.expenseIdInBudget.trim()
+        val bidMissing = bid.isEmpty() || bid.equals("null", true)
+        val eidMissing = eid.isEmpty() || eid.equals("null", true)
+        Log.d("DEBUG", "BID ${bid} ${eid}")
+        Log.d("DEBUG", "expenseid: ${expenseDocumentId} - ${expenseItem.id}")
+        Log.d("DEBUG_FIRESTORE", "Updating doc: $uid / $year / $month / $expenseDocumentId")
+
         val db = FirebaseFirestore.getInstance()
-        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
 
-        // Parse new year/month from newDate
-        val parts = newDate.split("-")
-        val newYear = parts[0].toIntOrNull() ?: selectedYear
-        val newMonth = parts[1].toIntOrNull()?.let {
-            val cal = Calendar.getInstance()
-            cal.set(Calendar.MONTH, it - 1)
-            // Always English month names
-            cal.getDisplayName(Calendar.MONTH, Calendar.LONG, Locale.ENGLISH)
-        } ?: selectedMonth
-
-        // If year/month changed → move document
-        if (newYear != selectedYear || newMonth != selectedMonth) {
-            // 1. Delete from old location
-            val oldRef = db.collection("users")
-                .document(uid)
-                .collection("expenses")
-                .document(selectedYear.toString())
-                .collection(selectedMonth)
-                .document(expenseItem.id)
-
-            oldRef.get().addOnSuccessListener { snapshot ->
-                if (snapshot.exists()) {
-                    val oldData = snapshot.data
-
-                    // 2. Save to new location
-                    db.collection("users")
-                        .document(uid)
-                        .collection("expenses")
-                        .document(newYear.toString())
-                        .collection(newMonth)
-                        .document(expenseItem.id)
-                        .set(updatedData)
-                        .addOnSuccessListener {
-                            // 3. Delete old doc
-                            oldRef.delete()
-
-                            // 4. Update "latest"
-                            db.collection("users")
-                                .document(uid)
-                                .collection("latest")
-                                .whereEqualTo("expenseId", expenseItem.id)
-                                .get()
-                                .addOnSuccessListener { latestSnap ->
-                                    val batch = db.batch()
-                                    for (doc in latestSnap.documents) {
-                                        batch.update(doc.reference, updatedData)
-                                    }
-                                    batch.commit().addOnSuccessListener {
-                                        Toast.makeText(
-                                            this,
-                                            "Changes saved & moved!",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
-                                }
-                        }
-                }
+        // Always update in user's expenses
+        db.collection("users").document(uid)
+            .collection("expenses").document(year)
+            .collection(month).document(expenseDocumentId)
+            .update(updatedData)
+            .addOnSuccessListener {
+                Toast.makeText(this, "Expense updated", Toast.LENGTH_SHORT).show()
             }
-        } else {
-            // Same year/month → just update
-            db.collection("users")
-                .document(uid)
-                .collection("expenses")
-                .document(selectedYear.toString())
-                .collection(selectedMonth)
-                .document(expenseItem.id)
+            .addOnFailureListener { e ->
+                Toast.makeText(this, "Failed: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+
+        // Only update budget if both IDs are valid
+        if (!bidMissing && !eidMissing) {
+            db.collection("budgets").document(bid)
+                .collection("expenses").document(eid)
                 .update(updatedData)
                 .addOnSuccessListener {
-                    db.collection("users")
-                        .document(uid)
-                        .collection("latest")
-                        .whereEqualTo("expenseId", expenseItem.id)
-                        .get()
-                        .addOnSuccessListener { latestSnap ->
-                            val batch = db.batch()
-                            for (doc in latestSnap.documents) {
-                                batch.update(doc.reference, updatedData)
-                            }
-                            batch.commit().addOnSuccessListener {
-                                Toast.makeText(this, "Changes saved!", Toast.LENGTH_SHORT).show()
-                            }
-                        }
+                    Toast.makeText(this, "Budget expense updated", Toast.LENGTH_SHORT).show()
                 }
                 .addOnFailureListener { e ->
-                    Toast.makeText(this, "Failed to save changes: ${e.message}", Toast.LENGTH_SHORT)
+                    Toast.makeText(this, "Budget update failed: ${e.message}", Toast.LENGTH_SHORT)
                         .show()
                 }
         }
     }
-
 
 }

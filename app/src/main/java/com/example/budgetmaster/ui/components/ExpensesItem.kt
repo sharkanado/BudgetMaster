@@ -12,6 +12,8 @@ sealed class ExpenseListItem {
     data class Item(
         val iconResId: Int,
         val name: String,
+        val budgetId: String,
+        val expenseIdInBudget: String,
         val category: String,
         val amount: String,
         val date: String,

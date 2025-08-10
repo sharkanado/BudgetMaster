@@ -11,7 +11,6 @@ data class BudgetExpenseItem(
     val date: String = "",
     val createdBy: String = "",
     val paidFor: List<String> = emptyList(),
-    val budgetName: String = "",
     val isHeader: Boolean = false,
     var isExpanded: Boolean = false
 ) : Parcelable

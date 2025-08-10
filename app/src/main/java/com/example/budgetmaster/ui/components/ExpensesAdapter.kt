@@ -1,6 +1,7 @@
 package com.example.budgetmaster.ui.components
 
 import ExpenseListItem
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -78,6 +79,9 @@ class ExpensesAdapter(
         private val iconContainer = itemViewRoot.findViewById<View>(R.id.iconContainer)
 
         fun bind(item: ExpenseListItem.Item) {
+            // in ExpensesAdapter.ItemViewHolder.bind(), at the top:
+            Log.d("DEBUG_CLASS", "VH bind item class=${item::class.qualifiedName}")
+
             // Set category text & name
             categoryText.text = item.category
             nameText.text = item.name
@@ -94,6 +98,7 @@ class ExpensesAdapter(
             circleDrawable?.setTint(color)
             iconContainer.background = circleDrawable
 
+
             // Set category-specific icon
             icon.setImageResource(Categories.getIcon(item.category))
 
@@ -102,7 +107,13 @@ class ExpensesAdapter(
                 itemView.isClickable = true
                 itemView.isFocusable = true
                 itemView.setBackgroundResource(R.drawable.expense_ripple)
-                itemView.setOnClickListener { onItemClick.invoke(item) }
+                itemView.setOnClickListener {
+                    Log.d(
+                        "DEBUG",
+                        "CLICK bid='${item.budgetId}', eid='${item.expenseIdInBudget}'"
+                    )
+                    onItemClick.invoke(item)
+                }
             } else {
                 itemView.isClickable = false
                 itemView.isFocusable = false

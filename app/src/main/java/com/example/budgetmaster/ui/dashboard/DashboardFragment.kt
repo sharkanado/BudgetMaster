@@ -119,6 +119,8 @@ class DashboardFragment : Fragment() {
                             ExpenseListItem.Item(
                                 R.drawable.ic_home_white_24dp,
                                 name,
+                                budgetId = "null",
+                                expenseIdInBudget = "null",
                                 category,
                                 displayAmount,
                                 date.toString(),

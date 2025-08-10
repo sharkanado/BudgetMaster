@@ -22,7 +22,8 @@ object Categories {
         "Insurance",
         "Pets",
         "Other",
-        "Sport"
+        "Sport",
+        "No Category"
     )
 
     val categoryColors: Map<String, Int> = mapOf(
@@ -42,7 +43,8 @@ object Categories {
         "Insurance" to Color.parseColor("#FF7043"),
         "Pets" to Color.parseColor("#A1887F"),
         "Other" to Color.parseColor("#9E9E9E"),
-        "Sport" to Color.parseColor("#fcba03")
+        "Sport" to Color.parseColor("#fcba03"),
+        "No Category" to Color.parseColor("#fcba03"),
     )
 
     // Map categories to icon drawables
@@ -63,7 +65,8 @@ object Categories {
         "Insurance" to R.drawable.ic_insurance,
         "Pets" to R.drawable.ic_pets,
         "Other" to R.drawable.ic_other,
-        "Sport" to R.drawable.ic_sport
+        "Sport" to R.drawable.ic_sport,
+        "No Category" to R.drawable.ic_other,
     )
 
     fun getColor(category: String): Int {
