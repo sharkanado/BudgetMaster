@@ -140,20 +140,11 @@
             android:layout_marginTop="8dp"
             android:clipToPadding="false"
             app:layout_constraintTop_toBottomOf="@id/selectAllCheckbox"
-            app:layout_constraintBottom_toTopOf="@id/addToPrivateWalletCheckbox"
+            app:layout_constraintBottom_toTopOf="@id/saveExpenseBtn"
             app:layout_constraintStart_toStartOf="parent"
+            android:layout_marginBottom="8dp"
             app:layout_constraintEnd_toEndOf="parent" />
 
-        <!-- Add to private wallet checkbox -->
-        <CheckBox
-            android:id="@+id/addToPrivateWalletCheckbox"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Also add to my private wallet"
-            android:textColor="@color/white"
-            android:layout_marginTop="12dp"
-            app:layout_constraintBottom_toTopOf="@id/saveExpenseBtn"
-            app:layout_constraintStart_toStartOf="parent" />
 
         <!-- Save button -->
         <com.google.android.material.button.MaterialButton

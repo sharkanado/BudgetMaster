@@ -27,7 +27,7 @@
         android:text="213 PLN"
         android:textSize="16sp"
         android:textColor="#FF6666"
-        android:fontFamily="@font/manrope_bold"
+        android:fontFamily="@font/manrope_regular"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 

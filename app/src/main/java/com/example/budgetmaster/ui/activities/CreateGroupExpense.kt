@@ -13,7 +13,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.budgetmaster.R
 import com.example.budgetmaster.ui.components.BudgetMemberItem
 import com.example.budgetmaster.ui.components.BudgetSelectMembersInDebtAdapter
-import com.example.budgetmaster.utils.updateLatestExpenses
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
@@ -169,7 +168,6 @@ class CreateGroupExpense : AppCompatActivity() {
 
         val descriptionInput = findViewById<TextInputEditText>(R.id.descriptionInput)
         val amountInput = findViewById<TextInputEditText>(R.id.amountInput)
-        val addPrivateCheck = findViewById<CheckBox>(R.id.addToPrivateWalletCheckbox)
 
         val description = descriptionInput.text?.toString()?.trim()
         val amount = amountInput.text?.toString()?.replace(",", ".")?.toDoubleOrNull()
@@ -193,71 +191,17 @@ class CreateGroupExpense : AppCompatActivity() {
             "paidFor" to selectedMembers.toList(),
         )
 
-        // 1) Create in group → get its doc id
         db.collection("budgets").document(budgetId)
             .collection("expenses")
             .add(expenseData)
-            .addOnSuccessListener { groupDocRef ->
-                val groupExpenseId = groupDocRef.id   // <-- THIS is the id you need
+            .addOnSuccessListener {
                 Toast.makeText(this, "Expense added to group", Toast.LENGTH_SHORT).show()
-
-                if (addPrivateCheck.isChecked) {
-                    // 2) Mirror into private wallet with both ids set
-                    addToPrivateWallet(uid, expenseData, groupExpenseId)
-                } else {
-                    finish()
-                }
+                finish()
             }
             .addOnFailureListener { e ->
                 Toast.makeText(this, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
             }
     }
 
-    /**
-     * Save a mirrored copy in the user's private wallet. We also store:
-     * - budgetId (the group budget doc id)
-     * - expenseIdInBudget (the expense doc id created in the group)
-     */
-    private fun addToPrivateWallet(
-        uid: String,
-        expenseData: HashMap<String, Any>,
-        groupExpenseId: String
-    ) {
-        val date = LocalDate.parse(expenseData["date"] as String)
-        val year = date.year.toString()
-        val month = date.month.name.lowercase().replaceFirstChar { it.uppercase() }
 
-        val privateExpenseData = hashMapOf(
-            "amount" to expenseData["amount"]!!,
-            "category" to expenseData["category"]!!,
-            "description" to expenseData["description"]!!,
-            "type" to expenseData["type"]!!,
-            "date" to expenseData["date"]!!,
-            "timestamp" to Timestamp.now(),
-            "budgetId" to budgetId,                    // so wallet can propagate edits
-            "expenseIdInBudget" to groupExpenseId      // <-- carry the group expense id
-        )
-
-        // (Optional) also store budgetName in private doc if you use/need it elsewhere:
-        (expenseData["budgetName"] as? String)?.let { privateExpenseData["budgetName"] = it }
-
-        db.collection("users").document(uid)
-            .collection("expenses").document(year)
-            .collection(month)
-            .add(privateExpenseData)
-            .addOnSuccessListener { privateDocRef ->
-                // If your "latest" feed expects the wallet doc id, include it:
-                val latestPayload = HashMap(privateExpenseData).apply {
-                    put("expenseId", privateDocRef.id)
-                }
-                updateLatestExpenses(uid, latestPayload)
-
-                Toast.makeText(this, "Also added to private wallet", Toast.LENGTH_SHORT).show()
-                finish()
-            }
-            .addOnFailureListener { e ->
-                Toast.makeText(this, "Private wallet add failed: ${e.message}", Toast.LENGTH_SHORT)
-                    .show()
-            }
-    }
 }

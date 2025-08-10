@@ -155,13 +155,15 @@ class BudgetExpenseDetails : AppCompatActivity() {
         }
 
         // Update local model
-        val oldDate = expenseItem.date
-        expenseItem =
-            expenseItem.copy(amount = newAmount, description = newDescription, date = newDate)
+        expenseItem = expenseItem.copy(
+            amount = newAmount,
+            description = newDescription,
+            date = newDate
+        )
 
-        // Persist budget expense
+        // Persist ONLY the budget expense (no personal/latest cascades)
         val updates = mapOf(
-            "amount" to newAmount,                     // number!
+            "amount" to newAmount,     // number!
             "description" to newDescription,
             "date" to newDate,
             "timestamp" to Timestamp.now()
@@ -176,16 +178,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
                 fillFieldsOnce()
                 toggleEdit(false)
                 Toast.makeText(this, "Expense updated", Toast.LENGTH_SHORT).show()
-
-                // Cascade updates to personal expenses and latest
-                cascadeUpdatePersonalAndLatest(
-                    affectedUsers = buildAffectedUsers(),
-                    budgetExpenseId = expenseItem.id,
-                    oldDate = oldDate,
-                    newDate = newDate,
-                    newAmount = newAmount,
-                    newDescription = newDescription
-                )
             }
             .addOnFailureListener { e ->
                 Toast.makeText(this, "Failed to save: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -193,104 +185,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
             .addOnCompleteListener {
                 editBtn.setImageResource(R.drawable.ic_edit)
             }
-    }
-
-    /** createdBy + all paidFor users (duplicates removed) */
-    private fun buildAffectedUsers(): Set<String> {
-        val set = LinkedHashSet<String>()
-        set.add(expenseItem.createdBy)
-        expenseItem.paidFor.forEach { set.add(it) }
-        return set
-    }
-
-    /**
-     * For each user in [affectedUsers], tries to find personal expense docs that were created from this budget expense:
-     * - Looks in both the collection for [oldDate] and for [newDate],
-     * - Queries for documents with field "expenseIdInBudget" == [budgetExpenseId],
-     * - Updates those docs (amount, description, date, timestamp),
-     * - Then finds in users/{uid}/latest where "expenseId" == <personalDoc.id> and updates them too.
-     */
-    private fun cascadeUpdatePersonalAndLatest(
-        affectedUsers: Set<String>,
-        budgetExpenseId: String,
-        oldDate: String,
-        newDate: String,
-        newAmount: Double,
-        newDescription: String
-    ) {
-        val (oldYear, oldMonthName) = parseYearAndEnglishMonth(oldDate)
-        val (newYear, newMonthName) = parseYearAndEnglishMonth(newDate)
-
-        val personalUpdates = mapOf(
-            "amount" to newAmount,               // number
-            "description" to newDescription,
-            "date" to newDate,
-            "timestamp" to Timestamp.now(),
-            "type" to "expense"                  // keep type consistent for wallet
-        )
-
-        affectedUsers.forEach { uid ->
-            // Search in both old and new month collections
-            val targets = listOf(oldYear to oldMonthName, newYear to newMonthName).distinct()
-
-            targets.forEach { (year, monthName) ->
-                if (year.isBlank() || monthName.isBlank()) return@forEach
-
-                db.collection("users").document(uid)
-                    .collection("expenses").document(year)
-                    .collection(monthName)
-                    .whereEqualTo("expenseIdInBudget", budgetExpenseId)
-                    .get()
-                    .addOnSuccessListener { snap ->
-                        if (snap.isEmpty) return@addOnSuccessListener
-
-                        snap.documents.forEach { doc ->
-                            // 1) Update personal expense doc
-                            doc.reference.set(personalUpdates, SetOptions.merge())
-                                .addOnSuccessListener {
-                                    // 2) Update user's latest (by personal expense doc id)
-                                    val personalExpenseId = doc.id
-                                    val latestPatch = mapOf(
-                                        "amount" to newAmount,
-                                        "description" to newDescription,
-                                        "date" to newDate,
-                                        "type" to "expense",
-                                        "timestamp" to Timestamp.now()
-                                    )
-
-                                    db.collection("users").document(uid)
-                                        .collection("latest")
-                                        .whereEqualTo("expenseId", personalExpenseId)
-                                        .get()
-                                        .addOnSuccessListener { latestSnap ->
-                                            if (latestSnap.isEmpty) return@addOnSuccessListener
-                                            val batch = db.batch()
-                                            for (ld in latestSnap.documents) {
-                                                batch.set(
-                                                    ld.reference,
-                                                    latestPatch,
-                                                    SetOptions.merge()
-                                                )
-                                            }
-                                            batch.commit()
-                                        }
-                                }
-                        }
-                    }
-            }
-        }
-    }
-
-    private fun getCheckedUsers(): MutableList<String> {
-        val updatedList = mutableListOf<String>()
-        for (i in 0 until forWhomContainer.childCount) {
-            val cb = forWhomContainer.getChildAt(i) as? CheckBox ?: continue
-            if (cb.isChecked) {
-                val uid = userNames.entries.firstOrNull { it.value == cb.text }?.key
-                if (uid != null) updatedList.add(uid)
-            }
-        }
-        return updatedList
     }
 
     private fun ensurePayerNameLoaded(uid: String) {
@@ -322,13 +216,16 @@ class BudgetExpenseDetails : AppCompatActivity() {
         false
     }
 
-    private fun parseYearAndEnglishMonth(dateStr: String): Pair<String, String> = try {
-        val inFmt = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH)
-        val date = inFmt.parse(dateStr)!!
-        val year = SimpleDateFormat("yyyy", Locale.ENGLISH).format(date)
-        val month = SimpleDateFormat("MMMM", Locale.ENGLISH).format(date)
-        year to month
-    } catch (_: Exception) {
-        "" to ""
+    // Still here in case you later render checkboxes in forWhomContainer.
+    private fun getCheckedUsers(): MutableList<String> {
+        val updatedList = mutableListOf<String>()
+        for (i in 0 until forWhomContainer.childCount) {
+            val cb = forWhomContainer.getChildAt(i) as? CheckBox ?: continue
+            if (cb.isChecked) {
+                val uid = userNames.entries.firstOrNull { it.value == cb.text }?.key
+                if (uid != null) updatedList.add(uid)
+            }
+        }
+        return updatedList
     }
 }

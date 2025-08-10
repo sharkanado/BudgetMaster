@@ -17,9 +17,12 @@ import com.example.budgetmaster.ui.activities.MyWallet
 import com.example.budgetmaster.ui.components.BudgetsAdapter
 import com.example.budgetmaster.utils.ExpenseSumUtils
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.AggregateField
+import com.google.firebase.firestore.AggregateSource
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.util.Locale
 import kotlin.math.abs
@@ -85,45 +88,79 @@ class BudgetsFragment : Fragment() {
         val db = FirebaseFirestore.getInstance()
         val currentUser = FirebaseAuth.getInstance().currentUser ?: return
 
-        db.collection("users").document(currentUser.uid).get()
-            .addOnSuccessListener { userDoc ->
-                val accessedBudgets = userDoc.get("budgetsAccessed") as? List<String> ?: emptyList()
-
-                if (accessedBudgets.isEmpty()) {
-                    budgets.clear()
-                    adapter.notifyDataSetChanged()
-                    return@addOnSuccessListener
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                // 1) Read user's accessed budgets
+                val userDoc = db.collection("users").document(currentUser.uid).get().await()
+                val accessed = (userDoc.get("budgetsAccessed") as? List<String>).orEmpty()
+                if (accessed.isEmpty()) {
+                    adapter.submitList(emptyList())
+                    return@launch
                 }
 
-                budgets.clear()
-                var processed = 0
+                // 2) Fetch budgets by chunks of 10 (Firestore whereIn limit)
+                val byId = linkedMapOf<String, BudgetItem>()
+                accessed.chunked(10).forEach { chunk ->
+                    val snap = db.collection("budgets")
+                        .whereIn(com.google.firebase.firestore.FieldPath.documentId(), chunk)
+                        .get().await()
 
-                for (budgetId in accessedBudgets) {
-                    db.collection("budgets").document(budgetId).get()
-                        .addOnSuccessListener { budgetDoc ->
-                            if (budgetDoc.exists()) {
-                                val budget = BudgetItem(
-                                    id = budgetId,
-                                    name = budgetDoc.getString("name") ?: "",
-                                    preferredCurrency = budgetDoc.getString("preferredCurrency")
-                                        ?: "",
-                                    members = budgetDoc.get("members") as? List<String>
-                                        ?: emptyList(),
-                                    ownerId = budgetDoc.getString("ownerId") ?: "",
-                                    balance = budgetDoc.getDouble("balance") ?: 0.0
-                                )
-                                budgets.add(budget)
-                            }
+                    for (doc in snap.documents) {
+                        val id = doc.id
+                        byId[id] = BudgetItem(
+                            id = id,
+                            name = doc.getString("name") ?: "",
+                            preferredCurrency = doc.getString("preferredCurrency") ?: "PLN",
+                            members = (doc.get("members") as? List<String>).orEmpty(),
+                            ownerId = doc.getString("ownerId") ?: "",
+                            balance = 0.0 // we'll compute below
+                        )
+                    }
+                }
+
+                // 3) Submit the de-duplicated list once
+                val list = byId.values.toList()
+                adapter.submitList(list)
+
+                // 4) Load totals per budget (sum of all expenses in budgets/{id}/expenses)
+                list.forEach { budget ->
+                    launch(Dispatchers.IO) {
+                        val total = sumBudgetExpenses(db, budget.id)
+                        withContext(Dispatchers.Main) {
+                            adapter.updateBudgetTotal(budget.id, total)
                         }
-                        .addOnCompleteListener {
-                            processed++
-                            if (processed == accessedBudgets.size) {
-                                adapter.notifyDataSetChanged()
-                            }
-                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // in case of error, at least clear the UI list
+                adapter.submitList(emptyList())
+            }
+        }
+    }
+
+    private suspend fun sumBudgetExpenses(db: FirebaseFirestore, budgetId: String): Double {
+        val col = db.collection("budgets").document(budgetId).collection("expenses")
+        // Try aggregate SUM first (fast/cheap)
+        return try {
+            val agg = col.aggregate(AggregateField.sum("amount"))
+                .get(AggregateSource.SERVER).await()
+            (agg.get(AggregateField.sum("amount")) as? Number)?.toDouble() ?: 0.0
+        } catch (e: Exception) {
+            // Fallback: client sum (handles any legacy string types)
+            val snap = col.get().await()
+            var total = 0.0
+            for (doc in snap.documents) {
+                val raw = doc.get("amount")
+                total += when (raw) {
+                    is Number -> raw.toDouble()
+                    is String -> raw.replace(",", ".").toDoubleOrNull() ?: 0.0
+                    else -> 0.0
                 }
             }
+            total
+        }
     }
+
 
     /** Sums all years’ income & expenses for the current user and displays NET in walletBalanceText. */
     private fun refreshWalletBalance() {

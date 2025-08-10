@@ -208,10 +208,13 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             // Delete from wallet
             db.collection("users").document(uid).collection("expenses")
                 .document(selectedYear.toString()).collection(selectedMonth)
-                .document(expenseDocumentId).delete().addOnSuccessListener {
+                .document(expenseDocumentId)
+                .delete()
+                .addOnSuccessListener {
                     // Clean "latest"
                     db.collection("users").document(uid).collection("latest")
-                        .whereEqualTo("expenseId", expenseDocumentId).get()
+                        .whereEqualTo("expenseId", expenseDocumentId)
+                        .get()
                         .addOnSuccessListener { snap ->
                             val batch = db.batch()
                             for (doc in snap.documents) batch.delete(doc.reference)
@@ -220,7 +223,8 @@ class ExpenseDetailsWallet : AppCompatActivity() {
                                     .show()
                                 finish()
                             }
-                        }.addOnFailureListener { e ->
+                        }
+                        .addOnFailureListener { e ->
                             Toast.makeText(
                                 this,
                                 "Deleted from expenses, failed to clean latest: ${e.message}",
@@ -228,7 +232,8 @@ class ExpenseDetailsWallet : AppCompatActivity() {
                             ).show()
                             finish()
                         }
-                }.addOnFailureListener { e ->
+                }
+                .addOnFailureListener { e ->
                     Toast.makeText(this, "Failed to delete: ${e.message}", Toast.LENGTH_SHORT)
                         .show()
                 }
@@ -260,10 +265,8 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         val year = dateEdit.text.toString().substring(0, 4)
         val month = SimpleDateFormat("MMMM", Locale.ENGLISH)
             .format(
-                SimpleDateFormat(
-                    "yyyy-MM-dd",
-                    Locale.ENGLISH
-                ).parse(dateEdit.text.toString())!!
+                SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH)
+                    .parse(dateEdit.text.toString())!!
             )
 
         val amountStr = amountEdit.text.toString().trim()
@@ -279,12 +282,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             "timestamp" to Timestamp.now()
         )
 
-        val bid = expenseItem.budgetId.trim()
-        val eid = expenseItem.expenseIdInBudget.trim()
-        val bidMissing = bid.isEmpty() || bid.equals("null", true)
-        val eidMissing = eid.isEmpty() || eid.equals("null", true)
-        Log.d("DEBUG", "BID $bid $eid")
-        Log.d("DEBUG", "expenseid: $expenseDocumentId - ${expenseItem.id}")
         Log.d("DEBUG_FIRESTORE", "Updating doc: $uid / $year / $month / $expenseDocumentId")
 
         val db = FirebaseFirestore.getInstance()
@@ -324,18 +321,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
                 Toast.makeText(this, "Failed: ${e.message}", Toast.LENGTH_SHORT).show()
             }
 
-        // 3) Update budget doc if both IDs are valid
-        if (!bidMissing && !eidMissing) {
-            db.collection("budgets").document(bid)
-                .collection("expenses").document(eid)
-                .set(updatedData, SetOptions.merge())
-                .addOnSuccessListener {
-                    Toast.makeText(this, "Budget expense updated", Toast.LENGTH_SHORT).show()
-                }
-                .addOnFailureListener { e ->
-                    Toast.makeText(this, "Budget update failed: ${e.message}", Toast.LENGTH_SHORT)
-                        .show()
-                }
-        }
+        // Budget updates removed as requested
     }
 }
