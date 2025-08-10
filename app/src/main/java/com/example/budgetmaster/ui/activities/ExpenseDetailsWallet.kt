@@ -23,6 +23,7 @@ import com.google.android.material.button.MaterialButton
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -70,9 +71,12 @@ class ExpenseDetailsWallet : AppCompatActivity() {
 
         val item: ExpenseListItem.Item? =
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                intent.getParcelableExtra("expenseItem", ExpenseListItem.Item::class.java)
+                intent.getParcelableExtra("expense_item", ExpenseListItem.Item::class.java)
+                    ?: intent.getParcelableExtra("expenseItem", ExpenseListItem.Item::class.java)
             } else {
-                @Suppress("DEPRECATION") intent.getParcelableExtra("expenseItem")
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra<ExpenseListItem.Item>("expense_item")
+                    ?: @Suppress("DEPRECATION") intent.getParcelableExtra("expenseItem")
             }
 
         if (item == null) {
@@ -80,6 +84,7 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             finish(); return
         }
         expenseItem = item
+        if (expenseDocumentId.isBlank()) expenseDocumentId = expenseItem.id
 
         setupViews()
         populateData()
@@ -255,17 +260,20 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         val year = dateEdit.text.toString().substring(0, 4)
         val month = SimpleDateFormat("MMMM", Locale.ENGLISH)
             .format(
-                SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH)
-                    .parse(dateEdit.text.toString())!!
+                SimpleDateFormat(
+                    "yyyy-MM-dd",
+                    Locale.ENGLISH
+                ).parse(dateEdit.text.toString())!!
             )
 
         val amountStr = amountEdit.text.toString().trim()
-        val amount = amountStr.toDoubleOrNull() ?: 0.0
+        val amount = amountStr.replace(",", ".").toDoubleOrNull() ?: 0.0
 
+        // Store "amount" as NUMBER to prevent future crashes
         val updatedData = mapOf(
             "category" to categorySpinner.selectedItem.toString(),
             "description" to descriptionEdit.text.toString().trim(),
-            "amount" to amountStr,
+            "amount" to amount, // NUMBER, not string
             "date" to dateEdit.text.toString(),
             "type" to typeSpinner.selectedItem.toString().lowercase(),
             "timestamp" to Timestamp.now()
@@ -275,29 +283,52 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         val eid = expenseItem.expenseIdInBudget.trim()
         val bidMissing = bid.isEmpty() || bid.equals("null", true)
         val eidMissing = eid.isEmpty() || eid.equals("null", true)
-        Log.d("DEBUG", "BID ${bid} ${eid}")
-        Log.d("DEBUG", "expenseid: ${expenseDocumentId} - ${expenseItem.id}")
+        Log.d("DEBUG", "BID $bid $eid")
+        Log.d("DEBUG", "expenseid: $expenseDocumentId - ${expenseItem.id}")
         Log.d("DEBUG_FIRESTORE", "Updating doc: $uid / $year / $month / $expenseDocumentId")
 
         val db = FirebaseFirestore.getInstance()
 
-        // Always update in user's expenses
+        // 1) Update in user's expenses
         db.collection("users").document(uid)
             .collection("expenses").document(year)
             .collection(month).document(expenseDocumentId)
-            .update(updatedData)
+            .set(updatedData, SetOptions.merge())
             .addOnSuccessListener {
                 Toast.makeText(this, "Expense updated", Toast.LENGTH_SHORT).show()
+
+                // 2) Also update in 'latest' where expenseId matches
+                val latestPatch = mapOf(
+                    "category" to updatedData["category"],
+                    "description" to updatedData["description"],
+                    "amount" to updatedData["amount"],   // keep number
+                    "date" to updatedData["date"],
+                    "type" to updatedData["type"],
+                    "timestamp" to updatedData["timestamp"]
+                )
+
+                db.collection("users").document(uid)
+                    .collection("latest")
+                    .whereEqualTo("expenseId", expenseDocumentId)
+                    .get()
+                    .addOnSuccessListener { snap ->
+                        if (snap.isEmpty) return@addOnSuccessListener
+                        val batch = db.batch()
+                        for (doc in snap.documents) {
+                            batch.set(doc.reference, latestPatch, SetOptions.merge())
+                        }
+                        batch.commit()
+                    }
             }
             .addOnFailureListener { e ->
                 Toast.makeText(this, "Failed: ${e.message}", Toast.LENGTH_SHORT).show()
             }
 
-        // Only update budget if both IDs are valid
+        // 3) Update budget doc if both IDs are valid
         if (!bidMissing && !eidMissing) {
             db.collection("budgets").document(bid)
                 .collection("expenses").document(eid)
-                .update(updatedData)
+                .set(updatedData, SetOptions.merge())
                 .addOnSuccessListener {
                     Toast.makeText(this, "Budget expense updated", Toast.LENGTH_SHORT).show()
                 }
@@ -307,5 +338,4 @@ class ExpenseDetailsWallet : AppCompatActivity() {
                 }
         }
     }
-
 }
