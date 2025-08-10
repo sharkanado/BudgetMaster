@@ -79,9 +79,9 @@ class MyWallet : AppCompatActivity() {
             val intent = Intent(this, ExpenseDetailsWallet::class.java)
             intent.putExtra("selectedYear", selectedYear)
             intent.putExtra("selectedMonth", selectedMonth)
+            // Use the key "expense_item" (and also include a fallback-friendly id)
             intent.putExtra("expenseItem", clickedItem)
             intent.putExtra("expenseId", clickedItem.id)
-
             startActivity(intent)
         }
         findViewById<RecyclerView>(R.id.expensesRecyclerView).apply {
@@ -139,13 +139,13 @@ class MyWallet : AppCompatActivity() {
             .collection("expenses")
             .document(selectedYear.toString())
 
-        // Chart data
+        // Chart data (safe amount parsing)
         months.forEachIndexed { index, monthName ->
             yearRef.collection(monthName)
                 .get()
                 .addOnSuccessListener { docs ->
                     docs.forEach { doc ->
-                        val amount = doc.getDouble("amount")?.toFloat() ?: 0f
+                        val amount = readAmount(doc.get("amount")).toFloat()
                         val type = doc.getString("type") ?: "expense"
                         if (type == "expense") monthlyExpenses[index] += amount
                         else monthlyIncome[index] += amount
@@ -156,7 +156,7 @@ class MyWallet : AppCompatActivity() {
                 }
         }
 
-        // Month list data
+        // Month list data (safe amount parsing)
         yearRef.collection(selectedMonth)
             .get()
             .addOnSuccessListener { result ->
@@ -174,8 +174,8 @@ class MyWallet : AppCompatActivity() {
                     val category = doc.getString("category") ?: ""
                     val type = doc.getString("type") ?: "expense"
 
-                    val amount = doc.getDouble("amount") ?: 0.0
-                    val signedAmount = if (type == "expense") -amount else amount
+                    val amountVal = readAmount(doc.get("amount"))
+                    val signedAmount = if (type == "expense") -amountVal else amountVal
 
                     // Read IDs for group propagation
                     val budgetId = doc.getString("budgetId") ?: ""
@@ -226,17 +226,7 @@ class MyWallet : AppCompatActivity() {
                         )
                     }
                 }
-                listItems.filterIsInstance<ExpenseListItem.Item>()
-                    .take(3)
-                    .forEach {
-                        android.util.Log.d(
-                            "DEBUG_BUILD",
-                            "WILL BIND bid='${it.budgetId}', eid='${it.expenseIdInBudget}'"
-                        )
-                    }
-                listItems.filterIsInstance<ExpenseListItem.Item>().take(1).forEach {
-                    android.util.Log.d("DEBUG_CLASS", "MW item class=${it::class.qualifiedName}")
-                }
+
                 expensesAdapter.updateItems(listItems)
                 recycler.visibility = View.VISIBLE
                 noDataText.visibility = View.GONE
@@ -253,4 +243,11 @@ class MyWallet : AppCompatActivity() {
         val budgetId: String,
         val expenseIdInBudget: String
     )
+
+    /** Safely parse amount from Number | String | null */
+    private fun readAmount(raw: Any?): Double = when (raw) {
+        is Number -> raw.toDouble()
+        is String -> raw.replace(",", ".").toDoubleOrNull() ?: 0.0
+        else -> 0.0
+    }
 }

@@ -94,7 +94,7 @@ class ExpenseAnalysis : AppCompatActivity() {
             val intent = Intent(this, ExpenseDetailsWallet::class.java)
             intent.putExtra("selectedYear", selectedYear)
             intent.putExtra("selectedMonth", selectedMonth)
-            intent.putExtra("expense_item", clickedItem)
+            intent.putExtra("expenseItem", clickedItem)
             startActivity(intent)
         }
         recyclerView.adapter = expensesAdapter

@@ -151,7 +151,7 @@ class DashboardFragment : Fragment() {
 
     private fun openExpenseDetails(item: ExpenseListItem.Item) {
         val intent = Intent(requireContext(), ExpenseDetailsWallet::class.java)
-        intent.putExtra("expense_item", item)
+        intent.putExtra("expenseItem", item)
 
         val date = LocalDate.parse(item.date)
         val year = date.year
