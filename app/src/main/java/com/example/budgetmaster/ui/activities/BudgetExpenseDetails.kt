@@ -24,6 +24,7 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -46,16 +47,16 @@ class BudgetExpenseDetails : AppCompatActivity() {
 
     // Top bar buttons
     private lateinit var backButton: ImageButton
-    private lateinit var editBtn: ImageButton   // acts as overflow in view mode, save in edit mode
+    private lateinit var editBtn: ImageButton   // overflow in view mode, save in edit mode
 
     // One recycler view (we swap adapters)
     private lateinit var participantsRecycler: RecyclerView
 
     // Adapters & backing lists
-    private val allMembers = mutableListOf<BudgetMemberItem>()       // all members in the budget
-    private val selectedMembers = mutableSetOf<String>()             // currently selected (paidFor)
+    private val allMembers = mutableListOf<BudgetMemberItem>()
+    private val selectedMembers = mutableSetOf<String>()
     private val participantsReadOnly =
-        mutableListOf<BudgetMemberItem>() // for view mode (balance = share)
+        mutableListOf<BudgetMemberItem>() // name/email + balance=share
 
     private lateinit var readOnlyAdapter: BudgetMembersAdapter
     private lateinit var splitAdapter: BudgetSplitMembersAdapter
@@ -69,12 +70,21 @@ class BudgetExpenseDetails : AppCompatActivity() {
 
     private val db by lazy { FirebaseFirestore.getInstance() }
 
-    // Current per-uid shares used in EDIT mode (kept in memory only)
+    // Per-uid shares in EDIT mode
     private val sharesByUid = linkedMapOf<String, Double>()
 
-    private val df2 = DecimalFormat("0.00")
+    // Saved per-uid shares from DB for VIEW mode
+    private val savedPaidShares = linkedMapOf<String, Double>()
 
-    // Snapshot used to cancel edit
+    private val df2 = DecimalFormat("0.00").apply {
+        decimalFormatSymbols = DecimalFormatSymbols(Locale.getDefault()).apply {
+            decimalSeparator = ','
+            groupingSeparator = ' '
+        }
+        isGroupingUsed = false
+    }
+
+    // Snapshot to cancel edit
     private var editSnapshot: EditSnapshot? = null
 
     private data class EditSnapshot(
@@ -175,18 +185,19 @@ class BudgetExpenseDetails : AppCompatActivity() {
         fillFieldsOnce()
         ensurePayerNameLoaded(expenseItem.createdBy)
 
-        // Prepare initial edit-mode shares (equal split)
+        // Initial shares for EDIT mode (will be overridden by saved shares if present)
         recomputeSharesEqual()
 
-        // Load full member list and rebuild the UI lists
+        // Load full members and any saved paidShares
         loadBudgetMembers()
+        loadPaidSharesOnce()
 
-        // Three-dots / Save button
+        // Three-dots / Save
         editBtn.setOnClickListener {
             if (!isEditMode) showOverflowMenu() else saveChanges()
         }
 
-        // Back / Close button
+        // Back / Close
         backButton.setOnClickListener {
             if (isEditMode) cancelEdit() else finish()
         }
@@ -194,16 +205,27 @@ class BudgetExpenseDetails : AppCompatActivity() {
         // Date picker
         dateEdit.setOnClickListener { showDatePicker() }
 
-        // Recalc shares when total amount changes (only in edit mode & not while row editing)
+        // Total amount watcher: allows ',' or '.', normalizes on blur/done
         amountEdit.addTextChangedListener(object : android.text.TextWatcher {
-            private var internal = false
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: android.text.Editable?) {
-                if (!isEditMode || internal) return
-                val raw = s?.toString()?.replace(',', '.') ?: return
-                val total = raw.toDoubleOrNull()
-                if (total == null || total <= 0.0) {
+                if (!isEditMode) return
+                val rawTxt = s?.toString() ?: return
+
+                // UI normalization: dot -> comma
+                if (rawTxt.contains('.')) {
+                    val curSel = amountEdit.selectionStart
+                    val fixed = rawTxt.replace('.', ',')
+                    amountEdit.setText(fixed)
+                    val newSel = (curSel + (fixed.length - rawTxt.length)).coerceIn(0, fixed.length)
+                    amountEdit.setSelection(newSel)
+                    return
+                }
+
+                val raw = rawTxt.replace(',', '.')
+                val total = raw.toDoubleOrNull() ?: return
+                if (total <= 0.0) {
                     amountEdit.error = getString(R.string.error_negative_not_allowed)
                     return
                 } else amountEdit.error = null
@@ -213,6 +235,16 @@ class BudgetExpenseDetails : AppCompatActivity() {
                 splitAdapter.refreshVisibleSharesExcept(participantsRecycler, null)
             }
         })
+        amountEdit.setOnFocusChangeListener { v, hasFocus ->
+            if (!hasFocus) normalizeTotalField()
+        }
+        amountEdit.setOnEditorActionListener { v, actionId, _ ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) {
+                normalizeTotalField()
+                v.clearFocus()
+                true
+            } else false
+        }
     }
 
     private fun bindViews() {
@@ -248,13 +280,11 @@ class BudgetExpenseDetails : AppCompatActivity() {
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 MENU_EDIT -> {
-                    toggleEdit(true)
-                    true
+                    toggleEdit(true); true
                 }
 
                 MENU_DELETE -> {
-                    deleteExpense()
-                    true
+                    deleteExpense(); true
                 }
 
                 else -> false
@@ -320,15 +350,9 @@ class BudgetExpenseDetails : AppCompatActivity() {
                         .addOnCompleteListener {
                             processed++
                             if (processed == memberIds.size) {
-                                // Ensure selection is within available members
                                 selectedMembers.retainAll(memberIds.toSet())
+                                if (selectedMembers.isEmpty()) selectedMembers.addAll(memberIds)
 
-                                // If nothing selected, default to all members
-                                if (selectedMembers.isEmpty()) {
-                                    selectedMembers.addAll(memberIds)
-                                }
-
-                                // Rebuild edit shares & view items
                                 recomputeSharesEqual()
                                 rebuildReadOnlyParticipants()
 
@@ -343,32 +367,67 @@ class BudgetExpenseDetails : AppCompatActivity() {
             }
     }
 
-    /** Rebuild the read-only list from current selection, dividing equally from total expense. */
+    private fun loadPaidSharesOnce() {
+        db.collection("budgets").document(budgetId)
+            .collection("expenses").document(expenseItem.id)
+            .get()
+            .addOnSuccessListener { doc ->
+                val map = doc.get("paidShares") as? Map<String, Number>
+                if (map != null) {
+                    savedPaidShares.clear()
+                    map.forEach { (k, v) -> savedPaidShares[k] = round2(v.toDouble()) }
+
+                    // ensure selection reflects keys in paidShares
+                    if (savedPaidShares.isNotEmpty()) {
+                        selectedMembers.clear()
+                        selectedMembers.addAll(savedPaidShares.keys)
+                    }
+
+                    // seed edit shares from saved values
+                    sharesByUid.clear()
+                    sharesByUid.putAll(savedPaidShares)
+
+                    rebuildReadOnlyParticipants()
+                    readOnlyAdapter.notifyDataSetChanged()
+                } else {
+                    rebuildReadOnlyParticipants()
+                    readOnlyAdapter.notifyDataSetChanged()
+                }
+            }
+    }
+
+    /** Build read-only list from selection; prefer savedPaidShares if present. */
     private fun rebuildReadOnlyParticipants() {
         participantsReadOnly.clear()
-
-        val sel = selectedMembers.toList()
-        val count = sel.size
-        if (count == 0) return
-
-        val perHead = round2(expenseItem.amount / count)
         val byUid = allMembers.associateBy { it.uid }
 
-        var running = 0.0
-        sel.forEachIndexed { idx, uid ->
-            byUid[uid]?.let { src ->
-                val value = if (idx == count - 1) {
-                    round2(expenseItem.amount - running) // last gets remainder
-                } else {
-                    running += perHead
-                    perHead
+        val source: Map<String, Double> =
+            if (savedPaidShares.isNotEmpty()) savedPaidShares
+            else {
+                val sel = selectedMembers.toList()
+                val count = sel.size
+                if (count == 0) return
+                val per = round2(expenseItem.amount / count)
+                val tmp = LinkedHashMap<String, Double>()
+                var running = 0.0
+                sel.forEachIndexed { idx, uid ->
+                    val v = if (idx == sel.lastIndex) round2(expenseItem.amount - running) else {
+                        running = round2(running + per)
+                        per
+                    }
+                    tmp[uid] = v
                 }
-                participantsReadOnly.add(src.copy(balance = value))
+                tmp
+            }
+
+        source.forEach { (uid, share) ->
+            byUid[uid]?.let { m ->
+                participantsReadOnly.add(m.copy(balance = round2(share)))
             }
         }
     }
 
-    /** Equal split into sharesByUid based on the *current* selected set and current total. */
+    /** Equal split into sharesByUid based on current selection + current total (from amountEdit). */
     private fun recomputeSharesEqual() {
         sharesByUid.clear()
         val total = amountEdit.text.toString()
@@ -436,18 +495,20 @@ class BudgetExpenseDetails : AppCompatActivity() {
 
     private fun toggleEdit(editMode: Boolean) {
         if (editMode) {
-            // Snapshot current saved state so we can cancel later
             editSnapshot = EditSnapshot(
-                amount = df2.format(expenseItem.amount),
-                description = expenseItem.description,
-                date = expenseItem.date,
-                selected = expenseItem.paidFor.toList(),
+                amount = amountEdit.text?.toString().orEmpty(),
+                description = descriptionEdit.text?.toString().orEmpty(),
+                date = dateEdit.text?.toString().orEmpty(),
+                selected = selectedMembers.toList(),
                 shares = HashMap(sharesByUid)
             )
-
             setUiForEditMode()
             participantsRecycler.adapter = splitAdapter
-            recomputeSharesEqual()
+            if (savedPaidShares.isNotEmpty()) {
+                sharesByUid.clear(); sharesByUid.putAll(savedPaidShares)
+            } else {
+                recomputeSharesEqual()
+            }
             splitAdapter.notifyDataSetChanged()
         } else {
             rebuildReadOnlyParticipants()
@@ -459,19 +520,15 @@ class BudgetExpenseDetails : AppCompatActivity() {
     }
 
     private fun cancelEdit() {
-        // Restore snapshot (if any)
         editSnapshot?.let { snap ->
             amountEdit.setText(snap.amount)
             descriptionEdit.setText(snap.description)
             dateEdit.setText(snap.date)
-
             selectedMembers.clear()
             selectedMembers.addAll(snap.selected)
-
             sharesByUid.clear()
             sharesByUid.putAll(snap.shares)
         } ?: run {
-            // Fallback to current saved item
             amountEdit.setText(df2.format(expenseItem.amount))
             descriptionEdit.setText(expenseItem.description)
             dateEdit.setText(expenseItem.date)
@@ -479,7 +536,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
             selectedMembers.addAll(expenseItem.paidFor)
             recomputeSharesEqual()
         }
-
         toggleEdit(false)
     }
 
@@ -503,7 +559,20 @@ class BudgetExpenseDetails : AppCompatActivity() {
             return
         }
 
-        // Update local model
+        // Rebuild normalized paidShares from current state (sharesByUid + selection)
+        val normalizedPaidShares = run {
+            val sel = selectedMembers.toList()
+            val tmp = LinkedHashMap<String, Double>()
+            var sum = 0.0
+            sel.forEachIndexed { idx, uid ->
+                val v = sharesByUid[uid] ?: round2(newAmount / sel.size)
+                val vv = if (idx == sel.lastIndex) round2(newAmount - sum) else round2(v)
+                sum = round2(sum + vv)
+                tmp[uid] = vv
+            }
+            tmp
+        }
+
         expenseItem = expenseItem.copy(
             amount = newAmount,
             description = newDescription,
@@ -516,6 +585,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
             "description" to newDescription,
             "date" to newDate,
             "paidFor" to selectedMembers.toList(),
+            "paidShares" to normalizedPaidShares,   // NEW
             "timestamp" to Timestamp.now()
         )
 
@@ -525,6 +595,9 @@ class BudgetExpenseDetails : AppCompatActivity() {
             .document(expenseItem.id)
             .set(updates, SetOptions.merge())
             .addOnSuccessListener {
+                savedPaidShares.clear()
+                savedPaidShares.putAll(normalizedPaidShares)
+
                 rebuildReadOnlyParticipants()
                 readOnlyAdapter.notifyDataSetChanged()
 
@@ -584,6 +657,12 @@ class BudgetExpenseDetails : AppCompatActivity() {
                 paidByView.text = name
             }
             .addOnFailureListener { /* keep fallback */ }
+    }
+
+    private fun normalizeTotalField() {
+        val v = amountEdit.text?.toString()?.replace(',', '.')?.toDoubleOrNull() ?: 0.0
+        amountEdit.setText(df2.format(v))
+        amountEdit.setSelection(amountEdit.text?.length ?: 0)
     }
 
     private fun formatDate(dateStr: String): String = try {

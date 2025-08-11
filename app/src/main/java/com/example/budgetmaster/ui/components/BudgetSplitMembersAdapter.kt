@@ -13,6 +13,8 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
 import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
+import java.util.Locale
 
 class BudgetSplitMembersAdapter(
     private val members: List<BudgetMemberItem>,
@@ -25,7 +27,14 @@ class BudgetSplitMembersAdapter(
     private val onStopEditing: () -> Unit
 ) : RecyclerView.Adapter<BudgetSplitMembersAdapter.VH>() {
 
-    private val df2 = DecimalFormat("0.00")
+    private val syms = DecimalFormatSymbols(Locale.getDefault()).apply {
+        decimalSeparator = ','
+        groupingSeparator = ' '
+    }
+    private val df2 = DecimalFormat("0.00").apply {
+        decimalFormatSymbols = syms
+        isGroupingUsed = false
+    }
 
     // For watcher suppression & tracking the actively edited uid
     private var internalUpdate = false
@@ -58,7 +67,7 @@ class BudgetSplitMembersAdapter(
         holder.checkBox.setOnCheckedChangeListener(null)
         val isChecked = selected.contains(uid)
         holder.checkBox.isChecked = isChecked
-        applyEnabledState(holder, isChecked) // <-- enable/disable field based on checked
+        applyEnabledState(holder, isChecked) // enable/disable field based on checked
 
         holder.checkBox.setOnCheckedChangeListener { _, checked ->
             onCheckedChanged(uid, checked)
@@ -73,7 +82,7 @@ class BudgetSplitMembersAdapter(
         setEditTextSafely(holder.amountEdit, df2.format(value))
 
         // Focus management: track who is editing
-        holder.amountEdit.setOnFocusChangeListener { v, hasFocus ->
+        holder.amountEdit.setOnFocusChangeListener { _, hasFocus ->
             if (hasFocus) {
                 editingUid = uid
                 onStartEditing()
@@ -97,13 +106,28 @@ class BudgetSplitMembersAdapter(
             } else false
         }
 
-        // Watcher for edits on this row
+        // Watcher for edits on this row (includes dot→comma normalization)
         val watcher = object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
 
             override fun afterTextChanged(s: Editable?) {
                 if (internalUpdate) return
+
+                // Normalize '.' to ',' in UI, but still allow typing dots
+                val cur = s?.toString() ?: ""
+                if (cur.contains('.')) {
+                    val sel = holder.amountEdit.selectionStart
+                    internalUpdate = true
+                    val fixed = cur.replace('.', ',')
+                    holder.amountEdit.setText(fixed)
+                    // keep cursor reasonably in place
+                    val newSel = (sel + (fixed.length - cur.length)).coerceIn(0, fixed.length)
+                    holder.amountEdit.setSelection(newSel)
+                    internalUpdate = false
+                    return
+                }
+
                 if (editingUid != uid) return // only react for the actively edited row
                 if (!holder.amountEdit.isEnabled) return
 
@@ -208,3 +232,4 @@ class BudgetSplitMembersAdapter(
         }
     }
 }
+
