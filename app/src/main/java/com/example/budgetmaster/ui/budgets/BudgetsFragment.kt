@@ -5,17 +5,14 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.example.budgetmaster.R
 import com.example.budgetmaster.databinding.FragmentBudgetsBinding
 import com.example.budgetmaster.ui.activities.AddNewBudget
 import com.example.budgetmaster.ui.activities.BudgetDetails
 import com.example.budgetmaster.ui.activities.MyWallet
 import com.example.budgetmaster.ui.components.BudgetsAdapter
-import com.example.budgetmaster.utils.ExpenseSumUtils
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.AggregateField
 import com.google.firebase.firestore.AggregateSource
@@ -44,13 +41,11 @@ class BudgetsFragment : Fragment() {
         _binding = FragmentBudgetsBinding.inflate(inflater, container, false)
         val root: View = binding.root
 
-        // Navigate to AddNewBudget activity
         binding.addWalletButton.setOnClickListener {
             val intent = Intent(requireContext(), AddNewBudget::class.java)
             startActivity(intent)
         }
 
-        // Navigate to MyWallet activity
         binding.myWalletCard.setOnClickListener {
             val intent = Intent(requireContext(), MyWallet::class.java)
             startActivity(intent)
@@ -68,20 +63,14 @@ class BudgetsFragment : Fragment() {
             adapter = this@BudgetsFragment.adapter
         }
 
-        // Initial load
         loadBudgets()
-        // Initial wallet balance
-        refreshWalletBalance()
 
         return root
     }
 
     override fun onResume() {
         super.onResume()
-        // Refresh budgets whenever the fragment comes back into view
         loadBudgets()
-        // Also refresh wallet balance
-        refreshWalletBalance()
     }
 
     private fun loadBudgets() {
@@ -90,7 +79,6 @@ class BudgetsFragment : Fragment() {
 
         viewLifecycleOwner.lifecycleScope.launch {
             try {
-                // 1) Read user's accessed budgets
                 val userDoc = db.collection("users").document(currentUser.uid).get().await()
                 val accessed = (userDoc.get("budgetsAccessed") as? List<String>).orEmpty()
                 if (accessed.isEmpty()) {
@@ -98,7 +86,6 @@ class BudgetsFragment : Fragment() {
                     return@launch
                 }
 
-                // 2) Fetch budgets by chunks of 10 (Firestore whereIn limit)
                 val byId = linkedMapOf<String, BudgetItem>()
                 accessed.chunked(10).forEach { chunk ->
                     val snap = db.collection("budgets")
@@ -113,16 +100,14 @@ class BudgetsFragment : Fragment() {
                             preferredCurrency = doc.getString("preferredCurrency") ?: "PLN",
                             members = (doc.get("members") as? List<String>).orEmpty(),
                             ownerId = doc.getString("ownerId") ?: "",
-                            balance = 0.0 // we'll compute below
+                            balance = 0.0
                         )
                     }
                 }
 
-                // 3) Submit the de-duplicated list once
                 val list = byId.values.toList()
                 adapter.submitList(list)
 
-                // 4) Load totals per budget (sum of all expenses in budgets/{id}/expenses)
                 list.forEach { budget ->
                     launch(Dispatchers.IO) {
                         val total = sumBudgetExpenses(db, budget.id)
@@ -132,7 +117,6 @@ class BudgetsFragment : Fragment() {
                     }
                 }
             } catch (e: Exception) {
-                // in case of error, at least clear the UI list
                 adapter.submitList(emptyList())
             }
         }
@@ -158,37 +142,6 @@ class BudgetsFragment : Fragment() {
                 }
             }
             total
-        }
-    }
-
-    /** Sums all years’ income & expenses for the current user and displays NET in walletBalanceText. */
-    private fun refreshWalletBalance() {
-        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
-        val db = FirebaseFirestore.getInstance()
-
-        // Safe: only set if view is still around
-        _binding?.walletBalanceText?.text = getString(R.string.loading_ellipsis)
-
-        viewLifecycleOwner.lifecycleScope.launch {
-            try {
-                val perYearTotals = withContext(Dispatchers.IO) {
-                    ExpenseSumUtils.sumAllYearsTotals(db, uid)
-                }
-                val totalIncome = perYearTotals.values.sumOf { it.income }
-                val totalExpense = perYearTotals.values.sumOf { it.expense }
-                val net = totalIncome - totalExpense
-
-                val sign = if (net >= 0) "+" else "-"
-                val b = _binding ?: return@launch  // view might be gone by now
-
-                b.walletBalanceText.text = sign + formatPlMoney(kotlin.math.abs(net))
-                val colorRes = if (net >= 0) R.color.green_success else R.color.red_error
-                b.walletBalanceText.setTextColor(
-                    ContextCompat.getColor(requireContext(), colorRes)
-                )
-            } catch (e: Exception) {
-                _binding?.walletBalanceText?.text = "0,00"
-            }
         }
     }
 
