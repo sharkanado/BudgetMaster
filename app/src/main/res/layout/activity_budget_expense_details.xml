@@ -6,7 +6,6 @@
     android:layout_height="match_parent"
     android:background="@color/grey">
 
-    <!-- Top bar -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/topBar"
         android:layout_width="0dp"
@@ -46,7 +45,7 @@
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_edit"
+            android:src="@drawable/ic_more_vert"
             android:contentDescription="Edit"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent"
@@ -62,7 +61,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- SCROLLABLE CONTENT -->
     <androidx.core.widget.NestedScrollView
         android:id="@+id/scroll"
         android:layout_width="0dp"
@@ -70,7 +68,7 @@
         android:fillViewport="true"
         android:clipToPadding="false"
         app:layout_constraintTop_toBottomOf="@id/divider0"
-        app:layout_constraintBottom_toTopOf="@+id/deleteButton"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
@@ -81,11 +79,10 @@
             android:paddingHorizontal="16dp">
 
 
-            <!-- Info -->
             <LinearLayout
                 android:id="@+id/infoList"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="match_parent"
                 android:orientation="vertical"
                 android:layout_marginTop="16dp">
 
@@ -205,11 +202,10 @@
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="4dp" />
 
-                <!-- Participants list (let the ScrollView scroll it) -->
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/expenseParticipantsRecyclerView"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
+                    android:layout_height="match_parent"
                     android:nestedScrollingEnabled="false"
                     android:overScrollMode="ifContentScrolls"
                     android:descendantFocusability="afterDescendants"
@@ -219,38 +215,5 @@
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 
-    <!-- Bottom divider -->
-    <View
-        android:id="@+id/dividerBottom"
-        android:layout_width="0dp"
-        android:layout_height="1dp"
-        android:background="@color/grey_dark"
-        app:layout_constraintBottom_toTopOf="@id/deleteButton"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/deleteButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="8dp"
-        android:backgroundTint="@color/grey_dark"
-        android:fontFamily="@font/manrope_light"
-        android:paddingVertical="8dp"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:stateListAnimator="@null"
-        android:text="Delete"
-        android:textAllCaps="false"
-        android:textColor="@color/red_error"
-        android:textStyle="bold"
-        app:cornerRadius="12dp"
-        app:icon="@drawable/ic_remove"
-        app:iconGravity="textStart"
-        app:iconPadding="8dp"
-        app:iconTint="@color/red_error"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:rippleColor="@color/grey_light" />
 </androidx.constraintlayout.widget.ConstraintLayout>

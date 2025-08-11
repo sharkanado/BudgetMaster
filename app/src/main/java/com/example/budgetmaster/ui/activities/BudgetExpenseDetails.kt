@@ -5,11 +5,12 @@ import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.EditText
+import android.widget.ImageButton
+import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.widget.AppCompatImageButton
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -19,7 +20,6 @@ import com.example.budgetmaster.ui.budgets.BudgetExpenseItem
 import com.example.budgetmaster.ui.components.BudgetMemberItem
 import com.example.budgetmaster.ui.components.BudgetMembersAdapter
 import com.example.budgetmaster.ui.components.BudgetSplitMembersAdapter
-import com.google.android.material.button.MaterialButton
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
@@ -44,6 +44,10 @@ class BudgetExpenseDetails : AppCompatActivity() {
     private lateinit var descriptionEdit: EditText
     private lateinit var dateEdit: EditText
 
+    // Top bar buttons
+    private lateinit var backButton: ImageButton
+    private lateinit var editBtn: ImageButton   // acts as overflow in view mode, save in edit mode
+
     // One recycler view (we swap adapters)
     private lateinit var participantsRecycler: RecyclerView
 
@@ -56,8 +60,8 @@ class BudgetExpenseDetails : AppCompatActivity() {
     private lateinit var readOnlyAdapter: BudgetMembersAdapter
     private lateinit var splitAdapter: BudgetSplitMembersAdapter
 
-    private lateinit var editBtn: AppCompatImageButton
     private var isEditMode = false
+    private var isRowEditing: Boolean = false
 
     private lateinit var expenseItem: BudgetExpenseItem
     private var userNames: MutableMap<String, String> = mutableMapOf()
@@ -70,8 +74,16 @@ class BudgetExpenseDetails : AppCompatActivity() {
 
     private val df2 = DecimalFormat("0.00")
 
-    // Track if a row EditText is actively being edited
-    private var isRowEditing: Boolean = false
+    // Snapshot used to cancel edit
+    private var editSnapshot: EditSnapshot? = null
+
+    private data class EditSnapshot(
+        val amount: String,
+        val description: String,
+        val date: String,
+        val selected: List<String>,
+        val shares: Map<String, Double>
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -135,11 +147,9 @@ class BudgetExpenseDetails : AppCompatActivity() {
             members = allMembers,
             selected = selectedMembers,
             sharesByUid = sharesByUid,
-            // Total provider pulls live total from amountEdit
             totalProvider = {
-                amountEdit.text.toString()
-                    .replace(',', '.')
-                    .toDoubleOrNull() ?: expenseItem.amount
+                amountEdit.text.toString().replace(',', '.').toDoubleOrNull()
+                    ?: expenseItem.amount
             },
             onCheckedChanged = { uid, checked ->
                 if (checked) selectedMembers.add(uid) else selectedMembers.remove(uid)
@@ -159,6 +169,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
         // Start in VIEW mode
         setUiForViewMode()
         participantsRecycler.adapter = readOnlyAdapter
+        updateTopIcons()
 
         // Fill fields
         fillFieldsOnce()
@@ -170,9 +181,14 @@ class BudgetExpenseDetails : AppCompatActivity() {
         // Load full member list and rebuild the UI lists
         loadBudgetMembers()
 
-        // Toggle edit/save
+        // Three-dots / Save button
         editBtn.setOnClickListener {
-            if (!isEditMode) toggleEdit(true) else saveChanges()
+            if (!isEditMode) showOverflowMenu() else saveChanges()
+        }
+
+        // Back / Close button
+        backButton.setOnClickListener {
+            if (isEditMode) cancelEdit() else finish()
         }
 
         // Date picker
@@ -183,7 +199,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
             private var internal = false
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-
             override fun afterTextChanged(s: android.text.Editable?) {
                 if (!isEditMode || internal) return
                 val raw = s?.toString()?.replace(',', '.') ?: return
@@ -191,27 +206,19 @@ class BudgetExpenseDetails : AppCompatActivity() {
                 if (total == null || total <= 0.0) {
                     amountEdit.error = getString(R.string.error_negative_not_allowed)
                     return
-                } else {
-                    amountEdit.error = null
-                }
+                } else amountEdit.error = null
 
-                if (isRowEditing) {
-                    // If a row is actively being edited, don't re-split and fight the user.
-                    // We'll re-balance when that row fires its own valid edit OR when editing stops.
-                    return
-                }
-
-                // Re-equalize to the new total
+                if (isRowEditing) return
                 recomputeSharesEqual()
                 splitAdapter.refreshVisibleSharesExcept(participantsRecycler, null)
             }
         })
-
-        // Delete
-        findViewById<MaterialButton>(R.id.deleteButton).setOnClickListener { deleteExpense() }
     }
 
     private fun bindViews() {
+        backButton = findViewById(R.id.backButton)
+        editBtn = findViewById(R.id.editButton)
+
         amountView = findViewById(R.id.expenseAmount)
         descriptionView = findViewById(R.id.expenseDescription)
         dateView = findViewById(R.id.expenseDate)
@@ -222,11 +229,38 @@ class BudgetExpenseDetails : AppCompatActivity() {
         dateEdit = findViewById(R.id.expenseDateEdit)
 
         participantsRecycler = findViewById(R.id.expenseParticipantsRecyclerView)
-        editBtn = findViewById(R.id.editButton)
+    }
 
-        // Initial UI (view mode)
-        setUiForViewMode()
-        editBtn.setImageResource(R.drawable.ic_edit)
+    private fun updateTopIcons() {
+        if (isEditMode) {
+            editBtn.setImageResource(R.drawable.ic_save)
+            backButton.setImageResource(R.drawable.ic_remove)
+        } else {
+            editBtn.setImageResource(R.drawable.ic_more_vert)
+            backButton.setImageResource(R.drawable.ic_chevron_left)
+        }
+    }
+
+    private fun showOverflowMenu() {
+        val popup = PopupMenu(this, editBtn)
+        popup.menu.add(0, MENU_EDIT, 0, getString(R.string.edit))
+        popup.menu.add(0, MENU_DELETE, 1, getString(R.string.delete))
+        popup.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                MENU_EDIT -> {
+                    toggleEdit(true)
+                    true
+                }
+
+                MENU_DELETE -> {
+                    deleteExpense()
+                    true
+                }
+
+                else -> false
+            }
+        }
+        popup.show()
     }
 
     private fun setUiForViewMode() {
@@ -298,11 +332,9 @@ class BudgetExpenseDetails : AppCompatActivity() {
                                 recomputeSharesEqual()
                                 rebuildReadOnlyParticipants()
 
-                                // Hook correct adapter
                                 participantsRecycler.adapter =
                                     if (isEditMode) splitAdapter else readOnlyAdapter
 
-                                // Notify
                                 readOnlyAdapter.notifyDataSetChanged()
                                 splitAdapter.notifyDataSetChanged()
                             }
@@ -326,8 +358,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
         sel.forEachIndexed { idx, uid ->
             byUid[uid]?.let { src ->
                 val value = if (idx == count - 1) {
-                    // last one gets the remainder correction to match total exactly
-                    round2(expenseItem.amount - running)
+                    round2(expenseItem.amount - running) // last gets remainder
                 } else {
                     running += perHead
                     perHead
@@ -360,27 +391,19 @@ class BudgetExpenseDetails : AppCompatActivity() {
         }
     }
 
-    /**
-     * When one member’s share is edited, keep the total constant and distribute
-     * the remainder equally among the other selected members.
-     */
+    /** Keep total constant while one share is edited. */
     private fun applyBalancedEdit(editedUid: String, newValue: Double, total: Double) {
         val sel = selectedMembers.toList()
-        if (sel.isEmpty()) return
-        if (!sel.contains(editedUid)) return
+        if (sel.isEmpty() || !sel.contains(editedUid)) return
 
         val others = sel.filter { it != editedUid }
         val remaining = round2(total - newValue)
 
         if (others.isEmpty()) {
-            // Only one selected => that one must equal total
             sharesByUid[editedUid] = round2(total)
             return
         }
-        if (remaining <= 0.0) {
-            // Blocked earlier; keep current shares
-            return
-        }
+        if (remaining <= 0.0) return
 
         val perOther = round2(remaining / others.size)
         var running = 0.0
@@ -407,27 +430,57 @@ class BudgetExpenseDetails : AppCompatActivity() {
         descriptionEdit.setText(e.description)
         dateEdit.setText(e.date)
 
-        // Also prepare initial view-mode list
         rebuildReadOnlyParticipants()
         readOnlyAdapter.notifyDataSetChanged()
     }
 
     private fun toggleEdit(editMode: Boolean) {
         if (editMode) {
+            // Snapshot current saved state so we can cancel later
+            editSnapshot = EditSnapshot(
+                amount = df2.format(expenseItem.amount),
+                description = expenseItem.description,
+                date = expenseItem.date,
+                selected = expenseItem.paidFor.toList(),
+                shares = HashMap(sharesByUid)
+            )
+
             setUiForEditMode()
-            editBtn.setImageResource(R.drawable.ic_save)
             participantsRecycler.adapter = splitAdapter
-            // Make sure edit-mode shares reflect current total + selection
             recomputeSharesEqual()
             splitAdapter.notifyDataSetChanged()
         } else {
-            // View mode: reflect saved item values
             rebuildReadOnlyParticipants()
             setUiForViewMode()
-            editBtn.setImageResource(R.drawable.ic_edit)
             participantsRecycler.adapter = readOnlyAdapter
             readOnlyAdapter.notifyDataSetChanged()
         }
+        updateTopIcons()
+    }
+
+    private fun cancelEdit() {
+        // Restore snapshot (if any)
+        editSnapshot?.let { snap ->
+            amountEdit.setText(snap.amount)
+            descriptionEdit.setText(snap.description)
+            dateEdit.setText(snap.date)
+
+            selectedMembers.clear()
+            selectedMembers.addAll(snap.selected)
+
+            sharesByUid.clear()
+            sharesByUid.putAll(snap.shares)
+        } ?: run {
+            // Fallback to current saved item
+            amountEdit.setText(df2.format(expenseItem.amount))
+            descriptionEdit.setText(expenseItem.description)
+            dateEdit.setText(expenseItem.date)
+            selectedMembers.clear()
+            selectedMembers.addAll(expenseItem.paidFor)
+            recomputeSharesEqual()
+        }
+
+        toggleEdit(false)
     }
 
     private fun saveChanges() {
@@ -472,7 +525,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
             .document(expenseItem.id)
             .set(updates, SetOptions.merge())
             .addOnSuccessListener {
-                // Recompute view list with the new total
                 rebuildReadOnlyParticipants()
                 readOnlyAdapter.notifyDataSetChanged()
 
@@ -502,7 +554,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
 
     private fun showDatePicker() {
         val cal = Calendar.getInstance()
-        // Try to preset to current dateEdit value
         try {
             val current = dateEdit.text?.toString()?.takeIf { it.isNotBlank() }
             if (current != null && isValidDate(current)) {
@@ -555,4 +606,9 @@ class BudgetExpenseDetails : AppCompatActivity() {
 
     @Suppress("unused")
     private fun abs2(v: Double): String = df2.format(abs(v))
+
+    companion object {
+        private const val MENU_EDIT = 1
+        private const val MENU_DELETE = 2
+    }
 }
