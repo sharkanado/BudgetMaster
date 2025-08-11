@@ -3,7 +3,6 @@ package com.example.budgetmaster.ui.activities
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
-import android.widget.Button
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
@@ -19,6 +18,7 @@ import com.example.budgetmaster.ui.budgets.BudgetItem
 import com.example.budgetmaster.ui.components.BudgetExpensesAdapter
 import com.example.budgetmaster.ui.components.BudgetMemberItem
 import com.example.budgetmaster.ui.components.BudgetMembersAdapter
+import com.google.android.material.button.MaterialButton
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import java.text.SimpleDateFormat
@@ -62,7 +62,6 @@ class BudgetDetails : AppCompatActivity() {
 
         // Set budget name
         findViewById<TextView>(R.id.budgetNameText).text = budget.name
-        findViewById<TextView>(R.id.userBalanceText).text = "+0" // Placeholder
 
         val membersRecycler = findViewById<RecyclerView>(R.id.membersRecycler)
         membersAdapter = BudgetMembersAdapter(membersList)
@@ -84,10 +83,16 @@ class BudgetDetails : AppCompatActivity() {
         expensesRecycler.layoutManager = LinearLayoutManager(this)
         expensesRecycler.adapter = expensesAdapter
 
-        findViewById<Button>(R.id.newExpenseBtn).setOnClickListener {
+        findViewById<MaterialButton>(R.id.newExpenseBtn).setOnClickListener {
             val intent = Intent(this, CreateGroupExpense::class.java)
             intent.putExtra("budgetId", budget.id)
             intent.putExtra("budgetName", budget.name)
+            startActivity(intent)
+        }
+
+        findViewById<MaterialButton>(R.id.settleUpBtn).setOnClickListener {
+            val intent = Intent(this, GroupSettlement::class.java)
+            intent.putExtra("budgetId", budget.id)
             startActivity(intent)
         }
 
