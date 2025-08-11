@@ -64,7 +64,7 @@
 
 
                 <LinearLayout
-                    android:background="#222"
+                    android:background="#292929"
                     android:id="@+id/membersHeaderRow"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -121,7 +121,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:paddingTop="12dp"
-            android:background="#222"
+            android:background="#292929"
             android:paddingBottom="12dp"
             android:paddingStart="16dp"
             android:layout_marginBottom="8dp"

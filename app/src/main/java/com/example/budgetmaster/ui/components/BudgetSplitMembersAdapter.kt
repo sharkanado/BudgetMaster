@@ -67,7 +67,7 @@ class BudgetSplitMembersAdapter(
         holder.checkBox.setOnCheckedChangeListener(null)
         val isChecked = selected.contains(uid)
         holder.checkBox.isChecked = isChecked
-        applyEnabledState(holder, isChecked) // enable/disable field based on checked
+        applyEnabledState(holder, isChecked)
 
         holder.checkBox.setOnCheckedChangeListener { _, checked ->
             onCheckedChanged(uid, checked)
@@ -106,7 +106,7 @@ class BudgetSplitMembersAdapter(
             } else false
         }
 
-        // Watcher for edits on this row (includes dot→comma normalization)
+        // Watcher for edits on this row (comma -> dot normalization)
         val watcher = object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -114,14 +114,13 @@ class BudgetSplitMembersAdapter(
             override fun afterTextChanged(s: Editable?) {
                 if (internalUpdate) return
 
-                // Normalize '.' to ',' in UI, but still allow typing dots
+                // Normalize ',' -> '.' in the field, keep cursor stable
                 val cur = s?.toString() ?: ""
                 if (cur.contains(',')) {
                     val sel = holder.amountEdit.selectionStart
                     internalUpdate = true
                     val fixed = cur.replace(',', '.')
                     holder.amountEdit.setText(fixed)
-                    // keep cursor reasonably in place
                     val newSel = (sel + (fixed.length - cur.length)).coerceIn(0, fixed.length)
                     holder.amountEdit.setSelection(newSel)
                     internalUpdate = false
@@ -136,7 +135,6 @@ class BudgetSplitMembersAdapter(
                 val parsed = raw.toDoubleOrNull() ?: return
 
                 if (parsed <= 0.0) {
-                    // show inline error but DO NOT setText (no cursor jump)
                     holder.amountEdit.error =
                         holder.itemView.context.getString(R.string.error_negative_not_allowed)
                     return
@@ -152,7 +150,7 @@ class BudgetSplitMembersAdapter(
                 // push to host
                 onShareEditedValid(uid, parsed)
 
-                // Refresh only other visible rows, not this one
+                // Refresh only other visible rows, not this one (keeps cursor steady)
                 refreshVisibleSharesExcept(holder.itemView.parent as RecyclerView, uid)
             }
         }
@@ -182,8 +180,8 @@ class BudgetSplitMembersAdapter(
 
     /**
      * Update visible holders' EditTexts to reflect the new shares,
-     * skipping the row with [skipUid]. This runs on the next frame via post{}
-     * so we never touch views while the RecyclerView is computing layout.
+     * skipping the row with [skipUid]. This is intended for the
+     * "editing a single row" case to avoid cursor jumps.
      */
     fun refreshVisibleSharesExcept(recyclerView: RecyclerView, skipUid: String?) {
         recyclerView.post {
@@ -232,4 +230,3 @@ class BudgetSplitMembersAdapter(
         }
     }
 }
-

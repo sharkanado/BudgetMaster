@@ -105,7 +105,7 @@ class CreateGroupExpense : AppCompatActivity() {
                     normalized = normalized.replace(',', '.')
                 }
 
-                // 2) Ensure only a single dot as decimal separator (optional but nice)
+                // 2) Ensure only a single dot as decimal separator
                 val firstDot = normalized.indexOf('.')
                 if (firstDot != -1) {
                     val withoutExtraDots =
@@ -118,15 +118,14 @@ class CreateGroupExpense : AppCompatActivity() {
                     suppressAmountWatcher = true
                     val cursor = amountInput.selectionStart.coerceAtLeast(0)
                     amountInput.setText(normalized)
-                    // Keep cursor near where the user was typing
                     amountInput.setSelection(normalized.length.coerceAtMost(cursor))
                     suppressAmountWatcher = false
                 }
 
-                // Your existing logic
+                // >>> Important: rebind ALL rows so every checked member updates
                 recomputeSharesEqual()
                 if (::splitAdapter.isInitialized) {
-                    splitAdapter.refreshVisibleSharesExcept(membersRecycler, null)
+                    splitAdapter.notifyDataSetChanged()
                 }
             }
         )
@@ -218,15 +217,14 @@ class CreateGroupExpense : AppCompatActivity() {
                                             uid
                                         )
                                         recomputeSharesEqual()
-                                        splitAdapter.refreshVisibleSharesExcept(
-                                            membersRecycler,
-                                            null
-                                        )
+                                        // >>> Rebind ALL rows so every checked member updates
+                                        splitAdapter.notifyDataSetChanged()
                                         syncSelectAllCheckbox()
                                     },
                                     onShareEditedValid = { editedUid, newValue ->
                                         val total = readTotalOrZero()
                                         applyBalancedEdit(editedUid, newValue, total)
+                                        // For per-row manual edit, keep current editor stable and only refresh others
                                         splitAdapter.refreshVisibleSharesExcept(
                                             membersRecycler,
                                             editedUid
@@ -357,7 +355,7 @@ class CreateGroupExpense : AppCompatActivity() {
             "type" to "expense",
             "createdBy" to uid,
             "paidFor" to selectedMembers.toList(),
-            "paidShares" to paidShares            // NEW
+            "paidShares" to paidShares
         )
 
         db.collection("budgets").document(budgetId)
