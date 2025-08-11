@@ -34,7 +34,7 @@
             android:fontFamily="@font/manrope_bold"
             android:textColor="@color/orange"
             android:textSize="20sp"
-            android:text="placeholder"
+            android:text="Budget Expense"
             android:textStyle="bold"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
@@ -232,6 +232,7 @@
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/expenseParticipantsRecyclerView"
             android:layout_width="match_parent"
+            android:descendantFocusability="afterDescendants"
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp" />
 

@@ -7,6 +7,9 @@
     <string name="welcome_text">
     Welcome to <font color="#FF9C3F">Budget Master!</font>
     </string>
+    <string name="error_negative_not_allowed">Must be ≥ 0</string>
+    <string name="error_exceeds_total">Exceeds total</string>
+
     <string name="sign_up_text">
     Sign up to <font color="#FF9C3F">Budget Master!</font>
     </string>
