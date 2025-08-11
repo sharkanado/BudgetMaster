@@ -24,8 +24,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
-import java.util.Locale
-import kotlin.math.abs
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
 
 class BudgetsFragment : Fragment() {
 
@@ -161,13 +161,13 @@ class BudgetsFragment : Fragment() {
         }
     }
 
-
     /** Sums all years’ income & expenses for the current user and displays NET in walletBalanceText. */
     private fun refreshWalletBalance() {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
         val db = FirebaseFirestore.getInstance()
 
-        binding.walletBalanceText.text = getString(R.string.loading_ellipsis)
+        // Safe: only set if view is still around
+        _binding?.walletBalanceText?.text = getString(R.string.loading_ellipsis)
 
         viewLifecycleOwner.lifecycleScope.launch {
             try {
@@ -178,23 +178,31 @@ class BudgetsFragment : Fragment() {
                 val totalExpense = perYearTotals.values.sumOf { it.expense }
                 val net = totalIncome - totalExpense
 
-                val text = String.format(
-                    Locale.ENGLISH,
-                    "%s%.2f",
-                    if (net >= 0) "+" else "-",
-                    abs(net)
-                )
-                binding.walletBalanceText.text = text
+                val sign = if (net >= 0) "+" else "-"
+                val b = _binding ?: return@launch  // view might be gone by now
 
+                b.walletBalanceText.text = sign + formatPlMoney(kotlin.math.abs(net))
                 val colorRes = if (net >= 0) R.color.green_success else R.color.red_error
-                binding.walletBalanceText.setTextColor(
+                b.walletBalanceText.setTextColor(
                     ContextCompat.getColor(requireContext(), colorRes)
                 )
             } catch (e: Exception) {
-                // Fallback: show 0 if something goes wrong
-                binding.walletBalanceText.text = "0.00"
+                _binding?.walletBalanceText?.text = "0,00"
             }
         }
+    }
+
+
+    /** Format with space as thousands separator and comma as decimal separator, always 2 decimals. */
+    private fun formatPlMoney(value: Double): String {
+        val symbols = DecimalFormatSymbols().apply {
+            groupingSeparator = ' '
+            decimalSeparator = ','
+        }
+        val df = DecimalFormat("#,##0.00", symbols).apply {
+            isGroupingUsed = true
+        }
+        return df.format(value)
     }
 
     override fun onDestroyView() {
