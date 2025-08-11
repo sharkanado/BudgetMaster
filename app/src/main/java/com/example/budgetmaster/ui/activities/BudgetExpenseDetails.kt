@@ -3,7 +3,6 @@ package com.example.budgetmaster.ui.activities
 import android.os.Build
 import android.os.Bundle
 import android.view.View
-import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
@@ -12,9 +11,13 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
 import com.example.budgetmaster.ui.budgets.BudgetExpenseItem
+import com.example.budgetmaster.ui.components.BudgetMemberItem
+import com.example.budgetmaster.ui.components.BudgetMembersAdapter
+import com.example.budgetmaster.ui.components.BudgetSelectMembersInDebtAdapter
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
@@ -33,12 +36,21 @@ class BudgetExpenseDetails : AppCompatActivity() {
     private lateinit var amountEdit: EditText
     private lateinit var descriptionEdit: EditText
     private lateinit var dateEdit: EditText
-    private lateinit var forWhomContainer: RecyclerView
 
-    // Single toggle button (edit ↔ save)
+    // Single recycler – swap adapters depending on mode
+    private lateinit var participantsRecycler: RecyclerView
+
+    // Adapters & backing lists
+    private val allMembers = mutableListOf<BudgetMemberItem>()           // all budget members
+    private val selectedMembers = mutableSetOf<String>()                 // current selection
+    private val participantsReadOnly = mutableListOf<BudgetMemberItem>() // selected -> tiles
+
+    private lateinit var readOnlyAdapter: BudgetMembersAdapter
+    private lateinit var checkboxAdapter: BudgetSelectMembersInDebtAdapter
+
     private lateinit var editBtn: AppCompatImageButton
-
     private var isEditMode = false
+
     private lateinit var expenseItem: BudgetExpenseItem
     private var userNames: MutableMap<String, String> = mutableMapOf()
     private var budgetId: String = ""
@@ -78,7 +90,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
         }
 
         val passedMap: HashMap<String, String>? =
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 intent.getSerializableExtra(
                     "userNames",
                     HashMap::class.java
@@ -87,11 +99,33 @@ class BudgetExpenseDetails : AppCompatActivity() {
                 @Suppress("DEPRECATION")
                 intent.getSerializableExtra("userNames") as? HashMap<String, String>
             }
-
         passedMap?.let { userNames.putAll(it) }
+
+        // Seed selection from the expense
+        selectedMembers.clear()
+        selectedMembers.addAll(expenseItem.paidFor)
 
         fillFieldsOnce()
         ensurePayerNameLoaded(expenseItem.createdBy)
+
+        // Recycler setup + adapters (now created BEFORE any toggle)
+        participantsRecycler.layoutManager = LinearLayoutManager(this)
+
+        readOnlyAdapter = BudgetMembersAdapter(participantsReadOnly)
+        checkboxAdapter = BudgetSelectMembersInDebtAdapter(
+            members = allMembers,
+            selectedMembers = selectedMembers
+        ) {
+            // Update the read-only backing list as selection changes
+            rebuildReadOnlyParticipants()
+        }
+
+        // Start in VIEW mode: show read-only tiles
+        setUiForViewMode()
+        participantsRecycler.adapter = readOnlyAdapter
+
+        // Load members and update both adapters
+        loadBudgetMembers()
 
         editBtn.setOnClickListener {
             if (!isEditMode) toggleEdit(true) else saveChanges()
@@ -107,11 +141,94 @@ class BudgetExpenseDetails : AppCompatActivity() {
         amountEdit = findViewById(R.id.expenseAmountEdit)
         descriptionEdit = findViewById(R.id.expenseDescriptionEdit)
         dateEdit = findViewById(R.id.expenseDateEdit)
-        forWhomContainer = findViewById(R.id.expenseParticipantsRecyclerView)
+
+        participantsRecycler = findViewById(R.id.expenseParticipantsRecyclerView)
 
         editBtn = findViewById(R.id.editButton)
 
-        toggleEdit(false, updateIcon = false)
+        // Initial UI state (view mode) — do NOT call toggleEdit() here
+        setUiForViewMode()
+        editBtn.setImageResource(R.drawable.ic_edit)
+    }
+
+    private fun setUiForViewMode() {
+        // View fields visible
+        amountView.visibility = View.VISIBLE
+        descriptionView.visibility = View.VISIBLE
+        dateView.visibility = View.VISIBLE
+        paidByView.visibility = View.VISIBLE
+        // Edit fields hidden
+        amountEdit.visibility = View.GONE
+        descriptionEdit.visibility = View.GONE
+        dateEdit.visibility = View.GONE
+        isEditMode = false
+    }
+
+    private fun setUiForEditMode() {
+        // View fields hidden
+        amountView.visibility = View.GONE
+        descriptionView.visibility = View.GONE
+        dateView.visibility = View.GONE
+        paidByView.visibility = View.GONE
+        // Edit fields visible
+        amountEdit.visibility = View.VISIBLE
+        descriptionEdit.visibility = View.VISIBLE
+        dateEdit.visibility = View.VISIBLE
+        isEditMode = true
+    }
+
+    private fun loadBudgetMembers() {
+        db.collection("budgets").document(budgetId).get()
+            .addOnSuccessListener { doc ->
+                val memberIds = (doc.get("members") as? List<String>).orEmpty()
+                allMembers.clear()
+
+                if (memberIds.isEmpty()) {
+                    participantsReadOnly.clear()
+                    readOnlyAdapter.notifyDataSetChanged()
+                    checkboxAdapter.notifyDataSetChanged()
+                    return@addOnSuccessListener
+                }
+
+                var processed = 0
+                memberIds.forEach { uid ->
+                    db.collection("users").document(uid).get()
+                        .addOnSuccessListener { userDoc ->
+                            if (userDoc.exists()) {
+                                allMembers.add(
+                                    BudgetMemberItem(
+                                        uid = uid,
+                                        name = userDoc.getString("name") ?: "Unknown",
+                                        email = userDoc.getString("email") ?: "",
+                                        balance = 0.0
+                                    )
+                                )
+                            }
+                        }
+                        .addOnCompleteListener {
+                            processed++
+                            if (processed == memberIds.size) {
+                                // Keep only valid selected members
+                                selectedMembers.retainAll(memberIds.toSet())
+                                // Build read-only list from current selection
+                                rebuildReadOnlyParticipants()
+                                // Notify both adapters
+                                readOnlyAdapter.notifyDataSetChanged()
+                                checkboxAdapter.notifyDataSetChanged()
+                                // Ensure the correct adapter is attached
+                                participantsRecycler.adapter =
+                                    if (isEditMode) checkboxAdapter else readOnlyAdapter
+                            }
+                        }
+                }
+            }
+    }
+
+    private fun rebuildReadOnlyParticipants() {
+        participantsReadOnly.clear()
+        if (selectedMembers.isEmpty()) return
+        val set = selectedMembers.toSet()
+        participantsReadOnly.addAll(allMembers.filter { it.uid in set })
     }
 
     private fun fillFieldsOnce() {
@@ -126,19 +243,19 @@ class BudgetExpenseDetails : AppCompatActivity() {
         dateEdit.setText(e.date)
     }
 
-    private fun toggleEdit(editMode: Boolean, updateIcon: Boolean = true) {
-        isEditMode = editMode
-        amountView.visibility = if (editMode) View.GONE else View.VISIBLE
-        descriptionView.visibility = if (editMode) View.GONE else View.VISIBLE
-        dateView.visibility = if (editMode) View.GONE else View.VISIBLE
-        paidByView.visibility = if (editMode) View.GONE else View.VISIBLE
-
-        amountEdit.visibility = if (editMode) View.VISIBLE else View.GONE
-        descriptionEdit.visibility = if (editMode) View.VISIBLE else View.GONE
-        dateEdit.visibility = if (editMode) View.VISIBLE else View.GONE
-
-        if (updateIcon) {
-            editBtn.setImageResource(if (editMode) R.drawable.ic_save else R.drawable.ic_edit)
+    private fun toggleEdit(editMode: Boolean) {
+        if (editMode) {
+            setUiForEditMode()
+            editBtn.setImageResource(R.drawable.ic_save)
+            if (::checkboxAdapter.isInitialized) participantsRecycler.adapter = checkboxAdapter
+        } else {
+            setUiForViewMode()
+            editBtn.setImageResource(R.drawable.ic_edit)
+            if (::readOnlyAdapter.isInitialized) {
+                rebuildReadOnlyParticipants()
+                readOnlyAdapter.notifyDataSetChanged()
+                participantsRecycler.adapter = readOnlyAdapter
+            }
         }
     }
 
@@ -150,22 +267,23 @@ class BudgetExpenseDetails : AppCompatActivity() {
         val newDescription = descriptionEdit.text?.toString()?.trim().orEmpty()
         val newDate = dateEdit.text?.toString()?.trim().orEmpty()
         if (newDate.isBlank() || !isValidDate(newDate)) {
-            Toast.makeText(this, "Enter a valid date (yyyy-MM-dd)", Toast.LENGTH_SHORT)
-                .show(); return
+            Toast.makeText(this, "Enter a valid date (yyyy-MM-dd)", Toast.LENGTH_SHORT).show()
+            return
         }
 
         // Update local model
         expenseItem = expenseItem.copy(
             amount = newAmount,
             description = newDescription,
-            date = newDate
+            date = newDate,
+            paidFor = selectedMembers.toList()
         )
 
-        // Persist ONLY the budget expense (no personal/latest cascades)
         val updates = mapOf(
-            "amount" to newAmount,     // number!
+            "amount" to newAmount,
             "description" to newDescription,
             "date" to newDate,
+            "paidFor" to selectedMembers.toList(),
             "timestamp" to Timestamp.now()
         )
 
@@ -175,15 +293,14 @@ class BudgetExpenseDetails : AppCompatActivity() {
             .document(expenseItem.id)
             .set(updates, SetOptions.merge())
             .addOnSuccessListener {
+                rebuildReadOnlyParticipants()
+                readOnlyAdapter.notifyDataSetChanged()
                 fillFieldsOnce()
                 toggleEdit(false)
                 Toast.makeText(this, "Expense updated", Toast.LENGTH_SHORT).show()
             }
             .addOnFailureListener { e ->
                 Toast.makeText(this, "Failed to save: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
-            .addOnCompleteListener {
-                editBtn.setImageResource(R.drawable.ic_edit)
             }
     }
 
@@ -214,18 +331,5 @@ class BudgetExpenseDetails : AppCompatActivity() {
         fmt.parse(dateStr); true
     } catch (_: Exception) {
         false
-    }
-
-    // Still here in case you later render checkboxes in forWhomContainer.
-    private fun getCheckedUsers(): MutableList<String> {
-        val updatedList = mutableListOf<String>()
-        for (i in 0 until forWhomContainer.childCount) {
-            val cb = forWhomContainer.getChildAt(i) as? CheckBox ?: continue
-            if (cb.isChecked) {
-                val uid = userNames.entries.firstOrNull { it.value == cb.text }?.key
-                if (uid != null) updatedList.add(uid)
-            }
-        }
-        return updatedList
     }
 }
