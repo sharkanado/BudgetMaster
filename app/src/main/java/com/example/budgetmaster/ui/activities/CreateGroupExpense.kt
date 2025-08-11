@@ -48,7 +48,7 @@ class CreateGroupExpense : AppCompatActivity() {
     private val sharesByUid = linkedMapOf<String, Double>()
 
     private val syms = DecimalFormatSymbols(Locale.getDefault()).apply {
-        decimalSeparator = ','
+        decimalSeparator = '.'
         groupingSeparator = ' '
     }
     private val df2 = DecimalFormat("0.00").apply {

@@ -78,7 +78,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
 
     private val df2 = DecimalFormat("0.00").apply {
         decimalFormatSymbols = DecimalFormatSymbols(Locale.getDefault()).apply {
-            decimalSeparator = ','
+            decimalSeparator = '.'
             groupingSeparator = ' '
         }
         isGroupingUsed = false

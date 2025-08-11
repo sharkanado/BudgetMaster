@@ -146,11 +146,11 @@ class BudgetsFragment : Fragment() {
     }
 
 
-    /** Format with space as thousands separator and comma as decimal separator, always 2 decimals. */
+    /** Format with space as thousands separator and dot as decimal separator, always 2 decimals. */
     private fun formatPlMoney(value: Double): String {
         val symbols = DecimalFormatSymbols().apply {
             groupingSeparator = ' '
-            decimalSeparator = ','
+            decimalSeparator = '.'
         }
         val df = DecimalFormat("#,##0.00", symbols).apply {
             isGroupingUsed = true
