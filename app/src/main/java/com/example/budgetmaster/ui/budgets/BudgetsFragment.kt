@@ -21,8 +21,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
-import java.text.DecimalFormat
-import java.text.DecimalFormatSymbols
 
 class BudgetsFragment : Fragment() {
 
@@ -30,29 +28,24 @@ class BudgetsFragment : Fragment() {
     private val binding get() = _binding!!
 
     private lateinit var adapter: BudgetsAdapter
-    private val budgets = mutableListOf<BudgetItem>()
 
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-
         _binding = FragmentBudgetsBinding.inflate(inflater, container, false)
         val root: View = binding.root
 
         binding.addWalletButton.setOnClickListener {
-            val intent = Intent(requireContext(), AddNewBudget::class.java)
-            startActivity(intent)
+            startActivity(Intent(requireContext(), AddNewBudget::class.java))
         }
 
         binding.myWalletCard.setOnClickListener {
-            val intent = Intent(requireContext(), MyWallet::class.java)
-            startActivity(intent)
+            startActivity(Intent(requireContext(), MyWallet::class.java))
         }
 
-        // Setup RecyclerView with click callback
-        adapter = BudgetsAdapter(budgets) { clickedBudget ->
+        adapter = BudgetsAdapter(emptyList()) { clickedBudget ->
             val intent = Intent(requireContext(), BudgetDetails::class.java)
             intent.putExtra("budget", clickedBudget)
             startActivity(intent)
@@ -63,19 +56,23 @@ class BudgetsFragment : Fragment() {
             adapter = this@BudgetsFragment.adapter
         }
 
+        // Load once; show spinner during fetch
         loadBudgets()
 
         return root
     }
 
-    override fun onResume() {
-        super.onResume()
-        loadBudgets()
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
     }
 
     private fun loadBudgets() {
         val db = FirebaseFirestore.getInstance()
         val currentUser = FirebaseAuth.getInstance().currentUser ?: return
+
+        // show loading
+        binding.loadingProgressBar.visibility = View.VISIBLE
 
         viewLifecycleOwner.lifecycleScope.launch {
             try {
@@ -83,9 +80,11 @@ class BudgetsFragment : Fragment() {
                 val accessed = (userDoc.get("budgetsAccessed") as? List<String>).orEmpty()
                 if (accessed.isEmpty()) {
                     adapter.submitList(emptyList())
+                    binding.loadingProgressBar.visibility = View.GONE
                     return@launch
                 }
 
+                // Fetch budgets in chunks of 10 (whereIn limit)
                 val byId = linkedMapOf<String, BudgetItem>()
                 accessed.chunked(10).forEach { chunk ->
                     val snap = db.collection("budgets")
@@ -100,14 +99,17 @@ class BudgetsFragment : Fragment() {
                             preferredCurrency = doc.getString("preferredCurrency") ?: "PLN",
                             members = (doc.get("members") as? List<String>).orEmpty(),
                             ownerId = doc.getString("ownerId") ?: "",
-                            balance = 0.0
+                            balance = 0.0 // (totals loaded separately)
                         )
                     }
                 }
 
                 val list = byId.values.toList()
                 adapter.submitList(list)
+                // hide loading once list is shown
+                binding.loadingProgressBar.visibility = View.GONE
 
+                // Load totals asynchronously per budget, update with payload (no full rebind)
                 list.forEach { budget ->
                     launch(Dispatchers.IO) {
                         val total = sumBudgetExpenses(db, budget.id)
@@ -116,8 +118,9 @@ class BudgetsFragment : Fragment() {
                         }
                     }
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 adapter.submitList(emptyList())
+                binding.loadingProgressBar.visibility = View.GONE
             }
         }
     }
@@ -129,8 +132,8 @@ class BudgetsFragment : Fragment() {
             val agg = col.aggregate(AggregateField.sum("amount"))
                 .get(AggregateSource.SERVER).await()
             (agg.get(AggregateField.sum("amount")) as? Number)?.toDouble() ?: 0.0
-        } catch (e: Exception) {
-            // Fallback: client sum (handles any legacy string types)
+        } catch (_: Exception) {
+            // Fallback: client sum (handles legacy string types, if any)
             val snap = col.get().await()
             var total = 0.0
             for (doc in snap.documents) {
@@ -143,23 +146,5 @@ class BudgetsFragment : Fragment() {
             }
             total
         }
-    }
-
-
-    /** Format with space as thousands separator and comma as decimal separator, always 2 decimals. */
-    private fun formatPlMoney(value: Double): String {
-        val symbols = DecimalFormatSymbols().apply {
-            groupingSeparator = ' '
-            decimalSeparator = ','
-        }
-        val df = DecimalFormat("#,##0.00", symbols).apply {
-            isGroupingUsed = true
-        }
-        return df.format(value)
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
     }
 }
