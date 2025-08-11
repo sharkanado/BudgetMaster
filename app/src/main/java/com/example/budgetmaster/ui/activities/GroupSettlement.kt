@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.View
 import android.widget.ImageButton
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
@@ -17,6 +18,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.round
+import kotlin.math.roundToInt
 
 class GroupSettlement : AppCompatActivity() {
 
@@ -55,7 +57,12 @@ class GroupSettlement : AppCompatActivity() {
         backButton = findViewById(R.id.backButton)
         backButton.setOnClickListener { finish() }
 
-        adapter = SettlementAdapter()
+        adapter = SettlementAdapter(onItemClick = { row ->
+            // Your action when you owe someone (only case that’s clickable)
+            val msg = "You owe ${row.name} ${format2(abs(row.amount))}"
+            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+        })
+
         recycler.layoutManager = LinearLayoutManager(this)
         recycler.adapter = adapter
 
@@ -63,24 +70,16 @@ class GroupSettlement : AppCompatActivity() {
     }
 
     private fun loadSettlement() {
-        val currentUid = auth.currentUser?.uid
-        if (currentUid.isNullOrBlank()) {
-            showEmpty()
-            return
-        }
-
+        val currentUid = auth.currentUser?.uid ?: run { showEmpty(); return }
         db.collection("budgets")
             .document(budgetId)
             .collection("expenses")
             .get()
             .addOnSuccessListener { qs ->
-                // Pairwise map between YOU and each member:
-                // > 0 -> they owe YOU ; < 0 -> YOU owe them
-                val pair = mutableMapOf<String, Double>()
+                val pair = mutableMapOf<String, Double>() // >0 they owe YOU; <0 you owe them
 
                 for (doc in qs) {
                     if ((doc.getString("type") ?: "expense") != "expense") continue
-
                     val payer = doc.getString("createdBy") ?: continue
 
                     @Suppress("UNCHECKED_CAST")
@@ -90,12 +89,10 @@ class GroupSettlement : AppCompatActivity() {
                     }.toMap()
 
                     if (currentUid == payer) {
-                        // Others owe you their shares
                         shares.forEach { (uid, share) ->
                             if (uid != payer) pair[uid] = (pair[uid] ?: 0.0) + share
                         }
                     } else {
-                        // You owe payer your share (if participated)
                         val yourShare = shares[currentUid]
                         if (yourShare != null && yourShare > 0.0) {
                             pair[payer] = (pair[payer] ?: 0.0) - yourShare
@@ -104,11 +101,9 @@ class GroupSettlement : AppCompatActivity() {
                 }
 
                 if (pair.isEmpty()) {
-                    showEmpty()
-                    return@addOnSuccessListener
+                    showEmpty(); return@addOnSuccessListener
                 }
 
-                // Fetch names/emails for those UIDs (whereIn limit 10 -> chunk it)
                 val uids = pair.keys.toList()
                 fetchUsersByIds(uids) { people ->
                     val items = uids.map { uid ->
@@ -127,8 +122,8 @@ class GroupSettlement : AppCompatActivity() {
                     val totalReceive = items.filter { it.amount > 0 }.sumOf { it.amount }
                     val totalPay = items.filter { it.amount < 0 }.sumOf { abs(it.amount) }
 
-                    youReceive.text = getString(R.string.settlement_receive, format2(totalReceive))
-                    youPay.text = getString(R.string.settlement_owe, format2(totalPay))
+                    youReceive.text = format2(totalReceive)
+                    youPay.text = format2(totalPay)
                 }
             }
             .addOnFailureListener { showEmpty() }
@@ -137,11 +132,10 @@ class GroupSettlement : AppCompatActivity() {
     private fun showEmpty() {
         adapter.submit(emptyList())
         emptyState.visibility = View.VISIBLE
-        youReceive.text = getString(R.string.settlement_receive, "0.00")
-        youPay.text = getString(R.string.settlement_owe, "0.00")
+        youReceive.text = "0.00"
+        youPay.text = "0.00"
     }
 
-    // whereIn supports max 10 values -> chunked fetching
     private fun fetchUsersByIds(
         uids: List<String>,
         onResult: (Map<String, Pair<String, String>>) -> Unit
@@ -175,6 +169,7 @@ class GroupSettlement : AppCompatActivity() {
     // --- utils ---
     private fun round2(v: Double) = round(v * 100.0) / 100.0
     private fun format2(v: Double) = String.format(Locale.US, "%.2f", v)
+    private fun dp(px: Int) = (px * resources.displayMetrics.density).roundToInt()
 
     // --- data & adapter ---
     data class SettlementRow(
@@ -184,7 +179,10 @@ class GroupSettlement : AppCompatActivity() {
         val amount: Double // >0 they owe you; <0 you owe them
     )
 
-    private inner class SettlementAdapter : RecyclerView.Adapter<SettlementVH>() {
+    private inner class SettlementAdapter(
+        private val onItemClick: ((SettlementRow) -> Unit)? = null
+    ) : RecyclerView.Adapter<SettlementVH>() {
+
         private val data = mutableListOf<SettlementRow>()
 
         fun submit(items: List<SettlementRow>) {
@@ -197,8 +195,8 @@ class GroupSettlement : AppCompatActivity() {
             parent: android.view.ViewGroup,
             viewType: Int
         ): SettlementVH {
-            val view = layoutInflater.inflate(R.layout.item_settlement, parent, false)
-            return SettlementVH(view)
+            val view = layoutInflater.inflate(R.layout.item_budget_member_tile, parent, false)
+            return SettlementVH(view, onItemClick)
         }
 
         override fun getItemCount(): Int = data.size
@@ -208,40 +206,57 @@ class GroupSettlement : AppCompatActivity() {
         }
     }
 
-    private inner class SettlementVH(itemView: View) : RecyclerView.ViewHolder(itemView) {
+    private inner class SettlementVH(
+        itemView: View,
+        private val onItemClick: ((SettlementRow) -> Unit)?
+    ) : RecyclerView.ViewHolder(itemView) {
+
         private val nameText: TextView = itemView.findViewById(R.id.memberName)
         private val emailText: TextView = itemView.findViewById(R.id.memberEmail)
-        private val amountText: TextView = itemView.findViewById(R.id.settlementAmount)
-        private val labelText: TextView = itemView.findViewById(R.id.settlementLabel)
+        private val amountText: TextView = itemView.findViewById(R.id.memberBalance)
 
         fun bind(row: SettlementRow) {
             nameText.text = row.name
             emailText.text = row.email
 
             val formatted = String.format(Locale.US, "%.2f", abs(row.amount))
+            val owes = row.amount < 0
+
+            // Amount + color
             when {
                 row.amount > 0 -> {
-                    // They owe you
                     amountText.text = formatted
                     amountText.setTextColor(getColorCompat(R.color.green_success))
-                    labelText.text = getString(R.string.you_get_label)
-                    labelText.setTextColor(getColorCompat(R.color.green_success))
                 }
 
-                row.amount < 0 -> {
-                    // You owe them
+                owes -> {
                     amountText.text = formatted
                     amountText.setTextColor(getColorCompat(R.color.red_error))
-                    labelText.text = getString(R.string.you_owe_label)
-                    labelText.setTextColor(getColorCompat(R.color.red_error))
                 }
 
                 else -> {
                     amountText.text = "0.00"
                     amountText.setTextColor(getColorCompat(android.R.color.darker_gray))
-                    labelText.text = getString(R.string.settlement_clear_label)
-                    labelText.setTextColor(getColorCompat(android.R.color.darker_gray))
                 }
+            }
+
+            // Arrow only when YOU OWE (clickable case)
+            val arrowRes = if (owes) R.drawable.ic_send_money else 0
+            amountText.setCompoundDrawablesWithIntrinsicBounds(0, 0, arrowRes, 0)
+            amountText.compoundDrawablePadding = dp(6)
+
+            // Make row clickable only when YOU OWE
+            if (owes && onItemClick != null) {
+                itemView.isClickable = true
+                itemView.isFocusable = true
+                itemView.setBackgroundResource(R.drawable.expense_ripple)
+                itemView.setOnClickListener { onItemClick.invoke(row) }
+            } else {
+                itemView.isClickable = false
+                itemView.isFocusable = false
+                itemView.setOnClickListener(null)
+                // fallback to base background if needed
+                itemView.setBackgroundResource(R.drawable.expense_bg)
             }
         }
     }

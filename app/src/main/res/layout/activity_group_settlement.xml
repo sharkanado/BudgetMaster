@@ -1,81 +1,156 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@android:color/transparent"
-    android:paddingStart="16dp"
-    android:paddingEnd="16dp">
+    android:background="@color/grey">
 
-    <LinearLayout
-        android:id="@+id/toolbar"
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/topBar"
         android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:layout_height="wrap_content"
+        android:padding="16dp"
+        app:layout_constraintTop_toTopOf="parent">
 
         <ImageButton
             android:id="@+id/backButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="@android:color/transparent"
-            android:contentDescription="@string/back"
-            android:src="@drawable/ic_chevron_left" />
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Back"
+            android:src="@drawable/ic_chevron_left"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent" />
 
         <TextView
-            android:id="@+id/titleText"
+            android:id="@+id/topBarTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:text="@string/settlement_title"
+            android:fontFamily="@font/manrope_bold"
+            android:textColor="@color/white"
             android:textSize="20sp"
-            android:textStyle="bold" />
-    </LinearLayout>
+            android:text="Settlement"
+            android:textStyle="bold"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent" />
 
-    <!-- Summary row -->
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/grey_light"
+        app:layout_constraintTop_toBottomOf="@id/topBar"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
     <LinearLayout
-        android:id="@+id/summaryRow"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:paddingTop="4dp"
-        android:paddingBottom="8dp">
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="4dp"
+        android:background="@drawable/expense_bg"
+        android:paddingHorizontal="16dp"
+        android:layout_marginHorizontal="16dp"
+        android:paddingVertical="12dp"
+        android:gravity="center_vertical">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="You're waiting for"
+                android:textColor="@color/white"
+                android:textSize="14sp"
+                android:fontFamily="@font/manrope_bold" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/youReceive"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="0.00"
+            android:textColor="@color/green_success"
+            android:textSize="14sp"
+            android:fontFamily="@font/manrope_bold" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="16dp"
+        android:background="@drawable/expense_bg"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="12dp"
+        android:layout_marginHorizontal="16dp"
+        android:gravity="center_vertical">
+
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="You receive: 0.00"
-            android:textStyle="bold"
-            android:padding="8dp"
-            android:gravity="start"
-            android:textColor="@color/green_success" />
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="You need to pay"
+                android:textColor="@color/white"
+                android:textSize="14sp"
+                android:fontFamily="@font/manrope_bold" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/youPay"
-            android:layout_width="0dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="You owe: 0.00"
-            android:textStyle="bold"
-            android:padding="8dp"
-            android:gravity="end"
-            android:textColor="@color/red_error" />
+            android:text="0.00"
+            android:textColor="@color/red_error"
+            android:textSize="14sp"
+            android:fontFamily="@font/manrope_bold" />
     </LinearLayout>
 
-    <!-- List -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#222222">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Overview"
+            android:textSize="18sp"
+            android:fontFamily="@font/manrope_bold"
+            android:textColor="@color/white"
+            android:padding="16dp" />
+
+    </LinearLayout>
+
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/settlementRecycler"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
+        android:paddingHorizontal="8dp"
         android:clipToPadding="false"
         android:paddingTop="4dp"
         android:paddingBottom="16dp" />
 
-    <!-- Empty state -->
     <TextView
         android:id="@+id/emptyState"
         android:layout_width="match_parent"

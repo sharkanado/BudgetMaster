@@ -23,8 +23,7 @@
     </string>
     <string name="settlement_title">Settlement</string>
     <string name="settlement_empty">Nothing to settle yet</string>
-    <string name="settlement_receive">You receive: %1$s</string>
-    <string name="settlement_owe">You owe: %1$s</string>
+
     <string name="you_get_label">you get</string>
     <string name="you_owe_label">you owe</string>
     <string name="settlement_clear_label">settled</string>
