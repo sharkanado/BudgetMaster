@@ -41,6 +41,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
     private lateinit var descriptionView: TextView
     private lateinit var dateView: TextView
     private lateinit var paidByView: TextView
+    private lateinit var paidByMailView: TextView
 
     // Edit-mode fields
     private lateinit var amountEdit: EditText
@@ -67,6 +68,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
 
     private lateinit var expenseItem: BudgetExpenseItem
     private val userNames: MutableMap<String, String> = mutableMapOf()
+    private val userEmails: MutableMap<String, String> = mutableMapOf()
     private var budgetId: String = ""
 
     private val db by lazy { FirebaseFirestore.getInstance() }
@@ -169,7 +171,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
         updateTopIcons()
 
         fillFieldsOnce()
-        ensurePayerNameLoaded(expenseItem.createdBy)
+        ensurePayerInfoLoaded(expenseItem.createdBy) // <-- fetch both name + email
 
         recomputeSharesEqual()
         loadBudgetMembers()
@@ -195,10 +197,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
                     suppress = true
                     amountEdit.setText(fixed)
                     amountEdit.setSelection(
-                        (cur + (fixed.length - raw.length)).coerceIn(
-                            0,
-                            fixed.length
-                        )
+                        (cur + (fixed.length - raw.length)).coerceIn(0, fixed.length)
                     )
                     suppress = false
                     return
@@ -255,6 +254,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
         descriptionView = findViewById(R.id.expenseDescription)
         dateView = findViewById(R.id.expenseDate)
         paidByView = findViewById(R.id.whoPaidName)
+        paidByMailView = findViewById(R.id.whoPaidEmail)
 
         amountEdit = findViewById(R.id.expenseAmountEdit)
         descriptionEdit = findViewById(R.id.expenseDescriptionEdit)
@@ -298,12 +298,23 @@ class BudgetExpenseDetails : AppCompatActivity() {
         isEditMode = edit
         val visEdit = if (edit) View.VISIBLE else View.GONE
         val visView = if (edit) View.GONE else View.VISIBLE
-        amountEdit.visibility = visEdit; descriptionEdit.visibility = visEdit; dateEdit.visibility =
-            visEdit
-        amountView.visibility = visView; descriptionView.visibility = visView; dateView.visibility =
-            visView; paidByView.visibility = visView
+
+        // Fields that toggle between view/edit
+        amountEdit.visibility = visEdit
+        descriptionEdit.visibility = visEdit
+        dateEdit.visibility = visEdit
+
+        amountView.visibility = visView
+        descriptionView.visibility = visView
+        dateView.visibility = visView
+
+        // Keep payer name + email ALWAYS visible in both modes
+        paidByView.visibility = View.VISIBLE
+        paidByMailView.visibility = View.VISIBLE
+
         updateTopIcons()
     }
+
 
     private fun loadBudgetMembers() {
         db.collection("budgets").document(budgetId).get()
@@ -322,11 +333,15 @@ class BudgetExpenseDetails : AppCompatActivity() {
                     db.collection("users").document(uid).get()
                         .addOnSuccessListener { userDoc ->
                             if (userDoc.exists()) {
+                                val name = userDoc.getString("name") ?: "Unknown"
+                                val email = userDoc.getString("email") ?: ""
+                                userNames[uid] = name
+                                userEmails[uid] = email
                                 allMembers.add(
                                     BudgetMemberItem(
                                         uid = uid,
-                                        name = userDoc.getString("name") ?: "Unknown",
-                                        email = userDoc.getString("email") ?: "",
+                                        name = name,
+                                        email = email,
                                         balance = 0.0
                                     )
                                 )
@@ -438,7 +453,10 @@ class BudgetExpenseDetails : AppCompatActivity() {
         amountView.text = df2.format(e.amount)
         descriptionView.text = e.description
         dateView.text = formatDate(e.date)
+
+        // quick fill from cache (will be updated by ensurePayerInfoLoaded)
         paidByView.text = userNames[e.createdBy] ?: e.createdBy
+        paidByMailView.text = userEmails[e.createdBy] ?: ""
 
         amountEdit.setText(df2.format(e.amount))
         descriptionEdit.setText(e.description)
@@ -572,7 +590,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
             if (current != null && isValidDate(current)) {
                 cal.time = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH).parse(current)!!
             }
-        } catch (_: Exception) {
+        } catch (_: Exception) { /* ignore */
         }
 
         DatePickerDialog(this, { _, yy, mm, dd ->
@@ -580,13 +598,24 @@ class BudgetExpenseDetails : AppCompatActivity() {
         }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH)).show()
     }
 
-    private fun ensurePayerNameLoaded(uid: String) {
-        userNames[uid]?.let { paidByView.text = it; return }
+    /** Fetch and set BOTH name and email for the payer. Uses cache if available. */
+    private fun ensurePayerInfoLoaded(uid: String) {
+        // Quick fill from cache if we have it
+        userNames[uid]?.let { paidByView.text = it }
+        userEmails[uid]?.let { paidByMailView.text = it }
+
+        // Always fetch to ensure we have the latest email (and name if missing)
         db.collection("users").document(uid).get()
             .addOnSuccessListener { doc ->
-                val name = doc.getString("name") ?: "Unknown"
+                val name = doc.getString("name") ?: userNames[uid] ?: "Unknown"
+                val email = doc.getString("email") ?: userEmails[uid] ?: ""
                 userNames[uid] = name
+                userEmails[uid] = email
                 paidByView.text = name
+                paidByMailView.text = email
+            }
+            .addOnFailureListener {
+                // keep whatever we had; no crash
             }
     }
 
