@@ -51,11 +51,8 @@ class DashboardFragment : Fragment() {
 
         expensesAdapter = ExpensesAdapter(
             emptyList(),
-            onItemClick = { item ->
-                if (item is ExpenseListItem.Item) {
-                    openExpenseDetails(item)
-                }
-            }
+            onItemClick = null
+
         )
 
         binding.latestExpensesRecycler.apply {
@@ -119,6 +116,8 @@ class DashboardFragment : Fragment() {
                             ExpenseListItem.Item(
                                 R.drawable.ic_home_white_24dp,
                                 name,
+                                budgetId = "null",
+                                expenseIdInBudget = "null",
                                 category,
                                 displayAmount,
                                 date.toString(),
@@ -149,7 +148,7 @@ class DashboardFragment : Fragment() {
 
     private fun openExpenseDetails(item: ExpenseListItem.Item) {
         val intent = Intent(requireContext(), ExpenseDetailsWallet::class.java)
-        intent.putExtra("expense_item", item)
+        intent.putExtra("expenseItem", item)
 
         val date = LocalDate.parse(item.date)
         val year = date.year

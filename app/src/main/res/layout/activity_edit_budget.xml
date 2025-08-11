@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/grey"
+    tools:context=".ui.activities.EditBudget">
+
+    <!-- Top Bar -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/topBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="16dp"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <ImageButton
+            android:id="@+id/backButton"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Back"
+            android:src="@drawable/ic_chevron_left"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent" />
+
+        <TextView
+            android:id="@+id/topBarTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/manrope_bold"
+            android:textColor="@color/orange"
+            android:textSize="20sp"
+            android:text="Edit Budget"
+            android:textStyle="bold"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <!-- Divider below top bar -->
+    <View
+        android:id="@+id/divider0"
+        android:layout_width="0dp"
+        android:layout_height="1dp"
+        android:background="@color/grey_light"
+        app:layout_constraintTop_toBottomOf="@id/topBar"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Scrollable content -->
+    <ScrollView
+        android:id="@+id/scrollContent"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:fillViewport="true"
+        app:layout_constraintTop_toBottomOf="@id/divider0"
+        app:layout_constraintBottom_toTopOf="@id/saveButton"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingTop="24dp"
+            android:paddingBottom="16dp">
+
+            <!-- Budget Name Label -->
+            <TextView
+                android:id="@+id/budgetNameLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Budget Name"
+                android:textColor="#AAAAAA"
+                android:textSize="14sp"
+                android:fontFamily="@font/manrope_bold" />
+
+            <!-- Budget Name Edit -->
+            <EditText
+                android:id="@+id/budgetNameEdit"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@android:color/white"
+                android:textSize="18sp"
+                android:layout_marginTop="4dp"
+                android:backgroundTint="@color/orange"
+                android:inputType="textCapSentences"
+                android:fontFamily="@font/manrope_bold" />
+
+            <!-- Members Label -->
+            <TextView
+                android:id="@+id/membersLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Members"
+                android:textColor="#AAAAAA"
+                android:textSize="14sp"
+                android:fontFamily="@font/manrope_bold"
+                android:layout_marginTop="24dp" />
+
+            <!-- Current Members Recycler -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/membersRecycler"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:overScrollMode="ifContentScrolls"
+                android:nestedScrollingEnabled="true"
+                android:maxHeight="200dp" />
+
+            <!-- New Members Dynamic Container -->
+            <TextView
+                android:id="@+id/newMembersLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Add New Members"
+                android:textColor="@color/orange"
+                android:textSize="16sp"
+                android:fontFamily="@font/manrope_bold"
+                android:layout_marginTop="24dp" />
+
+            <LinearLayout
+                android:id="@+id/membersContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="8dp" />
+
+            <!-- Add Member Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/addMemberBtn"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="+ Add Member"
+                android:textAllCaps="false"
+                android:textColor="@color/orange"
+                android:backgroundTint="@color/grey_dark"
+                android:fontFamily="@font/manrope_bold" />
+
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- Save Button (Fixed at bottom) -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/saveButton"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Save Changes"
+        android:textColor="@android:color/white"
+        android:fontFamily="@font/manrope_extrabold"
+        android:textStyle="bold"
+        android:textAllCaps="false"
+        app:cornerRadius="14dp"
+        app:backgroundTint="@color/orange"
+        android:paddingVertical="12dp"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="16dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

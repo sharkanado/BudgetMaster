@@ -3,9 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:background="@color/grey"
-    tools:context=".ui.activities.AddNewBudget">
+    android:background="@color/grey">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/main"
@@ -55,6 +53,34 @@
                 android:textColor="@color/white" />
         </com.google.android.material.textfield.TextInputLayout>
 
+        <!-- Optional Description -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/budgetDescriptionInputLayout"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:hint="Description (optional)"
+            android:textColorHint="@color/grey_light"
+            app:boxBackgroundColor="@color/grey_dark"
+            app:boxBackgroundMode="outline"
+            app:boxCornerRadiusBottomEnd="12dp"
+            app:boxCornerRadiusBottomStart="12dp"
+            app:boxCornerRadiusTopEnd="12dp"
+            app:boxCornerRadiusTopStart="12dp"
+            app:boxStrokeWidth="0dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/budgetNameInputLayout">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/budgetDescriptionInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/manrope_regular"
+                android:paddingTop="16dp"
+                android:paddingBottom="16dp"
+                android:textColor="@color/white" />
+        </com.google.android.material.textfield.TextInputLayout>
 
         <!-- Currency Label -->
         <TextView
@@ -66,7 +92,7 @@
             android:textColor="@color/orange"
             android:textSize="16sp"
             android:fontFamily="@font/manrope_bold"
-            app:layout_constraintTop_toBottomOf="@id/budgetNameInputLayout"
+            app:layout_constraintTop_toBottomOf="@id/budgetDescriptionInputLayout"
             app:layout_constraintStart_toStartOf="parent" />
 
         <!-- Preferred Currency Dropdown -->
@@ -110,7 +136,7 @@
             app:layout_constraintTop_toBottomOf="@id/currencyDropdownLayout"
             app:layout_constraintStart_toStartOf="parent" />
 
-        <!-- Members Container (initially empty, filled in code) -->
+        <!-- Members Container -->
         <LinearLayout
             android:id="@+id/membersContainer"
             android:layout_width="0dp"
@@ -119,7 +145,11 @@
             android:layout_marginTop="8dp"
             app:layout_constraintTop_toBottomOf="@id/membersTitle"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
+            app:layout_constraintEnd_toEndOf="parent">
+
+            <!-- First member field -->
+            <include layout="@layout/item_member_input" />
+        </LinearLayout>
 
         <!-- Add Member Button -->
         <com.google.android.material.button.MaterialButton
@@ -130,7 +160,7 @@
             android:text="+ Add Member"
             android:textAllCaps="false"
             android:textColor="@color/orange"
-            android:backgroundTint="@color/grey_dark"
+            android:backgroundTint="@android:color/transparent"
             android:fontFamily="@font/manrope_bold"
             app:layout_constraintTop_toBottomOf="@id/membersContainer"
             app:layout_constraintStart_toStartOf="parent" />

@@ -3,9 +3,15 @@
     <string name="title_budgets">Budgets</string>
     <string name="title_dashboard">Dashboard</string>
     <string name="title_settings">Settings</string>
+    <string name="loading_ellipsis">Loading…</string>
+    <string name="edit">Edit</string>
+    <string name="delete">Delete</string>
     <string name="welcome_text">
     Welcome to <font color="#FF9C3F">Budget Master!</font>
     </string>
+    <string name="error_negative_not_allowed">Must be ≥ 0</string>
+    <string name="error_exceeds_total">Exceeds total</string>
+
     <string name="sign_up_text">
     Sign up to <font color="#FF9C3F">Budget Master!</font>
     </string>

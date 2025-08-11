@@ -5,7 +5,7 @@ import com.google.firebase.firestore.Query
 
 fun updateLatestExpenses(
     uid: String,
-    expenseData: HashMap<String, Comparable<*>>,
+    expenseData: Map<String, Any>,   // <-- CHANGED to Map<String, Any>
     limit: Long = 10
 ) {
     val db = FirebaseFirestore.getInstance()

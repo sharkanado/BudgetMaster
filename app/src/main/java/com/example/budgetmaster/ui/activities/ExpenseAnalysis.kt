@@ -94,7 +94,7 @@ class ExpenseAnalysis : AppCompatActivity() {
             val intent = Intent(this, ExpenseDetailsWallet::class.java)
             intent.putExtra("selectedYear", selectedYear)
             intent.putExtra("selectedMonth", selectedMonth)
-            intent.putExtra("expense_item", clickedItem)
+            intent.putExtra("expenseItem", clickedItem)
             startActivity(intent)
         }
         recyclerView.adapter = expensesAdapter
@@ -196,7 +196,7 @@ class ExpenseAnalysis : AppCompatActivity() {
                     recyclerView.visibility = View.GONE
                     noDataText.visibility = View.VISIBLE
                     pieChart.setData(emptyList(), null)
-                    totalSpentText.text = "Total: $0.00"
+                    totalSpentText.text = "0.00"
                     return@addOnSuccessListener
                 }
 
@@ -230,6 +230,7 @@ class ExpenseAnalysis : AppCompatActivity() {
                     val item = ExpenseListItem.Item(
                         Categories.getIcon(category),
                         description,
+                        budgetId = "null", expenseIdInBudget = "null",
                         category,
                         "%.2f".format(signedAmount),
                         dateStr,
@@ -254,7 +255,7 @@ class ExpenseAnalysis : AppCompatActivity() {
             if (category == null) cachedEntries else cachedEntries.filter { it.first.category == category }
 
         val total = filteredPairs.sumOf { it.second }
-        totalSpentText.text = "Total: ${"%.2f".format(total)}"
+        totalSpentText.text = "${"%.2f".format(total)}"
 
         val grouped = filteredPairs.map { it.first }.groupBy { it.date }
             .toSortedMap(compareByDescending { LocalDate.parse(it) })

@@ -7,8 +7,7 @@
     android:paddingVertical="8dp"
     android:layout_marginBottom="8dp"
     android:paddingHorizontal="16dp"
-    android:id="@+id/dailyExpensesHeader"
-    >
+    android:id="@+id/dailyExpensesHeader">
 
     <TextView
         android:id="@+id/dailyExpensesDate"
@@ -26,7 +25,7 @@
         android:id="@+id/dailyExpensesSummary"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="-300 PLN"
+        android:text="-300"
         android:textColor="@color/white"
         android:textSize="16sp"
         android:fontFamily="@font/manrope_bold"

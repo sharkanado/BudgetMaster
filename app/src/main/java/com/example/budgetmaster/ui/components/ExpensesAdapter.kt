@@ -30,7 +30,7 @@ class ExpensesAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         return if (viewType == TYPE_HEADER) {
             val view = LayoutInflater.from(parent.context)
-                .inflate(R.layout.item_recyclerview_header, parent, false)
+                .inflate(R.layout.item_expenses_header, parent, false)
             HeaderViewHolder(view)
         } else {
             val view = LayoutInflater.from(parent.context)
@@ -78,31 +78,30 @@ class ExpensesAdapter(
         private val iconContainer = itemViewRoot.findViewById<View>(R.id.iconContainer)
 
         fun bind(item: ExpenseListItem.Item) {
-            // Set category text & name
+
             categoryText.text = item.category
             nameText.text = item.name
 
-            // Amount with color for income/expense
             amountText.text = item.amount
             val colorRes = if (item.type == "income") R.color.green_success else R.color.red_error
             amountText.setTextColor(ContextCompat.getColor(itemViewRoot.context, colorRes))
 
-            // Set round background with category color
             val color = Categories.getColor(item.category)
             val circleDrawable =
                 ContextCompat.getDrawable(itemViewRoot.context, R.drawable.bg_circle)
             circleDrawable?.setTint(color)
             iconContainer.background = circleDrawable
 
-            // Set category-specific icon
+
             icon.setImageResource(Categories.getIcon(item.category))
 
-            // Click handler
             if (onItemClick != null) {
                 itemView.isClickable = true
                 itemView.isFocusable = true
                 itemView.setBackgroundResource(R.drawable.expense_ripple)
-                itemView.setOnClickListener { onItemClick.invoke(item) }
+                itemView.setOnClickListener {
+                    onItemClick.invoke(item)
+                }
             } else {
                 itemView.isClickable = false
                 itemView.isFocusable = false
