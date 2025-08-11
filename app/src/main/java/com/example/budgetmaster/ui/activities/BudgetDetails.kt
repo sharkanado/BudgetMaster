@@ -49,7 +49,6 @@ class BudgetDetails : AppCompatActivity() {
             insets
         }
 
-        // Get budget object
         budget = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent.getParcelableExtra("budget", BudgetItem::class.java)
         } else {
@@ -65,13 +64,11 @@ class BudgetDetails : AppCompatActivity() {
         findViewById<TextView>(R.id.budgetNameText).text = budget.name
         findViewById<TextView>(R.id.userBalanceText).text = "+0" // Placeholder
 
-        // Setup members RecyclerView
         val membersRecycler = findViewById<RecyclerView>(R.id.membersRecycler)
         membersAdapter = BudgetMembersAdapter(membersList)
         membersRecycler.layoutManager = LinearLayoutManager(this)
         membersRecycler.adapter = membersAdapter
 
-        // Setup expenses RecyclerView (only once)
         val expensesRecycler = findViewById<RecyclerView>(R.id.accordionRecycler)
         expensesAdapter = BudgetExpensesAdapter(
             expensesList,
@@ -87,7 +84,6 @@ class BudgetDetails : AppCompatActivity() {
         expensesRecycler.layoutManager = LinearLayoutManager(this)
         expensesRecycler.adapter = expensesAdapter
 
-        // New Expense button
         findViewById<Button>(R.id.newExpenseBtn).setOnClickListener {
             val intent = Intent(this, CreateGroupExpense::class.java)
             intent.putExtra("budgetId", budget.id)
@@ -95,7 +91,6 @@ class BudgetDetails : AppCompatActivity() {
             startActivity(intent)
         }
 
-        // Edit Budget button
         findViewById<ImageButton>(R.id.settingsBtn).setOnClickListener {
             val intent = Intent(this, EditBudget::class.java)
             intent.putExtra("budgetId", budget.id)
@@ -108,13 +103,11 @@ class BudgetDetails : AppCompatActivity() {
         refreshData()
     }
 
-    /** Refresh both members and expenses */
     private fun refreshData() {
         loadMembers()
         loadExpenses()
     }
 
-    /** Load expenses grouped by month-year */
     private fun loadExpenses() {
         expensesList.clear()
         monthExpenseMap.clear()
@@ -252,7 +245,6 @@ class BudgetDetails : AppCompatActivity() {
         return months.indexOf(month).let { if (it >= 0) it + 1 else 0 }
     }
 
-    /** Safely read amount as Double from Number | String | null */
     private fun readAmount(doc: DocumentSnapshot): Double {
         val raw = doc.get("amount")
         return when (raw) {
@@ -262,7 +254,6 @@ class BudgetDetails : AppCompatActivity() {
         }
     }
 
-    /** Safely coerce Arrays/Lists of any to List<String> */
     @Suppress("UNCHECKED_CAST")
     private fun readStringList(raw: Any?): List<String> = when (raw) {
         is List<*> -> raw.mapNotNull { it?.toString() }

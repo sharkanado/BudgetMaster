@@ -1,7 +1,6 @@
 package com.example.budgetmaster.ui.components
 
 import ExpenseListItem
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -79,19 +78,14 @@ class ExpensesAdapter(
         private val iconContainer = itemViewRoot.findViewById<View>(R.id.iconContainer)
 
         fun bind(item: ExpenseListItem.Item) {
-            // in ExpensesAdapter.ItemViewHolder.bind(), at the top:
-            Log.d("DEBUG_CLASS", "VH bind item class=${item::class.qualifiedName}")
 
-            // Set category text & name
             categoryText.text = item.category
             nameText.text = item.name
 
-            // Amount with color for income/expense
             amountText.text = item.amount
             val colorRes = if (item.type == "income") R.color.green_success else R.color.red_error
             amountText.setTextColor(ContextCompat.getColor(itemViewRoot.context, colorRes))
 
-            // Set round background with category color
             val color = Categories.getColor(item.category)
             val circleDrawable =
                 ContextCompat.getDrawable(itemViewRoot.context, R.drawable.bg_circle)
@@ -99,19 +93,13 @@ class ExpensesAdapter(
             iconContainer.background = circleDrawable
 
 
-            // Set category-specific icon
             icon.setImageResource(Categories.getIcon(item.category))
 
-            // Click handler
             if (onItemClick != null) {
                 itemView.isClickable = true
                 itemView.isFocusable = true
                 itemView.setBackgroundResource(R.drawable.expense_ripple)
                 itemView.setOnClickListener {
-                    Log.d(
-                        "DEBUG",
-                        "CLICK bid='${item.budgetId}', eid='${item.expenseIdInBudget}'"
-                    )
                     onItemClick.invoke(item)
                 }
             } else {

@@ -1,154 +1,166 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/grey">
 
-    <!-- Year Selector -->
-    <LinearLayout
-        android:id="@+id/yearPicker"
-        android:layout_width="wrap_content"
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appBar"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center"
-        android:layout_marginTop="16dp"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
+        android:background="@color/grey"
+        app:liftOnScroll="true">
 
-        <ImageButton
-            android:id="@+id/prevYearBtn"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="@android:color/transparent"
-            android:src="@drawable/ic_chevron_left"
-            android:contentDescription="Previous Year" />
-
-        <Button
-            android:id="@+id/yearButton"
-            android:layout_width="wrap_content"
+        <!-- Collapsing header (fades) -->
+        <com.google.android.material.appbar.CollapsingToolbarLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="2025"
-            android:textColor="@android:color/white"
-            android:backgroundTint="#444444"
-            android:layout_marginHorizontal="8dp" />
+            app:contentScrim="@color/grey"
+            app:layout_scrollFlags="scroll|exitUntilCollapsed">
 
-        <ImageButton
-            android:id="@+id/nextYearBtn"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="@android:color/transparent"
-            android:src="@drawable/ic_chevron_right"
-            android:contentDescription="Next Year" />
-    </LinearLayout>
-
-    <!-- Custom Bar Chart -->
-    <com.example.budgetmaster.ui.components.CustomBarChartView
-        android:id="@+id/barChart"
-        android:layout_width="0dp"
-        android:layout_height="200dp"
-        android:layout_marginTop="16dp"
-        app:layout_constraintTop_toBottomOf="@id/yearPicker"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
-
-    <LinearLayout
-        android:id="@+id/monthAndAnalysisLayout"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:layout_marginTop="8dp"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp"
-        app:layout_constraintTop_toBottomOf="@id/barChart"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
-
-        <!-- Month Dropdown -->
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/monthDropdownLayout"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            app:boxBackgroundColor="@color/grey_dark"
-            app:boxCornerRadiusTopStart="12dp"
-            app:boxCornerRadiusTopEnd="12dp"
-            app:boxCornerRadiusBottomStart="12dp"
-            app:boxCornerRadiusBottomEnd="12dp"
-            app:boxStrokeWidth="0dp">
-
-            <AutoCompleteTextView
-                android:id="@+id/monthSpinner"
+            <LinearLayout
+                android:id="@+id/headerSection"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:gravity="center_vertical"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <!-- Year Selector (centered) -->
+                <LinearLayout
+                    android:id="@+id/yearPicker"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:gravity="center"
+                    android:orientation="horizontal">
+
+                    <ImageButton
+                        android:id="@+id/prevYearBtn"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="@android:color/transparent"
+                        android:contentDescription="Previous Year"
+                        android:src="@drawable/ic_chevron_left" />
+
+                    <Button
+                        android:id="@+id/yearButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginHorizontal="8dp"
+                        android:backgroundTint="#444444"
+                        android:text="2025"
+                        android:textColor="@android:color/white" />
+
+                    <ImageButton
+                        android:id="@+id/nextYearBtn"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="@android:color/transparent"
+                        android:contentDescription="Next Year"
+                        android:src="@drawable/ic_chevron_right" />
+                </LinearLayout>
+
+                <!-- Bar Chart -->
+                <com.example.budgetmaster.ui.components.CustomBarChartView
+                    android:id="@+id/barChart"
+                    android:layout_width="match_parent"
+                    android:layout_height="200dp"
+                    android:layout_marginTop="12dp"
+                    android:layout_marginHorizontal="8dp" />
+            </LinearLayout>
+        </com.google.android.material.appbar.CollapsingToolbarLayout>
+
+        <!-- Pinned row: Month picker + See Analysis -->
+        <LinearLayout
+            android:id="@+id/monthAndAnalysisLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:layout_marginBottom="10dp"
+            android:background="@color/grey">
+
+            <!-- Month Dropdown (fills remaining width) -->
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/monthDropdownLayout"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="8dp"
+                app:boxBackgroundColor="@color/grey_dark"
+                app:boxCornerRadiusTopStart="12dp"
+                app:boxCornerRadiusTopEnd="12dp"
+                app:boxCornerRadiusBottomStart="12dp"
+                app:boxCornerRadiusBottomEnd="12dp"
+                app:boxStrokeWidth="0dp"
+                app:hintEnabled="false">
+
+                <AutoCompleteTextView
+                    android:id="@+id/monthSpinner"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:minHeight="56dp"
+                    android:gravity="center_vertical"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:fontFamily="@font/manrope_regular"
+                    android:inputType="none"
+                    android:popupBackground="@color/grey_dark"
+                    android:textColor="@color/white" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- See Analysis Button (matches field height) -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/seeAnalysisButton"
+                android:layout_width="wrap_content"
+                android:layout_height="65dp"
+                android:text="See Analysis"
+                android:textAllCaps="false"
+                android:textColor="@color/grey"
+                android:fontFamily="@font/manrope_semibold"
+                android:backgroundTint="@color/grey_light"
                 android:paddingStart="16dp"
-                android:layout_marginBottom="4dp"
                 android:paddingEnd="16dp"
-                android:textColor="@color/white"
-                android:popupBackground="@color/grey_dark"
-                android:fontFamily="@font/manrope_regular"
-                android:inputType="none" />
-        </com.google.android.material.textfield.TextInputLayout>
+                app:cornerRadius="12dp" />
+        </LinearLayout>
+    </com.google.android.material.appbar.AppBarLayout>
 
-        <!-- See Analysis Button -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/seeAnalysisButton"
-            android:layout_width="wrap_content"
-            android:layout_height="match_parent"
-            android:layout_gravity="center_vertical"
-            android:text="See Analysis"
-            android:textAllCaps="false"
-            android:fontFamily="@font/manrope_semibold"
-            android:textColor="@color/grey"
-            android:backgroundTint="@color/grey_light"
-            android:layout_marginStart="8dp"
-            app:cornerRadius="12dp" />
-    </LinearLayout>
-
-
-    <!-- No Data Text -->
-    <TextView
-        android:id="@+id/noDataText"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:text="No data to be shown."
-        android:textSize="14sp"
-        android:textColor="@color/white"
-        android:gravity="center"
-        android:padding="24dp"
-        android:visibility="gone"
-        app:layout_constraintTop_toBottomOf="@id/monthAndAnalysisLayout"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
-
-    <!-- RecyclerView for Expenses -->
+    <!-- Expenses list (scrolls under AppBar) -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/expensesRecyclerView"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:layout_marginTop="8dp"
-        app:layout_constraintTop_toBottomOf="@id/monthAndAnalysisLayout"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent" />
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:paddingBottom="16dp"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
 
-    <!-- Floating Action Button -->
+    <!-- No Data overlay -->
+    <TextView
+        android:id="@+id/noDataText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:padding="24dp"
+        android:text="No data to be shown."
+        android:textColor="@color/white"
+        android:textSize="14sp"
+        android:visibility="gone" />
+
+    <!-- FAB -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/addExpenseFab"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_gravity="end|bottom"
         android:layout_marginEnd="16dp"
         android:layout_marginBottom="16dp"
         android:contentDescription="Add Expense"
         android:src="@drawable/ic_add"
         android:tint="@android:color/white"
-        app:backgroundTint="@color/orange"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:backgroundTint="@color/orange" />
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

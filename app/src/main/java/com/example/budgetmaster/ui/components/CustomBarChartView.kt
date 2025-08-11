@@ -9,6 +9,8 @@ import android.graphics.Typeface
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
+import androidx.core.content.res.ResourcesCompat
+import com.example.budgetmaster.R
 import kotlin.math.ceil
 import kotlin.math.max
 
@@ -27,46 +29,45 @@ class CustomBarChartView @JvmOverloads constructor(
     private var onMonthClickListener: ((Int) -> Unit)? = null
     private var selectedMonthIndex: Int = -1 // Bold legend for this month
 
-    private val incomePaint = Paint().apply {
+    // Typeface (Manrope)
+    private val tfRegular: Typeface
+    private val tfBold: Typeface
+
+    private val incomePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#4CAF50") // Green for income
         style = Paint.Style.FILL
-        isAntiAlias = true
     }
 
-    private val expensePaint = Paint().apply {
+    private val expensePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#F44336") // Red for expenses
         style = Paint.Style.FILL
-        isAntiAlias = true
     }
 
-    private val axisPaint = Paint().apply {
+    private val axisPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         strokeWidth = 2f
     }
 
-    private val gridPaint = Paint().apply {
+    private val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#555555")
         strokeWidth = 1f
     }
 
-    private val textPaint = Paint().apply {
+    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         textSize = 26f
-        isAntiAlias = true
         textAlign = Paint.Align.RIGHT
     }
 
-    private val monthPaint = Paint().apply {
+    private val monthPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         textSize = 28f
-        isAntiAlias = true
         textAlign = Paint.Align.CENTER
     }
 
-    private val noDataPaint = Paint().apply {
+    private val noDataPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.GRAY
         textSize = 40f
-        isAntiAlias = true
         textAlign = Paint.Align.CENTER
     }
 
@@ -75,22 +76,34 @@ class CustomBarChartView @JvmOverloads constructor(
         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
     )
 
+    init {
+        // Load Manrope fonts with safe fallbacks
+        val regular = ResourcesCompat.getFont(context, R.font.manrope_regular)
+        val bold = ResourcesCompat.getFont(context, R.font.manrope_extrabold)
+        tfRegular = regular ?: Typeface.SANS_SERIF
+        tfBold = bold ?: Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+
+        // Apply typefaces
+        textPaint.typeface = tfRegular
+        monthPaint.typeface = tfRegular
+        noDataPaint.typeface = tfRegular
+    }
+
     fun setData(income: List<Float>, expenses: List<Float>) {
         incomeData = income
         expenseData = expenses
-
-        // Start animation
         startAnimation()
     }
 
     private fun startAnimation() {
-        val animator = ValueAnimator.ofFloat(0f, 1f)
-        animator.duration = 600 // 0.6 second animation
-        animator.addUpdateListener {
-            animatedProgress = it.animatedValue as Float
-            invalidate()
+        ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 600
+            addUpdateListener {
+                animatedProgress = it.animatedValue as Float
+                invalidate()
+            }
+            start()
         }
-        animator.start()
     }
 
     fun setOnMonthClickListener(listener: (Int) -> Unit) {
@@ -118,7 +131,7 @@ class CustomBarChartView @JvmOverloads constructor(
         val maxHundred = ceil(maxValue / 100f) * 100f
         val scale = (chartHeight * 0.8f) / maxHundred
 
-        // Draw horizontal grid lines + labels
+        // Horizontal grid lines + labels
         val steps = 5
         val stepValue = maxHundred / steps
         val stepHeight = (chartHeight * 0.8f) / steps
@@ -152,7 +165,7 @@ class CustomBarChartView @JvmOverloads constructor(
                 incomePaint
             )
 
-            // Expense bar (hugging income bar)
+            // Expense bar (next to income bar)
             canvas.drawRect(
                 xPos + barWidth,
                 chartHeight - expenseHeight,
@@ -161,21 +174,22 @@ class CustomBarChartView @JvmOverloads constructor(
                 expensePaint
             )
 
-            // Month label (bold if selected)
-            monthPaint.typeface =
-                if (i == selectedMonthIndex) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+            // Month label (bold when selected)
+            monthPaint.typeface = if (i == selectedMonthIndex) tfBold else tfRegular
             val labelX = xPos + barWidth
             val labelY = chartHeight + (labelSpace / 2)
             canvas.drawText(months[i], labelX, labelY, monthPaint)
 
-            // Move to next group
             xPos += 2 * barWidth + groupSpacing
         }
 
         // Baseline
         canvas.drawLine(leftPadding, chartHeight, width, chartHeight, axisPaint)
 
-       
+        // Optional "No data" text (not previously drawn, but kept for completeness)
+        if (!hasData) {
+            canvas.drawText("No data", width / 2f, height / 2f, noDataPaint)
+        }
     }
 
     override fun onTouchEvent(event: MotionEvent?): Boolean {

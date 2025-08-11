@@ -321,6 +321,5 @@ class ExpenseDetailsWallet : AppCompatActivity() {
                 Toast.makeText(this, "Failed: ${e.message}", Toast.LENGTH_SHORT).show()
             }
 
-        // Budget updates removed as requested
     }
 }
