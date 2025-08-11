@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
+import java.util.Locale
 
 class BudgetMembersAdapter(
     private val members: List<BudgetMemberItem>
@@ -27,7 +28,7 @@ class BudgetMembersAdapter(
         val member = members[position]
         holder.nameText.text = member.name
         holder.emailText.text = member.email
-        holder.balanceText.text = "${member.balance}"
+        holder.balanceText.text = String.format(Locale.ENGLISH, "%.2f", member.balance)
     }
 
     override fun getItemCount(): Int = members.size

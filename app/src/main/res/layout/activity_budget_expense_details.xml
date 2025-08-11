@@ -105,6 +105,7 @@
                     android:id="@+id/expenseAmountEdit"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:inputType="numberDecimal"
                     android:textColor="@android:color/white"
                     android:textSize="16sp"
                     android:visibility="gone"

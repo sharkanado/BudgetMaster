@@ -28,7 +28,7 @@ class BudgetSplitMembersAdapter(
 ) : RecyclerView.Adapter<BudgetSplitMembersAdapter.VH>() {
 
     private val syms = DecimalFormatSymbols(Locale.getDefault()).apply {
-        decimalSeparator = ','
+        decimalSeparator = '.'
         groupingSeparator = ' '
     }
     private val df2 = DecimalFormat("0.00").apply {
@@ -116,10 +116,10 @@ class BudgetSplitMembersAdapter(
 
                 // Normalize '.' to ',' in UI, but still allow typing dots
                 val cur = s?.toString() ?: ""
-                if (cur.contains('.')) {
+                if (cur.contains(',')) {
                     val sel = holder.amountEdit.selectionStart
                     internalUpdate = true
-                    val fixed = cur.replace('.', ',')
+                    val fixed = cur.replace(',', '.')
                     holder.amountEdit.setText(fixed)
                     // keep cursor reasonably in place
                     val newSel = (sel + (fixed.length - cur.length)).coerceIn(0, fixed.length)

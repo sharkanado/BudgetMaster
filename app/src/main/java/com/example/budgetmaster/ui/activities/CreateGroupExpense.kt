@@ -48,7 +48,7 @@ class CreateGroupExpense : AppCompatActivity() {
     private val sharesByUid = linkedMapOf<String, Double>()
 
     private val syms = DecimalFormatSymbols(Locale.getDefault()).apply {
-        decimalSeparator = ','
+        decimalSeparator = '.'
         groupingSeparator = ' '
     }
     private val df2 = DecimalFormat("0.00").apply {
@@ -96,21 +96,41 @@ class CreateGroupExpense : AppCompatActivity() {
         amountInput.addTextChangedListener(
             afterTextChanged = {
                 if (suppressAmountWatcher) return@addTextChangedListener
-                // normalize dot -> comma for UI
-                val txt = amountInput.text?.toString() ?: ""
-                if (txt.contains('.')) {
-                    suppressAmountWatcher = true
-                    amountInput.setText(txt.replace('.', ','))
-                    amountInput.setSelection(amountInput.text?.length ?: 0)
-                    suppressAmountWatcher = false
-                    return@addTextChangedListener
+
+                val txt = amountInput.text?.toString().orEmpty()
+                var normalized = txt
+
+                // 1) Normalize commas to dots for the UI/content
+                if (normalized.contains(',')) {
+                    normalized = normalized.replace(',', '.')
                 }
+
+                // 2) Ensure only a single dot as decimal separator (optional but nice)
+                val firstDot = normalized.indexOf('.')
+                if (firstDot != -1) {
+                    val withoutExtraDots =
+                        normalized.substring(0, firstDot + 1) +
+                                normalized.substring(firstDot + 1).replace(".", "")
+                    normalized = withoutExtraDots
+                }
+
+                if (normalized != txt) {
+                    suppressAmountWatcher = true
+                    val cursor = amountInput.selectionStart.coerceAtLeast(0)
+                    amountInput.setText(normalized)
+                    // Keep cursor near where the user was typing
+                    amountInput.setSelection(normalized.length.coerceAtMost(cursor))
+                    suppressAmountWatcher = false
+                }
+
+                // Your existing logic
                 recomputeSharesEqual()
                 if (::splitAdapter.isInitialized) {
                     splitAdapter.refreshVisibleSharesExcept(membersRecycler, null)
                 }
             }
         )
+
         amountInput.setOnFocusChangeListener { v, hasFocus ->
             if (!hasFocus) normalizeTotalField()
         }
@@ -313,7 +333,11 @@ class CreateGroupExpense : AppCompatActivity() {
         val amount = parseFlexible(amountInput.text?.toString())
         val dateStr = dateInput.text?.toString()?.trim()
 
-        if (description.isNullOrEmpty() || amount == null || amount <= 0.0 || dateStr.isNullOrEmpty()) {
+        if (description.isNullOrEmpty() || amount == null) {
+            Toast.makeText(this, "Please enter all data", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (amount <= 0.0 || dateStr.isNullOrEmpty()) {
             Toast.makeText(this, "Please enter valid data", Toast.LENGTH_SHORT).show()
             return
         }

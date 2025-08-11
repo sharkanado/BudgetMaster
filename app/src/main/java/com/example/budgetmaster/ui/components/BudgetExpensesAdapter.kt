@@ -8,6 +8,7 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
 import com.example.budgetmaster.ui.budgets.BudgetExpenseItem
+import java.util.Locale
 
 class BudgetExpensesAdapter(
     private val expenses: MutableList<BudgetExpenseItem>,
@@ -45,7 +46,7 @@ class BudgetExpensesAdapter(
 
         } else if (holder is ItemViewHolder) {
             holder.description.text = item.description
-            holder.amount.text = String.format("%.2f", item.amount)
+            holder.amount.text = String.format(Locale.ENGLISH, "%.2f", item.amount)
             holder.date.text = formatDate(item.date)
 
             val payerName = userNames[item.createdBy] ?: "Unknown"
