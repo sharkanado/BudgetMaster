@@ -23,6 +23,7 @@ import com.example.budgetmaster.ui.components.BudgetMemberItem
 import com.example.budgetmaster.ui.components.BudgetMembersAdapter
 import com.example.budgetmaster.ui.components.BudgetSplitMembersAdapter
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import java.text.DecimalFormat
@@ -538,6 +539,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
             tmp
         }
 
+        // local model update
         expenseItem = expenseItem.copy(
             amount = newAmount,
             description = newDescription,
@@ -554,34 +556,141 @@ class BudgetExpenseDetails : AppCompatActivity() {
             "timestamp" to Timestamp.now()
         )
 
-        db.collection("budgets").document(budgetId)
-            .collection("expenses").document(expenseItem.id)
-            .set(updates, SetOptions.merge())
-            .addOnSuccessListener {
-                savedPaidShares.clear(); savedPaidShares.putAll(normalizedPaidShares)
-                rebuildReadOnlyParticipants()
-                readOnlyAdapter.notifyDataSetChanged()
-                fillFieldsOnce()
-                toggleEdit(false)
-                Toast.makeText(this, "Expense updated", Toast.LENGTH_SHORT).show()
+        val budgetRef = db.collection("budgets").document(budgetId)
+        val expenseRef = budgetRef.collection("expenses").document(expenseItem.id)
+        val splitsRef = budgetRef.collection("expenseSplits").document(expenseItem.id)
+        val totalsCol = budgetRef.collection("totals")
+        val payer = expenseItem.createdBy
+
+        db.runTransaction { tx ->
+            // reverse old totals (if any)
+            val old = tx.get(splitsRef)
+            val oldPayer = old.getString("payer") ?: payer
+            val oldShares: Map<String, Double> =
+                (old.get("shares") as? Map<*, *>)?.mapNotNull { (k, v) ->
+                    val id = k?.toString() ?: return@mapNotNull null
+                    val d = (v as? Number)?.toDouble() ?: return@mapNotNull null
+                    id to d
+                }?.toMap().orEmpty()
+
+            var oldOthers = 0.0
+            oldShares.forEach { (uid, share) ->
+                if (uid == oldPayer) return@forEach
+                oldOthers += share
+                tx.set(
+                    totalsCol.document(uid),
+                    mapOf(
+                        "debt" to FieldValue.increment(-share),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    ),
+                    SetOptions.merge()
+                )
             }
-            .addOnFailureListener { e ->
-                Toast.makeText(this, "Failed to save: ${e.message}", Toast.LENGTH_SHORT).show()
+            if (oldOthers != 0.0) {
+                tx.set(
+                    totalsCol.document(oldPayer),
+                    mapOf(
+                        "receivable" to FieldValue.increment(-oldOthers),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    ),
+                    SetOptions.merge()
+                )
             }
+
+            // apply new totals
+            var newOthers = 0.0
+            normalizedPaidShares.forEach { (uid, share) ->
+                if (uid == payer) return@forEach
+                newOthers += share
+                tx.set(
+                    totalsCol.document(uid),
+                    mapOf(
+                        "debt" to FieldValue.increment(share),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    ),
+                    SetOptions.merge()
+                )
+            }
+            if (newOthers != 0.0) {
+                tx.set(
+                    totalsCol.document(payer),
+                    mapOf(
+                        "receivable" to FieldValue.increment(newOthers),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    ),
+                    SetOptions.merge()
+                )
+            }
+
+            // update expense & mirror
+            tx.set(expenseRef, updates, SetOptions.merge())
+            tx.set(splitsRef, mapOf("payer" to payer, "shares" to normalizedPaidShares))
+
+            null
+        }.addOnSuccessListener {
+            savedPaidShares.clear()
+            savedPaidShares.putAll(normalizedPaidShares)
+            rebuildReadOnlyParticipants()
+            readOnlyAdapter.notifyDataSetChanged()
+            fillFieldsOnce()
+            toggleEdit(false)
+            Toast.makeText(this, "Expense updated", Toast.LENGTH_SHORT).show()
+        }.addOnFailureListener { e ->
+            Toast.makeText(this, "Failed to save: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun deleteExpense() {
-        db.collection("budgets").document(budgetId)
-            .collection("expenses").document(expenseItem.id)
-            .delete()
-            .addOnSuccessListener {
-                Toast.makeText(this, "Expense deleted", Toast.LENGTH_SHORT).show()
-                finish()
+        val budgetRef = db.collection("budgets").document(budgetId)
+        val expenseRef = budgetRef.collection("expenses").document(expenseItem.id)
+        val splitsRef = budgetRef.collection("expenseSplits").document(expenseItem.id)
+        val totalsCol = budgetRef.collection("totals")
+
+        db.runTransaction { tx ->
+            val old = tx.get(splitsRef)
+            val payer = old.getString("payer") ?: expenseItem.createdBy
+            val shares: Map<String, Double> =
+                (old.get("shares") as? Map<*, *>)?.mapNotNull { (k, v) ->
+                    val id = k?.toString() ?: return@mapNotNull null
+                    val d = (v as? Number)?.toDouble() ?: return@mapNotNull null
+                    id to d
+                }?.toMap().orEmpty()
+
+            var others = 0.0
+            shares.forEach { (uid, share) ->
+                if (uid == payer) return@forEach
+                others += share
+                tx.set(
+                    totalsCol.document(uid),
+                    mapOf(
+                        "debt" to FieldValue.increment(-share),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    ),
+                    SetOptions.merge()
+                )
             }
-            .addOnFailureListener { e ->
-                Toast.makeText(this, "Failed to delete: ${e.message}", Toast.LENGTH_SHORT).show()
+            if (others != 0.0) {
+                tx.set(
+                    totalsCol.document(payer),
+                    mapOf(
+                        "receivable" to FieldValue.increment(-others),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    ),
+                    SetOptions.merge()
+                )
             }
+
+            tx.delete(expenseRef)
+            tx.delete(splitsRef)
+            null
+        }.addOnSuccessListener {
+            Toast.makeText(this, "Expense deleted", Toast.LENGTH_SHORT).show()
+            finish()
+        }.addOnFailureListener { e ->
+            Toast.makeText(this, "Failed to delete: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
+
 
     private fun showDatePicker() {
         val cal = Calendar.getInstance()

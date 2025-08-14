@@ -16,6 +16,8 @@ import com.example.budgetmaster.ui.activities.MyWallet
 import com.example.budgetmaster.ui.components.ExpensesAdapter
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -29,6 +31,16 @@ class DashboardFragment : Fragment() {
     private val db = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
 
+    // Always format with '.' as decimal separator
+    private val dotSyms = DecimalFormatSymbols(Locale.ENGLISH).apply {
+        decimalSeparator = '.'
+        groupingSeparator = ',' // not visible, but set for completeness
+    }
+    private val df2 = DecimalFormat("0.00").apply {
+        decimalFormatSymbols = dotSyms
+        isGroupingUsed = false
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -40,11 +52,9 @@ class DashboardFragment : Fragment() {
         binding.addExpenseButton.setOnClickListener {
             startActivity(Intent(requireContext(), AddExpense::class.java))
         }
-
         binding.myExpensesBlock.setOnClickListener {
             startActivity(Intent(requireContext(), MyWallet::class.java))
         }
-
         binding.seeAllButton.setOnClickListener {
             startActivity(Intent(requireContext(), MyWallet::class.java))
         }
@@ -52,13 +62,14 @@ class DashboardFragment : Fragment() {
         expensesAdapter = ExpensesAdapter(
             emptyList(),
             onItemClick = null
-
         )
-
         binding.latestExpensesRecycler.apply {
             layoutManager = LinearLayoutManager(requireContext())
             adapter = expensesAdapter
         }
+
+        // Start with loaders visible and numbers hidden
+        showTotalsLoading(true)
 
         return root
     }
@@ -66,6 +77,63 @@ class DashboardFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         loadLatestExpenses()
+        loadTotalsFromBudgets()
+    }
+
+    private fun loadTotalsFromBudgets() {
+        val uid = auth.currentUser?.uid ?: return
+
+        showTotalsLoading(true)
+
+        db.collection("users").document(uid).get()
+            .addOnSuccessListener { userDoc ->
+                val budgets =
+                    (userDoc.get("budgetsAccessed") as? List<*>)?.mapNotNull { it?.toString() }
+                        ?: emptyList()
+
+                if (budgets.isEmpty()) {
+                    binding.receivableAmount.text = df2.format(0.0)
+                    binding.debtAmount.text = df2.format(0.0)
+                    showTotalsLoading(false)
+                    return@addOnSuccessListener
+                }
+
+                var done = 0
+                var sumReceivable = 0.0
+                var sumDebt = 0.0
+
+                budgets.forEach { bid ->
+                    db.collection("budgets").document(bid)
+                        .collection("totals").document(uid)
+                        .get()
+                        .addOnSuccessListener { tdoc ->
+                            sumReceivable += tdoc.getDouble("receivable") ?: 0.0
+                            sumDebt += tdoc.getDouble("debt") ?: 0.0
+                        }
+                        .addOnCompleteListener {
+                            done++
+                            if (done == budgets.size) {
+                                binding.receivableAmount.text = df2.format(sumReceivable)
+                                binding.debtAmount.text = df2.format(sumDebt)
+                                showTotalsLoading(false)
+                            }
+                        }
+                }
+            }
+            .addOnFailureListener {
+                // Show something sane after failure
+                binding.receivableAmount.text = df2.format(0.0)
+                binding.debtAmount.text = df2.format(0.0)
+                showTotalsLoading(false)
+            }
+    }
+
+    private fun showTotalsLoading(loading: Boolean) {
+        // When loading: show the small spinners and HIDE the numbers completely
+        binding.receivableLoading.visibility = if (loading) View.VISIBLE else View.GONE
+        binding.debtLoading.visibility = if (loading) View.VISIBLE else View.GONE
+        binding.receivableAmount.visibility = if (loading) View.GONE else View.VISIBLE
+        binding.debtAmount.visibility = if (loading) View.GONE else View.VISIBLE
     }
 
     private fun loadLatestExpenses() {
@@ -90,7 +158,6 @@ class DashboardFragment : Fragment() {
                         val type = doc.getString("type") ?: "expense"
                         val signedAmount = if (type == "expense") -amount else amount
                         val expenseId = doc.getString("expenseId") ?: ""
-
                         ExpenseDetails(parsedDate, name, category, signedAmount, type, expenseId)
                     }
                     .groupBy { it.date }
@@ -101,7 +168,7 @@ class DashboardFragment : Fragment() {
 
                 for ((date, entries) in grouped) {
                     val total = entries.sumOf { it.amount }
-                    val label = "%.2f".format(total)
+                    val label = df2.format(total)
                     listItems.add(
                         ExpenseListItem.Header(
                             date.format(formatted),
@@ -110,8 +177,8 @@ class DashboardFragment : Fragment() {
                         )
                     )
 
-                    entries.forEach { (date, name, category, amount, type, expenseId) ->
-                        val displayAmount = "%.2f".format(amount)
+                    entries.forEach { (date2, name, category, amount, type, expenseId) ->
+                        val displayAmount = df2.format(amount)
                         listItems.add(
                             ExpenseListItem.Item(
                                 R.drawable.ic_home_white_24dp,
@@ -120,7 +187,7 @@ class DashboardFragment : Fragment() {
                                 expenseIdInBudget = "null",
                                 category,
                                 displayAmount,
-                                date.toString(),
+                                date2.toString(),
                                 type,
                                 expenseId
                             )
