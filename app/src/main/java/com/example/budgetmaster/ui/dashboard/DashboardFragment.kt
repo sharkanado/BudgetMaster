@@ -11,7 +11,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.budgetmaster.R
 import com.example.budgetmaster.databinding.FragmentDashboardBinding
 import com.example.budgetmaster.ui.activities.AddExpense
-import com.example.budgetmaster.ui.activities.ExpenseDetailsWallet
 import com.example.budgetmaster.ui.activities.MyWallet
 import com.example.budgetmaster.ui.components.ExpensesAdapter
 import com.google.firebase.auth.FirebaseAuth
@@ -31,10 +30,9 @@ class DashboardFragment : Fragment() {
     private val db = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
 
-    // Always format with '.' as decimal separator
     private val dotSyms = DecimalFormatSymbols(Locale.ENGLISH).apply {
         decimalSeparator = '.'
-        groupingSeparator = ',' // not visible, but set for completeness
+        groupingSeparator = ','
     }
     private val df2 = DecimalFormat("0.00").apply {
         decimalFormatSymbols = dotSyms
@@ -55,6 +53,19 @@ class DashboardFragment : Fragment() {
         binding.myExpensesBlock.setOnClickListener {
             startActivity(Intent(requireContext(), MyWallet::class.java))
         }
+
+        binding.debtBlock.setOnClickListener {
+            requireActivity()
+                .findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(R.id.navigationView)
+                .selectedItemId = R.id.navigationBudgets
+        }
+
+        binding.receivableBlock.setOnClickListener {
+            requireActivity()
+                .findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(R.id.navigationView)
+                .selectedItemId = R.id.navigationBudgets
+        }
+
         binding.seeAllButton.setOnClickListener {
             startActivity(Intent(requireContext(), MyWallet::class.java))
         }
@@ -68,7 +79,6 @@ class DashboardFragment : Fragment() {
             adapter = expensesAdapter
         }
 
-        // Start with loaders visible and numbers hidden
         showTotalsLoading(true)
 
         return root
@@ -121,7 +131,6 @@ class DashboardFragment : Fragment() {
                 }
             }
             .addOnFailureListener {
-                // Show something sane after failure
                 binding.receivableAmount.text = df2.format(0.0)
                 binding.debtAmount.text = df2.format(0.0)
                 showTotalsLoading(false)
@@ -213,19 +222,6 @@ class DashboardFragment : Fragment() {
             }
     }
 
-    private fun openExpenseDetails(item: ExpenseListItem.Item) {
-        val intent = Intent(requireContext(), ExpenseDetailsWallet::class.java)
-        intent.putExtra("expenseItem", item)
-
-        val date = LocalDate.parse(item.date)
-        val year = date.year
-        val month = date.month.name.lowercase().replaceFirstChar { it.uppercase() }
-
-        intent.putExtra("selectedYear", year)
-        intent.putExtra("selectedMonth", month)
-
-        startActivity(intent)
-    }
 
     override fun onDestroyView() {
         super.onDestroyView()

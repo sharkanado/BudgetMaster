@@ -24,7 +24,7 @@
             android:id="@+id/myExpensesBlock"
             android:layout_width="0dp"
             android:layout_height="0dp"
-            android:background="@drawable/my_expenses_bg"
+            android:background="@drawable/expense_ripple"
             android:padding="10dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toStartOf="@id/guidelineVertical"
@@ -56,7 +56,6 @@
                 app:layout_constraintEnd_toEndOf="parent" />
         </androidx.constraintlayout.widget.ConstraintLayout>
 
-        <!-- RECEIVABLE -->
         <androidx.constraintlayout.widget.ConstraintLayout
             android:id="@+id/receivableBlock"
             android:layout_width="0dp"
@@ -121,7 +120,6 @@
 
         </androidx.constraintlayout.widget.ConstraintLayout>
 
-        <!-- DEBT -->
         <androidx.constraintlayout.widget.ConstraintLayout
             android:id="@+id/debtBlock"
             android:layout_width="0dp"
@@ -186,7 +184,6 @@
         </androidx.constraintlayout.widget.ConstraintLayout>
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <!-- Latest expenses list -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/latestExpenses"
         android:layout_width="match_parent"
