@@ -56,9 +56,7 @@ class BudgetsFragment : Fragment() {
             adapter = this@BudgetsFragment.adapter
         }
 
-        // Load once; show spinner during fetch
         loadBudgets()
-
         return root
     }
 
@@ -71,7 +69,6 @@ class BudgetsFragment : Fragment() {
         val db = FirebaseFirestore.getInstance()
         val currentUser = FirebaseAuth.getInstance().currentUser ?: return
 
-        // show loading
         binding.loadingProgressBar.visibility = View.VISIBLE
 
         viewLifecycleOwner.lifecycleScope.launch {
@@ -84,7 +81,6 @@ class BudgetsFragment : Fragment() {
                     return@launch
                 }
 
-                // Fetch budgets in chunks of 10 (whereIn limit)
                 val byId = linkedMapOf<String, BudgetItem>()
                 accessed.chunked(10).forEach { chunk ->
                     val snap = db.collection("budgets")
@@ -99,22 +95,29 @@ class BudgetsFragment : Fragment() {
                             preferredCurrency = doc.getString("preferredCurrency") ?: "PLN",
                             members = (doc.get("members") as? List<String>).orEmpty(),
                             ownerId = doc.getString("ownerId") ?: "",
-                            balance = 0.0 // (totals loaded separately)
+                            balance = 0.0
                         )
                     }
                 }
 
                 val list = byId.values.toList()
                 adapter.submitList(list)
-                // hide loading once list is shown
                 binding.loadingProgressBar.visibility = View.GONE
 
-                // Load totals asynchronously per budget, update with payload (no full rebind)
                 list.forEach { budget ->
                     launch(Dispatchers.IO) {
                         val total = sumBudgetExpenses(db, budget.id)
                         withContext(Dispatchers.Main) {
                             adapter.updateBudgetTotal(budget.id, total)
+                        }
+                    }
+                }
+
+                list.forEach { budget ->
+                    launch(Dispatchers.IO) {
+                        val (recv, debt) = fetchUserTotals(db, budget.id, currentUser.uid)
+                        withContext(Dispatchers.Main) {
+                            adapter.updateBudgetStatus(budget.id, recv, debt)
                         }
                     }
                 }
@@ -127,13 +130,11 @@ class BudgetsFragment : Fragment() {
 
     private suspend fun sumBudgetExpenses(db: FirebaseFirestore, budgetId: String): Double {
         val col = db.collection("budgets").document(budgetId).collection("expenses")
-        // Try aggregate SUM first (fast/cheap)
         return try {
             val agg = col.aggregate(AggregateField.sum("amount"))
                 .get(AggregateSource.SERVER).await()
             (agg.get(AggregateField.sum("amount")) as? Number)?.toDouble() ?: 0.0
         } catch (_: Exception) {
-            // Fallback: client sum (handles legacy string types, if any)
             val snap = col.get().await()
             var total = 0.0
             for (doc in snap.documents) {
@@ -145,6 +146,23 @@ class BudgetsFragment : Fragment() {
                 }
             }
             total
+        }
+    }
+
+    private suspend fun fetchUserTotals(
+        db: FirebaseFirestore,
+        budgetId: String,
+        uid: String
+    ): Pair<Double, Double> {
+        return try {
+            val doc = db.collection("budgets").document(budgetId)
+                .collection("totals").document(uid)
+                .get().await()
+            val receivable = (doc.getDouble("receivable") ?: 0.0).coerceAtLeast(0.0)
+            val debt = (doc.getDouble("debt") ?: 0.0).coerceAtLeast(0.0)
+            receivable to debt
+        } catch (_: Exception) {
+            0.0 to 0.0
         }
     }
 }
