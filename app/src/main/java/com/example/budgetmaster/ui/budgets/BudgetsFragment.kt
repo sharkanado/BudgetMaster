@@ -21,8 +21,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
-import java.text.DecimalFormat
-import java.text.DecimalFormatSymbols
 
 class BudgetsFragment : Fragment() {
 
@@ -30,29 +28,24 @@ class BudgetsFragment : Fragment() {
     private val binding get() = _binding!!
 
     private lateinit var adapter: BudgetsAdapter
-    private val budgets = mutableListOf<BudgetItem>()
 
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-
         _binding = FragmentBudgetsBinding.inflate(inflater, container, false)
         val root: View = binding.root
 
         binding.addWalletButton.setOnClickListener {
-            val intent = Intent(requireContext(), AddNewBudget::class.java)
-            startActivity(intent)
+            startActivity(Intent(requireContext(), AddNewBudget::class.java))
         }
 
         binding.myWalletCard.setOnClickListener {
-            val intent = Intent(requireContext(), MyWallet::class.java)
-            startActivity(intent)
+            startActivity(Intent(requireContext(), MyWallet::class.java))
         }
 
-        // Setup RecyclerView with click callback
-        adapter = BudgetsAdapter(budgets) { clickedBudget ->
+        adapter = BudgetsAdapter(emptyList()) { clickedBudget ->
             val intent = Intent(requireContext(), BudgetDetails::class.java)
             intent.putExtra("budget", clickedBudget)
             startActivity(intent)
@@ -64,18 +57,19 @@ class BudgetsFragment : Fragment() {
         }
 
         loadBudgets()
-
         return root
     }
 
-    override fun onResume() {
-        super.onResume()
-        loadBudgets()
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
     }
 
     private fun loadBudgets() {
         val db = FirebaseFirestore.getInstance()
         val currentUser = FirebaseAuth.getInstance().currentUser ?: return
+
+        binding.loadingProgressBar.visibility = View.VISIBLE
 
         viewLifecycleOwner.lifecycleScope.launch {
             try {
@@ -83,6 +77,7 @@ class BudgetsFragment : Fragment() {
                 val accessed = (userDoc.get("budgetsAccessed") as? List<String>).orEmpty()
                 if (accessed.isEmpty()) {
                     adapter.submitList(emptyList())
+                    binding.loadingProgressBar.visibility = View.GONE
                     return@launch
                 }
 
@@ -107,6 +102,7 @@ class BudgetsFragment : Fragment() {
 
                 val list = byId.values.toList()
                 adapter.submitList(list)
+                binding.loadingProgressBar.visibility = View.GONE
 
                 list.forEach { budget ->
                     launch(Dispatchers.IO) {
@@ -116,21 +112,29 @@ class BudgetsFragment : Fragment() {
                         }
                     }
                 }
-            } catch (e: Exception) {
+
+                list.forEach { budget ->
+                    launch(Dispatchers.IO) {
+                        val (recv, debt) = fetchUserTotals(db, budget.id, currentUser.uid)
+                        withContext(Dispatchers.Main) {
+                            adapter.updateBudgetStatus(budget.id, recv, debt)
+                        }
+                    }
+                }
+            } catch (_: Exception) {
                 adapter.submitList(emptyList())
+                binding.loadingProgressBar.visibility = View.GONE
             }
         }
     }
 
     private suspend fun sumBudgetExpenses(db: FirebaseFirestore, budgetId: String): Double {
         val col = db.collection("budgets").document(budgetId).collection("expenses")
-        // Try aggregate SUM first (fast/cheap)
         return try {
             val agg = col.aggregate(AggregateField.sum("amount"))
                 .get(AggregateSource.SERVER).await()
             (agg.get(AggregateField.sum("amount")) as? Number)?.toDouble() ?: 0.0
-        } catch (e: Exception) {
-            // Fallback: client sum (handles any legacy string types)
+        } catch (_: Exception) {
             val snap = col.get().await()
             var total = 0.0
             for (doc in snap.documents) {
@@ -145,21 +149,20 @@ class BudgetsFragment : Fragment() {
         }
     }
 
-
-    /** Format with space as thousands separator and comma as decimal separator, always 2 decimals. */
-    private fun formatPlMoney(value: Double): String {
-        val symbols = DecimalFormatSymbols().apply {
-            groupingSeparator = ' '
-            decimalSeparator = ','
+    private suspend fun fetchUserTotals(
+        db: FirebaseFirestore,
+        budgetId: String,
+        uid: String
+    ): Pair<Double, Double> {
+        return try {
+            val doc = db.collection("budgets").document(budgetId)
+                .collection("totals").document(uid)
+                .get().await()
+            val receivable = (doc.getDouble("receivable") ?: 0.0).coerceAtLeast(0.0)
+            val debt = (doc.getDouble("debt") ?: 0.0).coerceAtLeast(0.0)
+            receivable to debt
+        } catch (_: Exception) {
+            0.0 to 0.0
         }
-        val df = DecimalFormat("#,##0.00", symbols).apply {
-            isGroupingUsed = true
-        }
-        return df.format(value)
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
     }
 }

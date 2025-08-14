@@ -28,7 +28,7 @@ class BudgetSplitMembersAdapter(
 ) : RecyclerView.Adapter<BudgetSplitMembersAdapter.VH>() {
 
     private val syms = DecimalFormatSymbols(Locale.getDefault()).apply {
-        decimalSeparator = ','
+        decimalSeparator = '.'
         groupingSeparator = ' '
     }
     private val df2 = DecimalFormat("0.00").apply {
@@ -36,7 +36,6 @@ class BudgetSplitMembersAdapter(
         isGroupingUsed = false
     }
 
-    // For watcher suppression & tracking the actively edited uid
     private var internalUpdate = false
     private var editingUid: String? = null
 
@@ -67,21 +66,18 @@ class BudgetSplitMembersAdapter(
         holder.checkBox.setOnCheckedChangeListener(null)
         val isChecked = selected.contains(uid)
         holder.checkBox.isChecked = isChecked
-        applyEnabledState(holder, isChecked) // enable/disable field based on checked
+        applyEnabledState(holder, isChecked)
 
         holder.checkBox.setOnCheckedChangeListener { _, checked ->
             onCheckedChanged(uid, checked)
             applyEnabledState(holder, checked)
         }
 
-        // Amount text — remove old watcher first
         holder.tw?.let { holder.amountEdit.removeTextChangedListener(it) }
 
-        // Put current share value (safely, without ping-pong)
         val value = sharesByUid[uid] ?: 0.0
         setEditTextSafely(holder.amountEdit, df2.format(value))
 
-        // Focus management: track who is editing
         holder.amountEdit.setOnFocusChangeListener { _, hasFocus ->
             if (hasFocus) {
                 editingUid = uid
@@ -92,21 +88,18 @@ class BudgetSplitMembersAdapter(
             }
         }
 
-        // IME action Done: clear focus to collapse keyboard
         holder.amountEdit.setOnEditorActionListener { v, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_DONE) {
                 v.clearFocus()
                 true
             } else false
         }
-        // Also handle hardware Enter key
         holder.amountEdit.setOnKeyListener { v, keyCode, event ->
             if (keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN) {
                 v.clearFocus(); true
             } else false
         }
 
-        // Watcher for edits on this row (includes dot→comma normalization)
         val watcher = object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -114,21 +107,19 @@ class BudgetSplitMembersAdapter(
             override fun afterTextChanged(s: Editable?) {
                 if (internalUpdate) return
 
-                // Normalize '.' to ',' in UI, but still allow typing dots
                 val cur = s?.toString() ?: ""
-                if (cur.contains('.')) {
+                if (cur.contains(',')) {
                     val sel = holder.amountEdit.selectionStart
                     internalUpdate = true
-                    val fixed = cur.replace('.', ',')
+                    val fixed = cur.replace(',', '.')
                     holder.amountEdit.setText(fixed)
-                    // keep cursor reasonably in place
                     val newSel = (sel + (fixed.length - cur.length)).coerceIn(0, fixed.length)
                     holder.amountEdit.setSelection(newSel)
                     internalUpdate = false
                     return
                 }
 
-                if (editingUid != uid) return // only react for the actively edited row
+                if (editingUid != uid) return
                 if (!holder.amountEdit.isEnabled) return
 
                 val raw = (s?.toString() ?: "").replace(',', '.')
@@ -136,7 +127,6 @@ class BudgetSplitMembersAdapter(
                 val parsed = raw.toDoubleOrNull() ?: return
 
                 if (parsed <= 0.0) {
-                    // show inline error but DO NOT setText (no cursor jump)
                     holder.amountEdit.error =
                         holder.itemView.context.getString(R.string.error_negative_not_allowed)
                     return
@@ -149,10 +139,8 @@ class BudgetSplitMembersAdapter(
 
                 holder.amountEdit.error = null
 
-                // push to host
                 onShareEditedValid(uid, parsed)
 
-                // Refresh only other visible rows, not this one
                 refreshVisibleSharesExcept(holder.itemView.parent as RecyclerView, uid)
             }
         }
@@ -160,7 +148,6 @@ class BudgetSplitMembersAdapter(
         holder.tw = watcher
     }
 
-    /** Enable/disable the amount field + visuals. */
     private fun applyEnabledState(holder: VH, enabled: Boolean) {
         holder.amountEdit.isEnabled = enabled
         holder.amountEdit.isFocusable = enabled
@@ -182,8 +169,8 @@ class BudgetSplitMembersAdapter(
 
     /**
      * Update visible holders' EditTexts to reflect the new shares,
-     * skipping the row with [skipUid]. This runs on the next frame via post{}
-     * so we never touch views while the RecyclerView is computing layout.
+     * skipping the row with [skipUid]. This is intended for the
+     * "editing a single row" case to avoid cursor jumps.
      */
     fun refreshVisibleSharesExcept(recyclerView: RecyclerView, skipUid: String?) {
         recyclerView.post {
@@ -211,7 +198,6 @@ class BudgetSplitMembersAdapter(
                         holder.amountEdit.setSelection(target.length)
                     }
 
-                    // keep enabled/disabled state in sync too
                     applyEnabledState(holder, selected.contains(uid))
                 }
             } finally {
@@ -232,4 +218,3 @@ class BudgetSplitMembersAdapter(
         }
     }
 }
-

@@ -18,6 +18,7 @@ import com.example.budgetmaster.ui.components.BudgetSplitMembersAdapter
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
@@ -48,7 +49,7 @@ class CreateGroupExpense : AppCompatActivity() {
     private val sharesByUid = linkedMapOf<String, Double>()
 
     private val syms = DecimalFormatSymbols(Locale.getDefault()).apply {
-        decimalSeparator = ','
+        decimalSeparator = '.'
         groupingSeparator = ' '
     }
     private val df2 = DecimalFormat("0.00").apply {
@@ -63,7 +64,6 @@ class CreateGroupExpense : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_create_group_expense)
 
-        // IME/system bars padding
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val sys = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
@@ -71,49 +71,43 @@ class CreateGroupExpense : AppCompatActivity() {
             insets
         }
 
-        // Get budget data
         budgetId = intent.getStringExtra("budgetId") ?: run {
             Toast.makeText(this, "No budget provided", Toast.LENGTH_SHORT).show()
             finish(); return
         }
         budgetName = intent.getStringExtra("budgetName") ?: "Unknown Budget"
 
-        // Views
         dateInput = findViewById(R.id.dateInput)
         descriptionInput = findViewById(R.id.descriptionInput)
         amountInput = findViewById(R.id.amountInput)
         membersRecycler = findViewById(R.id.membersRecycler)
         selectAllCheckbox = findViewById(R.id.selectAllCheckbox)
 
-        // Date
         prefillTodayDate()
         dateInput.setOnClickListener { showDatePicker() }
 
-        // Recycler
         membersRecycler.layoutManager = LinearLayoutManager(this)
 
-        // Amount input: recompute on text change; pretty-print on blur/Done
-        amountInput.addTextChangedListener(
-            afterTextChanged = {
-                if (suppressAmountWatcher) return@addTextChangedListener
-                // normalize dot -> comma for UI
-                val txt = amountInput.text?.toString() ?: ""
-                if (txt.contains('.')) {
-                    suppressAmountWatcher = true
-                    amountInput.setText(txt.replace('.', ','))
-                    amountInput.setSelection(amountInput.text?.length ?: 0)
-                    suppressAmountWatcher = false
-                    return@addTextChangedListener
-                }
-                recomputeSharesEqual()
-                if (::splitAdapter.isInitialized) {
-                    splitAdapter.refreshVisibleSharesExcept(membersRecycler, null)
-                }
+        amountInput.addTextChangedListener(afterTextChanged = {
+            if (suppressAmountWatcher) return@addTextChangedListener
+            val txt = amountInput.text?.toString().orEmpty()
+            var normalized = txt.replace(',', '.')
+            val firstDot = normalized.indexOf('.')
+            if (firstDot != -1) {
+                normalized = normalized.substring(0, firstDot + 1) +
+                        normalized.substring(firstDot + 1).replace(".", "")
             }
-        )
-        amountInput.setOnFocusChangeListener { v, hasFocus ->
-            if (!hasFocus) normalizeTotalField()
-        }
+            if (normalized != txt) {
+                suppressAmountWatcher = true
+                val cursor = amountInput.selectionStart.coerceAtLeast(0)
+                amountInput.setText(normalized)
+                amountInput.setSelection(normalized.length.coerceAtMost(cursor))
+                suppressAmountWatcher = false
+            }
+            recomputeSharesEqual()
+            if (::splitAdapter.isInitialized) splitAdapter.notifyDataSetChanged()
+        })
+        amountInput.setOnFocusChangeListener { v, hasFocus -> if (!hasFocus) normalizeTotalField() }
         amountInput.setOnEditorActionListener { v, actionId, _ ->
             if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) {
                 normalizeTotalField()
@@ -122,7 +116,6 @@ class CreateGroupExpense : AppCompatActivity() {
             } else false
         }
 
-        // Select All
         selectAllCheckbox.setOnCheckedChangeListener { _, isChecked ->
             if (membersList.isEmpty()) return@setOnCheckedChangeListener
             selectedMembers.clear()
@@ -131,21 +124,17 @@ class CreateGroupExpense : AppCompatActivity() {
             if (::splitAdapter.isInitialized) splitAdapter.notifyDataSetChanged()
         }
 
-        // Save
         findViewById<View>(R.id.saveExpenseBtn).setOnClickListener { saveGroupExpense() }
 
-        // Load members + build adapter
         loadBudgetMembers()
     }
 
-    // ---------- Amount helpers ----------
     private fun parseFlexible(txt: String?): Double? {
         val s = (txt ?: "").trim().replace(" ", "").replace(',', '.')
         return s.toDoubleOrNull()
     }
 
     private fun readTotalOrZero(): Double = parseFlexible(amountInput.text?.toString()) ?: 0.0
-
     private fun normalizeTotalField() {
         val v = readTotalOrZero()
         suppressAmountWatcher = true
@@ -154,13 +143,11 @@ class CreateGroupExpense : AppCompatActivity() {
         suppressAmountWatcher = false
     }
 
-    // ---------- Members + shares ----------
     private fun loadBudgetMembers() {
         db.collection("budgets").document(budgetId).get()
             .addOnSuccessListener { doc ->
                 val memberIds = doc.get("members") as? List<String> ?: emptyList()
                 budgetName = doc.getString("name") ?: budgetName
-
                 if (memberIds.isEmpty()) return@addOnSuccessListener
 
                 var processed = 0
@@ -183,7 +170,6 @@ class CreateGroupExpense : AppCompatActivity() {
                         .addOnCompleteListener {
                             processed++
                             if (processed == memberIds.size) {
-                                // Default: select all
                                 selectedMembers.clear()
                                 selectedMembers.addAll(memberIds)
                                 recomputeSharesEqual()
@@ -198,10 +184,7 @@ class CreateGroupExpense : AppCompatActivity() {
                                             uid
                                         )
                                         recomputeSharesEqual()
-                                        splitAdapter.refreshVisibleSharesExcept(
-                                            membersRecycler,
-                                            null
-                                        )
+                                        splitAdapter.notifyDataSetChanged()
                                         syncSelectAllCheckbox()
                                     },
                                     onShareEditedValid = { editedUid, newValue ->
@@ -212,8 +195,8 @@ class CreateGroupExpense : AppCompatActivity() {
                                             editedUid
                                         )
                                     },
-                                    onStartEditing = { /* no-op */ },
-                                    onStopEditing = { /* no-op */ }
+                                    onStartEditing = { },
+                                    onStopEditing = { }
                                 )
 
                                 membersRecycler.adapter = splitAdapter
@@ -225,7 +208,6 @@ class CreateGroupExpense : AppCompatActivity() {
             }
     }
 
-    /** Keep "Select all" in sync with current selection */
     private fun syncSelectAllCheckbox() {
         selectAllCheckbox.setOnCheckedChangeListener(null)
         selectAllCheckbox.isChecked =
@@ -239,7 +221,6 @@ class CreateGroupExpense : AppCompatActivity() {
         }
     }
 
-    /** Equal split into sharesByUid based on selection and current total. */
     private fun recomputeSharesEqual() {
         sharesByUid.clear()
         val total = readTotalOrZero()
@@ -260,7 +241,6 @@ class CreateGroupExpense : AppCompatActivity() {
         }
     }
 
-    /** Keep total constant while one share is edited. */
     private fun applyBalancedEdit(editedUid: String, newValue: Double, total: Double) {
         val sel = selectedMembers.toList()
         if (sel.isEmpty() || !sel.contains(editedUid)) return
@@ -269,19 +249,15 @@ class CreateGroupExpense : AppCompatActivity() {
         val remaining = round2(total - newValue)
 
         if (others.isEmpty()) {
-            sharesByUid[editedUid] = round2(total)
-            return
+            sharesByUid[editedUid] = round2(total); return
         }
         if (remaining <= 0.0) return
 
         val perOther = round2(remaining / others.size)
         var running = 0.0
         others.forEachIndexed { idx, uid ->
-            val v = if (idx == others.lastIndex) {
-                round2(remaining - running)
-            } else {
-                running += perOther
-                perOther
+            val v = if (idx == others.lastIndex) round2(remaining - running) else {
+                running += perOther; perOther
             }
             sharesByUid[uid] = v
         }
@@ -305,53 +281,108 @@ class CreateGroupExpense : AppCompatActivity() {
 
     private fun saveGroupExpense() {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: run {
-            Toast.makeText(this, "Not authenticated", Toast.LENGTH_SHORT).show()
-            return
+            Toast.makeText(this, "Not authenticated", Toast.LENGTH_SHORT).show(); return
         }
 
         val description = descriptionInput.text?.toString()?.trim()
         val amount = parseFlexible(amountInput.text?.toString())
         val dateStr = dateInput.text?.toString()?.trim()
 
-        if (description.isNullOrEmpty() || amount == null || amount <= 0.0 || dateStr.isNullOrEmpty()) {
-            Toast.makeText(this, "Please enter valid data", Toast.LENGTH_SHORT).show()
-            return
+        if (description.isNullOrEmpty() || amount == null) {
+            Toast.makeText(this, "Please enter all data", Toast.LENGTH_SHORT).show(); return
+        }
+        if (amount <= 0.0 || dateStr.isNullOrEmpty()) {
+            Toast.makeText(this, "Please enter valid data", Toast.LENGTH_SHORT).show(); return
         }
         if (selectedMembers.isEmpty()) {
-            Toast.makeText(this, "Select at least one participant", Toast.LENGTH_SHORT).show()
-            return
+            Toast.makeText(this, "Select at least one participant", Toast.LENGTH_SHORT)
+                .show(); return
         }
 
         val paidShares = buildPaidShares(amount)
-
         val expenseData = hashMapOf(
             "amount" to amount,
             "category" to "No Category",
             "description" to description,
-            "date" to dateStr,       // yyyy-MM-dd
+            "date" to dateStr,     // yyyy-MM-dd
             "timestamp" to Timestamp.now(),
             "type" to "expense",
             "createdBy" to uid,
             "paidFor" to selectedMembers.toList(),
-            "paidShares" to paidShares            // NEW
+            "paidShares" to paidShares
         )
 
+        // 1) Create expense
         db.collection("budgets").document(budgetId)
             .collection("expenses")
             .add(expenseData)
-            .addOnSuccessListener {
-                Toast.makeText(this, "Expense added to group", Toast.LENGTH_SHORT).show()
-                finish()
+            .addOnSuccessListener { ref ->
+                // 2) Write expenseSplits mirror + increment per-budget totals in a batch
+                val batch = db.batch()
+
+                val splitsRef = db.collection("budgets").document(budgetId)
+                    .collection("expenseSplits").document(ref.id)
+                batch.set(splitsRef, mapOf("payer" to uid, "shares" to paidShares))
+
+                // Sum of others' shares for payer receivable
+                var othersSum = 0.0
+                paidShares.forEach { (participantUid, share) ->
+                    if (participantUid != uid) othersSum += share
+                }
+
+                val serverTime = FieldValue.serverTimestamp()
+
+                // Payer receivable++
+                if (othersSum != 0.0) {
+                    val payerTotalsRef = db.collection("budgets").document(budgetId)
+                        .collection("totals").document(uid)
+                    batch.set(
+                        payerTotalsRef,
+                        mapOf(
+                            "receivable" to FieldValue.increment(othersSum),
+                            "updatedAt" to serverTime
+                        ),
+                        com.google.firebase.firestore.SetOptions.merge()
+                    )
+                }
+
+                // Each participant debt++
+                paidShares.forEach { (participantUid, share) ->
+                    if (participantUid == uid) return@forEach
+                    val participantRef = db.collection("budgets").document(budgetId)
+                        .collection("totals").document(participantUid)
+                    batch.set(
+                        participantRef,
+                        mapOf(
+                            "debt" to FieldValue.increment(share),
+                            "updatedAt" to serverTime
+                        ),
+                        com.google.firebase.firestore.SetOptions.merge()
+                    )
+                }
+
+                batch.commit()
+                    .addOnSuccessListener {
+                        Toast.makeText(this, "Expense added to group", Toast.LENGTH_SHORT).show()
+                        finish()
+                    }
+                    .addOnFailureListener { e ->
+                        Toast.makeText(
+                            this,
+                            "Saved expense but failed to update totals: ${e.message}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        finish()
+                    }
             }
             .addOnFailureListener { e ->
                 Toast.makeText(this, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
             }
     }
 
-    // ---------- Date ----------
     private fun prefillTodayDate() {
         val today = LocalDate.now()
-        dateInput.setText(today.format(DateTimeFormatter.ISO_LOCAL_DATE)) // yyyy-MM-dd
+        dateInput.setText(today.format(DateTimeFormatter.ISO_LOCAL_DATE))
     }
 
     private fun showDatePicker() {
@@ -360,10 +391,10 @@ class CreateGroupExpense : AppCompatActivity() {
         val formatter = DateTimeFormatter.ISO_LOCAL_DATE
         try {
             if (!currentDate.isNullOrEmpty()) {
-                val parsedDate = LocalDate.parse(currentDate, formatter)
-                calendar.set(parsedDate.year, parsedDate.monthValue - 1, parsedDate.dayOfMonth)
+                val parsed = LocalDate.parse(currentDate, formatter)
+                calendar.set(parsed.year, parsed.monthValue - 1, parsed.dayOfMonth)
             }
-        } catch (_: Exception) { /* ignore */
+        } catch (_: Exception) {
         }
 
         val year = calendar.get(Calendar.YEAR)

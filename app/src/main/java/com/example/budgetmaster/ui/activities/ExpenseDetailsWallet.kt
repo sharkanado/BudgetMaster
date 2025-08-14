@@ -165,7 +165,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
     private fun populateData() {
         val titleText = if (expenseItem.type == "income") "Income Details" else "Expense Details"
         findViewById<TextView>(R.id.topBarTitle).text = titleText
-        findViewById<TextView>(R.id.expenseTitle).text = expenseItem.name
 
         val prefillAmount =
             expenseItem.amount.replace(",", ".").replace("-", "").toDoubleOrNull() ?: 0.0

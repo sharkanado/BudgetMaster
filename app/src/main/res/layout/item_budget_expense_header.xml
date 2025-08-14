@@ -3,18 +3,19 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="#6C6A6A"
+    android:background="#292929"
     android:layout_marginBottom="8dp"
-    android:padding="12dp">
+    android:padding="8dp">
 
-    <!-- Header Title -->
     <TextView
         android:id="@+id/headerTitle"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:textSize="18sp"
+        android:textSize="14sp"
+        android:text="August 2023"
+        android:layout_marginStart="8dp"
         android:textColor="@color/white"
-        android:fontFamily="@font/manrope_bold"
+        android:fontFamily="@font/manrope_medium"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -22,7 +23,6 @@
         android:ellipsize="end"
         android:singleLine="true" />
 
-    <!-- Expand/Collapse Arrow -->
     <ImageView
         android:id="@+id/headerArrow"
         android:layout_width="24dp"

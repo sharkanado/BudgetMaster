@@ -21,6 +21,14 @@
     <string name="sign_up_old_user_text">
     Already on Budget Master? <font color="#FF9C3F">Sign in!</font>
     </string>
+    <string name="settlement_title">Settlement</string>
+    <string name="settlement_empty">Nothing to settle yet</string>
+
+    <string name="you_get_label">you get</string>
+    <string name="you_owe_label">you owe</string>
+    <string name="settlement_clear_label">settled</string>
+    <string name="back">Back</string>
+
     <string-array name="month_names">
         <item>January</item>
         <item>February</item>

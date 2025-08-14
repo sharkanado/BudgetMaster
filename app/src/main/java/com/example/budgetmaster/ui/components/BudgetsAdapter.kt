@@ -7,100 +7,215 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
 import com.example.budgetmaster.ui.budgets.BudgetItem
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.absoluteValue
 
 class BudgetsAdapter(
-    private var items: List<BudgetItem>,
+    initialItems: List<BudgetItem>,
     private val onItemClick: (BudgetItem) -> Unit
-) : RecyclerView.Adapter<BudgetsAdapter.BudgetViewHolder>() {
+) : ListAdapter<BudgetItem, BudgetsAdapter.BudgetViewHolder>(DIFF) {
 
-    // budgetId -> aggregated total (null until loaded)
     private val totals: MutableMap<String, Double?> = mutableMapOf()
 
-    inner class BudgetViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        val walletName: TextView = itemView.findViewById(R.id.walletName)
-        val balanceText: TextView = itemView.findViewById(R.id.balanceText)
-        val avatarsLayout: LinearLayout = itemView.findViewById(R.id.avatarsLayout)
+    private val statuses: MutableMap<String, Status?> = mutableMapOf()
+
+    private val df2 = DecimalFormat("0.00").apply {
+        decimalFormatSymbols = DecimalFormatSymbols(Locale.ENGLISH).apply {
+            decimalSeparator = '.'
+            groupingSeparator = ','
+        }
+        isGroupingUsed = false
     }
+
+    init {
+        setHasStableIds(true)
+        submitList(initialItems)
+    }
+
+    override fun getItemId(position: Int): Long = getItem(position).id.hashCode().toLong()
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): BudgetViewHolder {
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_budgets, parent, false)
-        return BudgetViewHolder(view)
+        return BudgetViewHolder(view).apply {
+            itemView.isClickable = true
+            itemView.isFocusable = true
+            itemView.setBackgroundResource(R.drawable.expense_ripple)
+        }
     }
 
     override fun onBindViewHolder(holder: BudgetViewHolder, position: Int) {
-        val budget = items[position]
-        val ctx = holder.itemView.context
+        val item = getItem(position)
+        holder.bindFull(item, totals[item.id], statuses[item.id])
+    }
 
-        holder.walletName.text = budget.name
-
-        val total = totals[budget.id]
-        if (total == null) {
-            // Placeholder while loading
-            holder.balanceText.text = ctx.getString(R.string.loading_ellipsis) // "Loading…"
-            // keep default color
+    override fun onBindViewHolder(
+        holder: BudgetViewHolder,
+        position: Int,
+        payloads: MutableList<Any>
+    ) {
+        if (payloads.isNotEmpty()) {
+            val item = getItem(position)
+            if (payloads.contains(PAYLOAD_TOTAL)) {
+                holder.bindTotal(item, totals[item.id])
+            }
+            if (payloads.contains(PAYLOAD_STATUS)) {
+                holder.bindStatus(item, statuses[item.id])
+            }
         } else {
-            // Budgets/{id}/expenses contains only expenses → show negative sign and color red
-            val currency = budget.preferredCurrency.ifBlank { "PLN" }
-            holder.balanceText.text = String.format(
-                Locale.ENGLISH, "-%.2f %s", abs(total), currency
-            )
+            onBindViewHolder(holder, position)
+        }
+    }
 
-            // Color like personal wallet: expenses = red, income = green.
-            // For budgets we only have expenses, so red when total > 0; grey if zero.
+    override fun submitList(list: List<BudgetItem>?) {
+        super.submitList(list)
+        val ids = (list ?: emptyList()).map { it.id }.toSet()
+        totals.keys.retainAll(ids)
+        statuses.keys.retainAll(ids)
+    }
+
+    /** Update a single budget's aggregated expense total (payload refresh only). */
+    fun updateBudgetTotal(budgetId: String, total: Double) {
+        val prev = totals[budgetId]
+        if (prev != null && (prev - total).absoluteValue < 0.0005) return
+        totals[budgetId] = total
+        val idx = currentList.indexOfFirst { it.id == budgetId }
+        if (idx != -1) notifyItemChanged(idx, PAYLOAD_TOTAL)
+    }
+
+    /** Update a single budget's per-user status (payload refresh only). */
+    fun updateBudgetStatus(budgetId: String, receivable: Double, debt: Double) {
+        val newS =
+            Status(receivable = receivable.coerceAtLeast(0.0), debt = debt.coerceAtLeast(0.0))
+        val prev = statuses[budgetId]
+        if (prev != null &&
+            abs(prev.receivable - newS.receivable) < 0.0005 &&
+            abs(prev.debt - newS.debt) < 0.0005
+        ) return
+
+        statuses[budgetId] = newS
+        val idx = currentList.indexOfFirst { it.id == budgetId }
+        if (idx != -1) notifyItemChanged(idx, PAYLOAD_STATUS)
+    }
+
+    inner class BudgetViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val walletName: TextView = itemView.findViewById(R.id.walletName)
+        private val balanceText: TextView = itemView.findViewById(R.id.balanceText)
+        private val avatarsLayout: LinearLayout = itemView.findViewById(R.id.avatarsLayout)
+        private val statusText: TextView = itemView.findViewById(R.id.statusText)
+
+        fun bindFull(budget: BudgetItem, total: Double?, status: Status?) {
+            walletName.text = budget.name
+            bindTotal(budget, total)
+            bindStatus(budget, status)
+
+            ensureAvatarAndCountViews()
+            (avatarsLayout.getChildAt(1) as? TextView)?.text = budget.members.size.toString()
+
+            itemView.setOnClickListener { onItemClick(budget) }
+        }
+
+        fun bindTotal(budget: BudgetItem, total: Double?) {
+            val ctx = itemView.context
+            if (total == null) {
+                balanceText.text = ctx.getString(R.string.loading_ellipsis)
+                balanceText.setTextColor(ContextCompat.getColor(ctx, R.color.grey_light))
+                return
+            }
+
+            val currency = budget.preferredCurrency.ifBlank { "PLN" }
+            balanceText.text = "-${df2.format(abs(total))} $currency"
+
             val colorRes = when {
                 total > 0.0 -> R.color.red_error
                 total == 0.0 -> R.color.grey_light
-                else -> R.color.green_success // future-proof if you ever have negative totals
+                else -> R.color.green_success
             }
-            holder.balanceText.setTextColor(ContextCompat.getColor(ctx, colorRes))
+            balanceText.setTextColor(ContextCompat.getColor(ctx, colorRes))
         }
 
-        // Clear previous avatars (recycling)
-        holder.avatarsLayout.removeAllViews()
+        fun bindStatus(budget: BudgetItem, status: Status?) {
+            val ctx = itemView.context
+            if (status == null) {
+                statusText.text = ctx.getString(R.string.loading_ellipsis)
+                statusText.setTextColor(ContextCompat.getColor(ctx, R.color.grey_light))
+                return
+            }
+            val currency = budget.preferredCurrency.ifBlank { "PLN" }
+            val receivable = status.receivable
+            val debt = status.debt
 
-        // Simple avatar + member count
-        val icon = ImageView(ctx).apply {
-            layoutParams = LinearLayout.LayoutParams(48, 48)
-            setImageResource(R.drawable.ic_person)
-            setPadding(8, 8, 8, 8)
+            val (text, color) = when {
+                receivable <= 0.0005 && debt <= 0.0005 -> {
+                    "you're settled" to R.color.grey_light
+                }
+
+                receivable > debt -> {
+                    val net = receivable - debt
+                    "you're waiting for ${df2.format(net)} $currency" to R.color.green_success
+                }
+
+                debt > receivable -> {
+                    val net = debt - receivable
+                    "you have ${df2.format(net)} debt $currency" to R.color.red_error
+                }
+
+                else -> {
+                    "you're settled" to R.color.grey_light
+                }
+            }
+
+            statusText.text = text
+            statusText.setTextColor(ContextCompat.getColor(ctx, color))
         }
-        holder.avatarsLayout.addView(icon)
 
-        val countView = TextView(ctx).apply {
-            text = "${budget.members.size}"
-            setTextColor(ContextCompat.getColor(ctx, R.color.grey_light))
-            textSize = 12f
-            setPadding(8, 0, 0, 0)
+        /** Create avatar icon + count TextView once; reuse on subsequent binds. */
+        private fun ensureAvatarAndCountViews() {
+            if (avatarsLayout.childCount >= 2) return
+
+            val ctx = itemView.context
+            val icon = ImageView(ctx).apply {
+                layoutParams = LinearLayout.LayoutParams(48, 48)
+                setImageResource(R.drawable.ic_person)
+                setPadding(8, 8, 8, 8)
+            }
+            avatarsLayout.addView(icon)
+
+            val countView = TextView(ctx).apply {
+                setTextColor(ContextCompat.getColor(ctx, R.color.grey_light))
+                textSize = 12f
+                setPadding(8, 0, 0, 0)
+            }
+            avatarsLayout.addView(countView)
         }
-        holder.avatarsLayout.addView(countView)
-
-        // Ripple + click
-        holder.itemView.isClickable = true
-        holder.itemView.isFocusable = true
-        holder.itemView.setBackgroundResource(R.drawable.expense_ripple)
-        holder.itemView.setOnClickListener { onItemClick(budget) }
     }
 
-    override fun getItemCount(): Int = items.size
+    data class Status(val receivable: Double, val debt: Double)
 
-    /** Replace full list (prevents duplicates) */
-    fun submitList(newItems: List<BudgetItem>) {
-        items = newItems
-        val ids = items.map { it.id }.toSet()
-        totals.keys.retainAll(ids) // drop totals for removed items
-        notifyDataSetChanged()
-    }
+    companion object {
+        private const val PAYLOAD_TOTAL = "payload_total"
+        private const val PAYLOAD_STATUS = "payload_status"
 
-    /** Update a single budget's aggregated expense total */
-    fun updateBudgetTotal(budgetId: String, total: Double) {
-        totals[budgetId] = total
-        val idx = items.indexOfFirst { it.id == budgetId }
-        if (idx != -1) notifyItemChanged(idx)
+        private fun sameMembers(old: BudgetItem, new: BudgetItem): Boolean =
+            old.members.toSet() == new.members.toSet()
+
+        val DIFF = object : DiffUtil.ItemCallback<BudgetItem>() {
+            override fun areItemsTheSame(oldItem: BudgetItem, newItem: BudgetItem): Boolean =
+                oldItem.id == newItem.id
+
+            override fun areContentsTheSame(oldItem: BudgetItem, newItem: BudgetItem): Boolean =
+                oldItem.name == newItem.name &&
+                        oldItem.preferredCurrency == newItem.preferredCurrency &&
+                        sameMembers(oldItem, newItem) &&
+                        oldItem.ownerId == newItem.ownerId
+        }
     }
 }

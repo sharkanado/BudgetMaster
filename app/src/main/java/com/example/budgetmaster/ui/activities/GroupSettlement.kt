@@ -1,0 +1,269 @@
+package com.example.budgetmaster.ui.activities
+
+import android.os.Bundle
+import android.view.View
+import android.widget.ImageButton
+import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.example.budgetmaster.R
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldPath
+import com.google.firebase.firestore.FirebaseFirestore
+import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.round
+import kotlin.math.roundToInt
+
+class GroupSettlement : AppCompatActivity() {
+
+    private val db by lazy { FirebaseFirestore.getInstance() }
+    private val auth by lazy { FirebaseAuth.getInstance() }
+
+    private lateinit var recycler: RecyclerView
+    private lateinit var emptyState: TextView
+    private lateinit var youReceive: TextView
+    private lateinit var youPay: TextView
+    private lateinit var backButton: ImageButton
+    private lateinit var allGroupExpenses: TextView
+
+    private lateinit var adapter: SettlementAdapter
+    private var budgetId: String = ""
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContentView(R.layout.activity_group_settlement)
+
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
+            val sys = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(sys.left, sys.top, sys.right, sys.bottom)
+            insets
+        }
+
+        budgetId = intent.getStringExtra("budgetId") ?: ""
+        if (budgetId.isBlank()) {
+            finish(); return
+        }
+
+        recycler = findViewById(R.id.settlementRecycler)
+        emptyState = findViewById(R.id.emptyState)
+        youReceive = findViewById(R.id.youReceive)
+        youPay = findViewById(R.id.youPay)
+        allGroupExpenses = findViewById(R.id.allGroupExpenses)
+        backButton = findViewById(R.id.backButton)
+        backButton.setOnClickListener { finish() }
+
+        adapter = SettlementAdapter(onItemClick = { row ->
+            val msg = "You owe ${row.name} ${format2(abs(row.amount))}"
+            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+        })
+
+        recycler.layoutManager = LinearLayoutManager(this)
+        recycler.adapter = adapter
+
+        loadSettlement()
+    }
+
+    private fun loadSettlement() {
+        val currentUid = auth.currentUser?.uid ?: run { showEmpty(); return }
+
+        db.collection("budgets")
+            .document(budgetId)
+            .collection("expenses")
+            .get()
+            .addOnSuccessListener { qs ->
+                val pair = mutableMapOf<String, Double>()
+                var totalExpenses = 0.0
+
+                for (doc in qs) {
+                    if ((doc.getString("type") ?: "expense") != "expense") continue
+                    val payer = doc.getString("createdBy") ?: continue
+                    val amount = doc.getDouble("amount") ?: 0.0
+                    totalExpenses += amount
+
+                    @Suppress("UNCHECKED_CAST")
+                    val rawShares = doc.get("paidShares") as? Map<String, Any> ?: continue
+                    val shares = rawShares.mapNotNull { (k, v) ->
+                        (v as? Number)?.toDouble()?.let { k to it }
+                    }.toMap()
+
+                    if (currentUid == payer) {
+                        shares.forEach { (uid, share) ->
+                            if (uid != payer) pair[uid] = (pair[uid] ?: 0.0) + share
+                        }
+                    } else {
+                        val yourShare = shares[currentUid]
+                        if (yourShare != null && yourShare > 0.0) {
+                            pair[payer] = (pair[payer] ?: 0.0) - yourShare
+                        }
+                    }
+                }
+
+                allGroupExpenses.text = format2(totalExpenses)
+
+                if (pair.isEmpty()) {
+                    showEmpty(); return@addOnSuccessListener
+                }
+
+                val uids = pair.keys.toList()
+                fetchUsersByIds(uids) { people ->
+                    val items = uids.map { uid ->
+                        val (name, email) = people[uid] ?: ("Unknown" to "")
+                        SettlementRow(
+                            uid = uid,
+                            name = name,
+                            email = email,
+                            amount = round2(pair[uid] ?: 0.0)
+                        )
+                    }.sortedBy { it.name.lowercase(Locale.getDefault()) }
+
+                    adapter.submit(items)
+                    emptyState.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
+
+                    val totalReceive = items.filter { it.amount > 0 }.sumOf { it.amount }
+                    val totalPay = items.filter { it.amount < 0 }.sumOf { abs(it.amount) }
+
+                    youReceive.text = format2(totalReceive)
+                    youPay.text = format2(totalPay)
+                }
+            }
+            .addOnFailureListener { showEmpty() }
+    }
+
+    private fun showEmpty() {
+        adapter.submit(emptyList())
+        emptyState.visibility = View.VISIBLE
+        youReceive.text = "0.00"
+        youPay.text = "0.00"
+        allGroupExpenses.text = "0.00"
+    }
+
+    private fun fetchUsersByIds(
+        uids: List<String>,
+        onResult: (Map<String, Pair<String, String>>) -> Unit
+    ) {
+        if (uids.isEmpty()) {
+            onResult(emptyMap()); return
+        }
+
+        val chunks = uids.chunked(10)
+        val results = mutableMapOf<String, Pair<String, String>>()
+        var completed = 0
+
+        chunks.forEach { chunk ->
+            db.collection("users")
+                .whereIn(FieldPath.documentId(), chunk)
+                .get()
+                .addOnSuccessListener { snap ->
+                    for (d in snap.documents) {
+                        val name = d.getString("name") ?: "Unknown"
+                        val email = d.getString("email") ?: ""
+                        results[d.id] = name to email
+                    }
+                }
+                .addOnCompleteListener {
+                    completed++
+                    if (completed == chunks.size) onResult(results)
+                }
+        }
+    }
+
+    private fun round2(v: Double) = round(v * 100.0) / 100.0
+    private fun format2(v: Double) = String.format(Locale.US, "%.2f", v)
+    private fun dp(px: Int) = (px * resources.displayMetrics.density).roundToInt()
+
+    data class SettlementRow(
+        val uid: String,
+        val name: String,
+        val email: String,
+        val amount: Double
+    )
+
+    private inner class SettlementAdapter(
+        private val onItemClick: ((SettlementRow) -> Unit)? = null
+    ) : RecyclerView.Adapter<SettlementVH>() {
+
+        private val data = mutableListOf<SettlementRow>()
+
+        fun submit(items: List<SettlementRow>) {
+            data.clear()
+            data.addAll(items)
+            notifyDataSetChanged()
+        }
+
+        override fun onCreateViewHolder(
+            parent: android.view.ViewGroup,
+            viewType: Int
+        ): SettlementVH {
+            val view =
+                layoutInflater.inflate(R.layout.item_budget_member_balance_tile, parent, false)
+            return SettlementVH(view, onItemClick)
+        }
+
+        override fun getItemCount(): Int = data.size
+
+        override fun onBindViewHolder(holder: SettlementVH, position: Int) {
+            holder.bind(data[position])
+        }
+    }
+
+    private inner class SettlementVH(
+        itemView: View,
+        private val onItemClick: ((SettlementRow) -> Unit)?
+    ) : RecyclerView.ViewHolder(itemView) {
+
+        private val nameText: TextView = itemView.findViewById(R.id.memberName)
+        private val emailText: TextView = itemView.findViewById(R.id.memberEmail)
+        private val amountText: TextView = itemView.findViewById(R.id.memberBalance)
+
+        fun bind(row: SettlementRow) {
+            nameText.text = row.name
+            emailText.text = row.email
+
+            val formatted = String.format(Locale.US, "%.2f", abs(row.amount))
+            val owes = row.amount < 0
+
+            when {
+                row.amount > 0 -> {
+                    amountText.text = formatted
+                    amountText.setTextColor(getColorCompat(R.color.green_success))
+                }
+
+                owes -> {
+                    amountText.text = formatted
+                    amountText.setTextColor(getColorCompat(R.color.red_error))
+                }
+
+                else -> {
+                    amountText.text = "0.00"
+                    amountText.setTextColor(getColorCompat(android.R.color.darker_gray))
+                }
+            }
+
+            val arrowRes = if (owes) R.drawable.ic_send_money else 0
+            amountText.setCompoundDrawablesWithIntrinsicBounds(0, 0, arrowRes, 0)
+            amountText.compoundDrawablePadding = dp(6)
+
+            if (owes && onItemClick != null) {
+                itemView.isClickable = true
+                itemView.isFocusable = true
+                itemView.setBackgroundResource(R.drawable.expense_ripple)
+                itemView.setOnClickListener { onItemClick.invoke(row) }
+            } else {
+                itemView.isClickable = false
+                itemView.isFocusable = false
+                itemView.setOnClickListener(null)
+                itemView.setBackgroundResource(R.drawable.expense_bg)
+            }
+        }
+    }
+
+    private fun getColorCompat(resId: Int) =
+        androidx.core.content.ContextCompat.getColor(this, resId)
+}

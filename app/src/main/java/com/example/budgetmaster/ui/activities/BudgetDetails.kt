@@ -3,7 +3,6 @@ package com.example.budgetmaster.ui.activities
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
-import android.widget.Button
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
@@ -19,9 +18,9 @@ import com.example.budgetmaster.ui.budgets.BudgetItem
 import com.example.budgetmaster.ui.components.BudgetExpensesAdapter
 import com.example.budgetmaster.ui.components.BudgetMemberItem
 import com.example.budgetmaster.ui.components.BudgetMembersAdapter
+import com.google.android.material.button.MaterialButton
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
-import java.text.SimpleDateFormat
 import java.util.Locale
 
 class BudgetDetails : AppCompatActivity() {
@@ -35,6 +34,7 @@ class BudgetDetails : AppCompatActivity() {
     private val expensesList = mutableListOf<BudgetExpenseItem>()
     private lateinit var expensesAdapter: BudgetExpensesAdapter
 
+    // title ("August 2025") -> sorted items within that month (newest→oldest)
     private val monthExpenseMap = mutableMapOf<String, List<BudgetExpenseItem>>()
     private val userNames = mutableMapOf<String, String>()
 
@@ -62,7 +62,6 @@ class BudgetDetails : AppCompatActivity() {
 
         // Set budget name
         findViewById<TextView>(R.id.budgetNameText).text = budget.name
-        findViewById<TextView>(R.id.userBalanceText).text = "+0" // Placeholder
 
         val membersRecycler = findViewById<RecyclerView>(R.id.membersRecycler)
         membersAdapter = BudgetMembersAdapter(membersList)
@@ -84,10 +83,16 @@ class BudgetDetails : AppCompatActivity() {
         expensesRecycler.layoutManager = LinearLayoutManager(this)
         expensesRecycler.adapter = expensesAdapter
 
-        findViewById<Button>(R.id.newExpenseBtn).setOnClickListener {
+        findViewById<MaterialButton>(R.id.newExpenseBtn).setOnClickListener {
             val intent = Intent(this, CreateGroupExpense::class.java)
             intent.putExtra("budgetId", budget.id)
             intent.putExtra("budgetName", budget.name)
+            startActivity(intent)
+        }
+
+        findViewById<MaterialButton>(R.id.settleUpBtn).setOnClickListener {
+            val intent = Intent(this, GroupSettlement::class.java)
+            intent.putExtra("budgetId", budget.id)
             startActivity(intent)
         }
 
@@ -118,56 +123,72 @@ class BudgetDetails : AppCompatActivity() {
             .get()
             .addOnSuccessListener { snapshot ->
                 if (snapshot.isEmpty) {
+                    // No expenses -> also clear spentByUser in members list
+                    membersAdapter.setSpentByUser(emptyMap())
                     expensesAdapter.notifyDataSetChanged()
                     return@addOnSuccessListener
                 }
 
-                val grouped = snapshot.documents.groupBy { doc ->
-                    val dateStr = doc.getString("date") ?: ""
-                    parseMonthYear(dateStr)
+                // 1) Build raw rows
+                val allRows: List<BudgetExpenseItem> = snapshot.documents.map { doc ->
+                    BudgetExpenseItem(
+                        id = doc.id,
+                        amount = readAmount(doc),
+                        description = doc.getString("description") ?: "",
+                        date = doc.getString("date") ?: "", // expected "yyyy-MM-dd"
+                        createdBy = doc.getString("createdBy") ?: "",
+                        paidFor = readStringList(doc.get("paidFor")),
+                    )
                 }
 
-                val sortedKeys = grouped.keys.sortedByDescending { key ->
-                    val parts = key.split(" ")
-                    if (parts.size == 2) {
-                        val month = monthToNumber(parts[0])
-                        val year = parts[1].toIntOrNull() ?: 0
-                        year * 100 + month
-                    } else 0
+                // >>> FEED "spent by user" (uid -> total spent) INTO MEMBERS ADAPTER <<<
+                val spentByUser: Map<String, Double> = allRows
+                    .filter { it.createdBy.isNotBlank() }
+                    .groupBy { it.createdBy }
+                    .mapValues { (_, items) -> items.sumOf { it.amount } }
+
+                membersAdapter.setSpentByUser(spentByUser)
+
+                // 2) Group by month key "yyyy-MM"
+                val groupedByMonthKey = allRows.groupBy { it.date.take(7) } // safe on short strings
+
+                // 3) Sort months newest → oldest by key (string works for yyyy-MM)
+                val sortedMonthKeys = groupedByMonthKey.keys
+                    .filter { it.length == 7 }
+                    .sortedDescending()
+
+                // 4) Rebuild UI list with headers and with rows inside each month sorted by date desc
+                expensesList.clear()
+                monthExpenseMap.clear()
+
+                for (monthKey in sortedMonthKeys) {
+                    val monthTitle = monthKeyToTitle(monthKey) // e.g., "August 2025"
+
+                    val monthItems = groupedByMonthKey[monthKey].orEmpty()
+                        .sortedByDescending { it.date } // "yyyy-MM-dd" sorts correctly as string
+
+                    monthExpenseMap[monthTitle] = monthItems
+
+                    // Add header
+                    val headerItem = BudgetExpenseItem(
+                        id = "header_$monthTitle",
+                        amount = 0.0,
+                        description = monthTitle,
+                        isHeader = true,
+                        isExpanded = true
+                    )
+                    expensesList.add(headerItem)
+
+                    // Add children (expanded by default)
+                    expensesList.addAll(monthItems)
                 }
 
-                for (monthKey in sortedKeys) {
-                    val monthExpenses = grouped[monthKey]!!.map { doc ->
-                        BudgetExpenseItem(
-                            id = doc.id,
-                            amount = readAmount(doc), // <-- SAFE READ
-                            description = doc.getString("description") ?: "",
-                            date = doc.getString("date") ?: "",
-                            createdBy = doc.getString("createdBy") ?: "",
-                            paidFor = readStringList(doc.get("paidFor")),
-                        )
-                    }
-                    monthExpenseMap[monthKey] = monthExpenses
-                    addMonthHeader(monthKey, monthExpenses)
-                }
+                expensesAdapter.notifyDataSetChanged()
             }
             .addOnFailureListener { e ->
                 Toast.makeText(this, "Failed to load expenses: ${e.message}", Toast.LENGTH_SHORT)
                     .show()
             }
-    }
-
-    private fun addMonthHeader(monthYear: String, expenses: List<BudgetExpenseItem>) {
-        val headerItem = BudgetExpenseItem(
-            id = "header_$monthYear",
-            amount = 0.0,
-            description = monthYear,
-            isHeader = true,
-            isExpanded = true
-        )
-        expensesList.add(headerItem)
-        expensesList.addAll(expenses)
-        expensesAdapter.notifyDataSetChanged()
     }
 
     private fun toggleAccordion(headerPosition: Int) {
@@ -185,8 +206,9 @@ class BudgetDetails : AppCompatActivity() {
             }
             expensesList.removeAll(toRemove)
         } else {
-            val monthKey = header.description
+            val monthKey = header.description // this is the title like "August 2025"
             val children = monthExpenseMap[monthKey] ?: return
+            // children are already sorted by date desc
             expensesList.addAll(headerPosition + 1, children)
         }
 
@@ -226,23 +248,19 @@ class BudgetDetails : AppCompatActivity() {
         }
     }
 
-    private fun parseMonthYear(dateStr: String): String {
+    // ===== Helpers =====
+
+    private fun monthKeyToTitle(key: String): String {
+        // key: "yyyy-MM"
         return try {
-            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH)
-            val date = sdf.parse(dateStr)
-            val monthFormat = SimpleDateFormat("MMMM yyyy", Locale.ENGLISH)
-            monthFormat.format(date!!)
+            val (yearStr, monthStr) = key.split("-")
+            val year = yearStr.toInt()
+            val month = monthStr.toInt() // 1..12
+            val monthName = java.text.DateFormatSymbols(Locale.ENGLISH).months[month - 1]
+            "$monthName $year"
         } catch (_: Exception) {
             "Unknown"
         }
-    }
-
-    private fun monthToNumber(month: String): Int {
-        val months = listOf(
-            "January", "February", "March", "April", "May", "June",
-            "July", "August", "September", "October", "November", "December"
-        )
-        return months.indexOf(month).let { if (it >= 0) it + 1 else 0 }
     }
 
     private fun readAmount(doc: DocumentSnapshot): Double {
