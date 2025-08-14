@@ -72,7 +72,6 @@ class ExpenseAnalysis : AppCompatActivity() {
             selectedMonth = it
         }
 
-        // Initialize views
         typeSpinner = findViewById(R.id.typeSpinner)
         yearSpinner = findViewById(R.id.yearSpinner)
         monthSpinner = findViewById(R.id.monthSpinner)
@@ -255,7 +254,7 @@ class ExpenseAnalysis : AppCompatActivity() {
             if (category == null) cachedEntries else cachedEntries.filter { it.first.category == category }
 
         val total = filteredPairs.sumOf { it.second }
-        totalSpentText.text = "${"%.2f".format(total)}"
+        totalSpentText.text = String.format(Locale.ENGLISH, "%.2f", total)
 
         val grouped = filteredPairs.map { it.first }.groupBy { it.date }
             .toSortedMap(compareByDescending { LocalDate.parse(it) })
