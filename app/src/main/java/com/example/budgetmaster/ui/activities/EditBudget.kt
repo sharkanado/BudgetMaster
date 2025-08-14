@@ -3,9 +3,12 @@ package com.example.budgetmaster.ui.activities
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -15,7 +18,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
 import com.example.budgetmaster.ui.components.BudgetMemberItem
-import com.example.budgetmaster.ui.components.BudgetMembersAdapter
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -74,7 +76,10 @@ class EditBudget : AppCompatActivity() {
 
                 budgetNameEdit.setText(name)
 
-                if (memberIds.isEmpty()) return@addOnSuccessListener
+                if (memberIds.isEmpty()) {
+                    membersRecycler.adapter = EditMembersAdapter(emptyList())
+                    return@addOnSuccessListener
+                }
 
                 var loaded = 0
                 for (uid in memberIds) {
@@ -96,7 +101,8 @@ class EditBudget : AppCompatActivity() {
                         .addOnCompleteListener {
                             loaded++
                             if (loaded == memberIds.size) {
-                                membersRecycler.adapter = BudgetMembersAdapter(currentMembers)
+                                // Use the simple, local adapter for this screen
+                                membersRecycler.adapter = EditMembersAdapter(currentMembers)
                             }
                         }
                 }
@@ -219,4 +225,37 @@ class EditBudget : AppCompatActivity() {
             }
         }
     }
+}
+
+/**
+ * Simple adapter for the EditBudget screen:
+ * - Uses the provided member row XML (name + email only)
+ * - No balances, no spent totals — just displays current members
+ */
+private class EditMembersAdapter(
+    private val members: List<com.example.budgetmaster.ui.components.BudgetMemberItem>
+) : RecyclerView.Adapter<EditMembersAdapter.ViewHolder>() {
+
+    inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val nameText: TextView = itemView.findViewById(R.id.memberName)
+        private val emailText: TextView = itemView.findViewById(R.id.memberEmail)
+
+        fun bind(item: com.example.budgetmaster.ui.components.BudgetMemberItem) {
+            nameText.text = item.name
+            emailText.text = item.email
+        }
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+        val view = LayoutInflater.from(parent.context)
+            // This layout is the one you pasted above (name + email)
+            .inflate(R.layout.item_budget_member_no_balance_tile, parent, false)
+        return ViewHolder(view)
+    }
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        holder.bind(members[position])
+    }
+
+    override fun getItemCount(): Int = members.size
 }

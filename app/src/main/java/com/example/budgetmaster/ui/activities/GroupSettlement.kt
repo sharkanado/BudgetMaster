@@ -195,7 +195,8 @@ class GroupSettlement : AppCompatActivity() {
             parent: android.view.ViewGroup,
             viewType: Int
         ): SettlementVH {
-            val view = layoutInflater.inflate(R.layout.item_budget_member_tile, parent, false)
+            val view =
+                layoutInflater.inflate(R.layout.item_budget_member_balance_tile, parent, false)
             return SettlementVH(view, onItemClick)
         }
 

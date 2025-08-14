@@ -123,6 +123,8 @@ class BudgetDetails : AppCompatActivity() {
             .get()
             .addOnSuccessListener { snapshot ->
                 if (snapshot.isEmpty) {
+                    // No expenses -> also clear spentByUser in members list
+                    membersAdapter.setSpentByUser(emptyMap())
                     expensesAdapter.notifyDataSetChanged()
                     return@addOnSuccessListener
                 }
@@ -139,13 +141,20 @@ class BudgetDetails : AppCompatActivity() {
                     )
                 }
 
+                // >>> FEED "spent by user" (uid -> total spent) INTO MEMBERS ADAPTER <<<
+                val spentByUser: Map<String, Double> = allRows
+                    .filter { it.createdBy.isNotBlank() }
+                    .groupBy { it.createdBy }
+                    .mapValues { (_, items) -> items.sumOf { it.amount } }
+
+                membersAdapter.setSpentByUser(spentByUser)
+
                 // 2) Group by month key "yyyy-MM"
-                val groupedByMonthKey =
-                    allRows.groupBy { it.date.take(7) } // safe for short strings
+                val groupedByMonthKey = allRows.groupBy { it.date.take(7) } // safe on short strings
 
                 // 3) Sort months newest → oldest by key (string works for yyyy-MM)
                 val sortedMonthKeys = groupedByMonthKey.keys
-                    .filter { it.length == 7 } // keep valid keys
+                    .filter { it.length == 7 }
                     .sortedDescending()
 
                 // 4) Rebuild UI list with headers and with rows inside each month sorted by date desc
