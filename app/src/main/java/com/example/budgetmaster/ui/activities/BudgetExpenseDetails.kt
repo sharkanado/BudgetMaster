@@ -5,6 +5,7 @@ import android.os.Build
 import android.os.Bundle
 import android.text.InputFilter
 import android.text.Spanned
+import android.util.Log
 import android.view.View
 import android.widget.EditText
 import android.widget.ImageButton
@@ -37,26 +38,21 @@ import kotlin.math.round
 
 class BudgetExpenseDetails : AppCompatActivity() {
 
-    // View-mode fields
     private lateinit var amountView: TextView
     private lateinit var descriptionView: TextView
     private lateinit var dateView: TextView
     private lateinit var paidByView: TextView
     private lateinit var paidByMailView: TextView
 
-    // Edit-mode fields
     private lateinit var amountEdit: EditText
     private lateinit var descriptionEdit: EditText
     private lateinit var dateEdit: EditText
 
-    // Top bar buttons
     private lateinit var backButton: ImageButton
     private lateinit var editBtn: ImageButton
 
-    // Recycler
     private lateinit var participantsRecycler: RecyclerView
 
-    // Adapters & lists
     private val allMembers = mutableListOf<BudgetMemberItem>()
     private val selectedMembers = mutableSetOf<String>()
     private val participantsReadOnly = mutableListOf<BudgetMemberItem>()
@@ -74,7 +70,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
 
     private val db by lazy { FirebaseFirestore.getInstance() }
 
-    // Shares
     private val sharesByUid = linkedMapOf<String, Double>()
     private val savedPaidShares = linkedMapOf<String, Double>()
 
@@ -96,7 +91,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
         val shares: Map<String, Double>
     )
 
-    // --- tiny helpers ---
     private fun String.toAmount(): Double? = replace(',', '.').toDoubleOrNull()
     private fun round2(v: Double): Double = round(v * 100.0) / 100.0
     private fun EditText.str() = text?.toString().orEmpty()
@@ -172,7 +166,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
         updateTopIcons()
 
         fillFieldsOnce()
-        ensurePayerInfoLoaded(expenseItem.createdBy) // <-- fetch both name + email
+        ensurePayerInfoLoaded(expenseItem.createdBy)
 
         recomputeSharesEqual()
         loadBudgetMembers()
@@ -182,7 +176,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
         backButton.setOnClickListener { if (isEditMode) cancelEdit() else finish() }
         dateEdit.setOnClickListener { showDatePicker() }
 
-        // Numeric keyboard + accept dot/comma + normalize to dot + dedupe decimal
         amountEdit.addTextChangedListener(object : android.text.TextWatcher {
             private var suppress = false
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -191,7 +184,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
                 if (!isEditMode || suppress) return
                 val raw = s?.toString() ?: return
 
-                // comma -> dot
                 if (raw.contains(',')) {
                     val cur = amountEdit.selectionStart
                     val fixed = raw.replace(',', '.')
@@ -203,7 +195,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
                     suppress = false
                     return
                 }
-                // keep only first dot
                 val i = raw.indexOf('.')
                 if (i != -1) {
                     val dedup = raw.substring(0, i + 1) + raw.substring(i + 1).replace(".", "")
@@ -226,7 +217,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
             }
         })
 
-        // limit to 2 decimals (accepts optional comma which we convert to dot)
         amountEdit.filters = arrayOf<InputFilter>(object : InputFilter {
             private val pattern = Regex("^\\d+([.,][0-9]{0,2})?$")
             override fun filter(
@@ -300,7 +290,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
         val visEdit = if (edit) View.VISIBLE else View.GONE
         val visView = if (edit) View.GONE else View.VISIBLE
 
-        // Fields that toggle between view/edit
         amountEdit.visibility = visEdit
         descriptionEdit.visibility = visEdit
         dateEdit.visibility = visEdit
@@ -309,7 +298,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
         descriptionView.visibility = visView
         dateView.visibility = visView
 
-        // Keep payer name + email ALWAYS visible in both modes
         paidByView.visibility = View.VISIBLE
         paidByMailView.visibility = View.VISIBLE
 
@@ -455,7 +443,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
         descriptionView.text = e.description
         dateView.text = formatDate(e.date)
 
-        // quick fill from cache (will be updated by ensurePayerInfoLoaded)
         paidByView.text = userNames[e.createdBy] ?: e.createdBy
         paidByMailView.text = userEmails[e.createdBy] ?: ""
 
@@ -539,7 +526,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
             tmp
         }
 
-        // local model update
         expenseItem = expenseItem.copy(
             amount = newAmount,
             description = newDescription,
@@ -563,7 +549,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
         val payer = expenseItem.createdBy
 
         db.runTransaction { tx ->
-            // reverse old totals (if any)
             val old = tx.get(splitsRef)
             val oldPayer = old.getString("payer") ?: payer
             val oldShares: Map<String, Double> =
@@ -597,7 +582,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
                 )
             }
 
-            // apply new totals
             var newOthers = 0.0
             normalizedPaidShares.forEach { (uid, share) ->
                 if (uid == payer) return@forEach
@@ -622,7 +606,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
                 )
             }
 
-            // update expense & mirror
             tx.set(expenseRef, updates, SetOptions.merge())
             tx.set(splitsRef, mapOf("payer" to payer, "shares" to normalizedPaidShares))
 
@@ -699,7 +682,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
             if (current != null && isValidDate(current)) {
                 cal.time = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH).parse(current)!!
             }
-        } catch (_: Exception) { /* ignore */
+        } catch (_: Exception) {
         }
 
         DatePickerDialog(this, { _, yy, mm, dd ->
@@ -707,13 +690,10 @@ class BudgetExpenseDetails : AppCompatActivity() {
         }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH)).show()
     }
 
-    /** Fetch and set BOTH name and email for the payer. Uses cache if available. */
     private fun ensurePayerInfoLoaded(uid: String) {
-        // Quick fill from cache if we have it
         userNames[uid]?.let { paidByView.text = it }
         userEmails[uid]?.let { paidByMailView.text = it }
 
-        // Always fetch to ensure we have the latest email (and name if missing)
         db.collection("users").document(uid).get()
             .addOnSuccessListener { doc ->
                 val name = doc.getString("name") ?: userNames[uid] ?: "Unknown"
@@ -723,8 +703,8 @@ class BudgetExpenseDetails : AppCompatActivity() {
                 paidByView.text = name
                 paidByMailView.text = email
             }
-            .addOnFailureListener {
-                // keep whatever we had; no crash
+            .addOnFailureListener { exception ->
+                Log.w("BudgetExpenseDetails", "Failed to fetch payer info for uid=$uid", exception)
             }
     }
 

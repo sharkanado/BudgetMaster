@@ -36,7 +36,6 @@ class BudgetSplitMembersAdapter(
         isGroupingUsed = false
     }
 
-    // For watcher suppression & tracking the actively edited uid
     private var internalUpdate = false
     private var editingUid: String? = null
 
@@ -74,14 +73,11 @@ class BudgetSplitMembersAdapter(
             applyEnabledState(holder, checked)
         }
 
-        // Amount text — remove old watcher first
         holder.tw?.let { holder.amountEdit.removeTextChangedListener(it) }
 
-        // Put current share value (safely, without ping-pong)
         val value = sharesByUid[uid] ?: 0.0
         setEditTextSafely(holder.amountEdit, df2.format(value))
 
-        // Focus management: track who is editing
         holder.amountEdit.setOnFocusChangeListener { _, hasFocus ->
             if (hasFocus) {
                 editingUid = uid
@@ -92,21 +88,18 @@ class BudgetSplitMembersAdapter(
             }
         }
 
-        // IME action Done: clear focus to collapse keyboard
         holder.amountEdit.setOnEditorActionListener { v, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_DONE) {
                 v.clearFocus()
                 true
             } else false
         }
-        // Also handle hardware Enter key
         holder.amountEdit.setOnKeyListener { v, keyCode, event ->
             if (keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN) {
                 v.clearFocus(); true
             } else false
         }
 
-        // Watcher for edits on this row (comma -> dot normalization)
         val watcher = object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -114,7 +107,6 @@ class BudgetSplitMembersAdapter(
             override fun afterTextChanged(s: Editable?) {
                 if (internalUpdate) return
 
-                // Normalize ',' -> '.' in the field, keep cursor stable
                 val cur = s?.toString() ?: ""
                 if (cur.contains(',')) {
                     val sel = holder.amountEdit.selectionStart
@@ -127,7 +119,7 @@ class BudgetSplitMembersAdapter(
                     return
                 }
 
-                if (editingUid != uid) return // only react for the actively edited row
+                if (editingUid != uid) return
                 if (!holder.amountEdit.isEnabled) return
 
                 val raw = (s?.toString() ?: "").replace(',', '.')
@@ -147,10 +139,8 @@ class BudgetSplitMembersAdapter(
 
                 holder.amountEdit.error = null
 
-                // push to host
                 onShareEditedValid(uid, parsed)
 
-                // Refresh only other visible rows, not this one (keeps cursor steady)
                 refreshVisibleSharesExcept(holder.itemView.parent as RecyclerView, uid)
             }
         }
@@ -158,7 +148,6 @@ class BudgetSplitMembersAdapter(
         holder.tw = watcher
     }
 
-    /** Enable/disable the amount field + visuals. */
     private fun applyEnabledState(holder: VH, enabled: Boolean) {
         holder.amountEdit.isEnabled = enabled
         holder.amountEdit.isFocusable = enabled
@@ -209,7 +198,6 @@ class BudgetSplitMembersAdapter(
                         holder.amountEdit.setSelection(target.length)
                     }
 
-                    // keep enabled/disabled state in sync too
                     applyEnabledState(holder, selected.contains(uid))
                 }
             } finally {
