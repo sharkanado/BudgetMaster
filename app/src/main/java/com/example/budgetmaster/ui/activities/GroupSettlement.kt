@@ -30,6 +30,7 @@ class GroupSettlement : AppCompatActivity() {
     private lateinit var youReceive: TextView
     private lateinit var youPay: TextView
     private lateinit var backButton: ImageButton
+    private lateinit var allGroupExpenses: TextView
 
     private lateinit var adapter: SettlementAdapter
     private var budgetId: String = ""
@@ -54,11 +55,11 @@ class GroupSettlement : AppCompatActivity() {
         emptyState = findViewById(R.id.emptyState)
         youReceive = findViewById(R.id.youReceive)
         youPay = findViewById(R.id.youPay)
+        allGroupExpenses = findViewById(R.id.allGroupExpenses)
         backButton = findViewById(R.id.backButton)
         backButton.setOnClickListener { finish() }
 
         adapter = SettlementAdapter(onItemClick = { row ->
-            // Your action when you owe someone (only case that’s clickable)
             val msg = "You owe ${row.name} ${format2(abs(row.amount))}"
             Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
         })
@@ -71,16 +72,20 @@ class GroupSettlement : AppCompatActivity() {
 
     private fun loadSettlement() {
         val currentUid = auth.currentUser?.uid ?: run { showEmpty(); return }
+
         db.collection("budgets")
             .document(budgetId)
             .collection("expenses")
             .get()
             .addOnSuccessListener { qs ->
-                val pair = mutableMapOf<String, Double>() // >0 they owe YOU; <0 you owe them
+                val pair = mutableMapOf<String, Double>()
+                var totalExpenses = 0.0
 
                 for (doc in qs) {
                     if ((doc.getString("type") ?: "expense") != "expense") continue
                     val payer = doc.getString("createdBy") ?: continue
+                    val amount = doc.getDouble("amount") ?: 0.0
+                    totalExpenses += amount
 
                     @Suppress("UNCHECKED_CAST")
                     val rawShares = doc.get("paidShares") as? Map<String, Any> ?: continue
@@ -99,6 +104,8 @@ class GroupSettlement : AppCompatActivity() {
                         }
                     }
                 }
+
+                allGroupExpenses.text = format2(totalExpenses)
 
                 if (pair.isEmpty()) {
                     showEmpty(); return@addOnSuccessListener
@@ -134,6 +141,7 @@ class GroupSettlement : AppCompatActivity() {
         emptyState.visibility = View.VISIBLE
         youReceive.text = "0.00"
         youPay.text = "0.00"
+        allGroupExpenses.text = "0.00"
     }
 
     private fun fetchUsersByIds(
@@ -166,17 +174,15 @@ class GroupSettlement : AppCompatActivity() {
         }
     }
 
-    // --- utils ---
     private fun round2(v: Double) = round(v * 100.0) / 100.0
     private fun format2(v: Double) = String.format(Locale.US, "%.2f", v)
     private fun dp(px: Int) = (px * resources.displayMetrics.density).roundToInt()
 
-    // --- data & adapter ---
     data class SettlementRow(
         val uid: String,
         val name: String,
         val email: String,
-        val amount: Double // >0 they owe you; <0 you owe them
+        val amount: Double
     )
 
     private inner class SettlementAdapter(
@@ -223,7 +229,6 @@ class GroupSettlement : AppCompatActivity() {
             val formatted = String.format(Locale.US, "%.2f", abs(row.amount))
             val owes = row.amount < 0
 
-            // Amount + color
             when {
                 row.amount > 0 -> {
                     amountText.text = formatted
@@ -241,12 +246,10 @@ class GroupSettlement : AppCompatActivity() {
                 }
             }
 
-            // Arrow only when YOU OWE (clickable case)
             val arrowRes = if (owes) R.drawable.ic_send_money else 0
             amountText.setCompoundDrawablesWithIntrinsicBounds(0, 0, arrowRes, 0)
             amountText.compoundDrawablePadding = dp(6)
 
-            // Make row clickable only when YOU OWE
             if (owes && onItemClick != null) {
                 itemView.isClickable = true
                 itemView.isFocusable = true
@@ -256,7 +259,6 @@ class GroupSettlement : AppCompatActivity() {
                 itemView.isClickable = false
                 itemView.isFocusable = false
                 itemView.setOnClickListener(null)
-                // fallback to base background if needed
                 itemView.setBackgroundResource(R.drawable.expense_bg)
             }
         }
