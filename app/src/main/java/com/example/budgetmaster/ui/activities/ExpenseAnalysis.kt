@@ -17,6 +17,7 @@ import com.example.budgetmaster.R
 import com.example.budgetmaster.ui.components.CustomPieChartView
 import com.example.budgetmaster.ui.components.ExpensesAdapter
 import com.example.budgetmaster.utils.Categories
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import java.time.LocalDate
@@ -37,6 +38,7 @@ class ExpenseAnalysis : AppCompatActivity() {
     private lateinit var recyclerView: RecyclerView
     private lateinit var noDataText: TextView
     private lateinit var loadingProgressBar: View
+    private lateinit var fabNewExpense: FloatingActionButton
 
     private lateinit var expensesAdapter: ExpensesAdapter
 
@@ -81,6 +83,8 @@ class ExpenseAnalysis : AppCompatActivity() {
         recyclerView = findViewById(R.id.expensesRecyclerView)
         noDataText = findViewById(R.id.noDataText)
         loadingProgressBar = findViewById(R.id.loadingProgressBar)
+        fabNewExpense = findViewById(R.id.addExpenseFab)
+        
 
         setupTypeSpinner()
         setupYearSpinner()
@@ -97,6 +101,11 @@ class ExpenseAnalysis : AppCompatActivity() {
             startActivity(intent)
         }
         recyclerView.adapter = expensesAdapter
+
+        fabNewExpense.setOnClickListener {
+            val intent = Intent(this, AddExpense::class.java)
+            startActivity(intent)
+        }
 
         pieChart.setOnSliceClickListener(object : CustomPieChartView.OnSliceClickListener {
             override fun onSliceClick(label: String) {
