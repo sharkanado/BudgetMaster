@@ -181,7 +181,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         if (typePos >= 0) typeSpinner.setSelection(typePos)
     }
 
-
     private fun setupTopBarBehavior() {
         val back = findViewById<ImageButton>(R.id.backButton)
 
@@ -256,10 +255,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         updateTopIcons()
     }
 
-    /**
-     * Apply the just-edited values to the view-mode widgets and keep local model in sync.
-     * Call this after a successful save, before leaving edit mode.
-     */
     private fun applyEditsToView() {
         val newCategory = categorySpinner.selectedItem.toString()
         val newDescription = descriptionEdit.text.toString().trim()
@@ -282,10 +277,9 @@ class ExpenseDetailsWallet : AppCompatActivity() {
                 type = newType,
                 amount = formattedAmount
             )
-        } catch (_: Throwable) { /* ignore if copy signature differs */
+        } catch (_: Throwable) {
         }
     }
-
 
     private fun saveData() {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
@@ -299,13 +293,18 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         val amountStr = amountEdit.text.toString().trim()
         val amount = amountStr.replace(",", ".").toDoubleOrNull() ?: 0.0
 
+        val dateStr = dateEdit.text.toString()
+        val parsedDate = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH).parse(dateStr)!!
+        val dayTimestamp = Timestamp(parsedDate)
+
         val updatedData = mapOf(
             "category" to categorySpinner.selectedItem.toString(),
             "description" to descriptionEdit.text.toString().trim(),
             "amount" to amount,
-            "date" to dateEdit.text.toString(),
+            "date" to dateStr,
             "type" to typeSpinner.selectedItem.toString().lowercase(),
-            "timestamp" to Timestamp.now()
+            "timestamp" to Timestamp.now(),
+            "dayTimestamp" to dayTimestamp
         )
 
         Log.d("DEBUG_FIRESTORE", "Updating doc: $uid / $year / $month / $expenseDocumentId")
@@ -325,7 +324,8 @@ class ExpenseDetailsWallet : AppCompatActivity() {
                     "amount" to updatedData["amount"],
                     "date" to updatedData["date"],
                     "type" to updatedData["type"],
-                    "timestamp" to updatedData["timestamp"]
+                    "timestamp" to updatedData["timestamp"],
+                    "dayTimestamp" to updatedData["dayTimestamp"]
                 )
 
                 db.collection("users").document(uid)
@@ -343,7 +343,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
                     }
 
                 applyEditsToView()
-
                 toggleEditMode(false)
             }
             .addOnFailureListener { e ->
