@@ -10,6 +10,7 @@ import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.ImageButton
+import android.widget.PopupMenu
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -19,7 +20,6 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.example.budgetmaster.R
 import com.example.budgetmaster.utils.Categories
-import com.google.android.material.button.MaterialButton
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -32,16 +32,13 @@ class ExpenseDetailsWallet : AppCompatActivity() {
 
     private var isEditMode = false
     private lateinit var editButton: ImageButton
-    private lateinit var deleteButton: MaterialButton
 
-    // view mode
     private lateinit var categoryText: TextView
     private lateinit var amountText: TextView
     private lateinit var descriptionText: TextView
     private lateinit var typeText: TextView
     private lateinit var dateText: TextView
 
-    // edit mode
     private lateinit var categorySpinner: Spinner
     private lateinit var amountEdit: EditText
     private lateinit var descriptionEdit: EditText
@@ -64,7 +61,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             insets
         }
 
-        // Get extras
         selectedYear = intent.getIntExtra("selectedYear", 0)
         selectedMonth = intent.getStringExtra("selectedMonth") ?: ""
         expenseDocumentId = intent.getStringExtra("expenseId") ?: ""
@@ -88,22 +84,19 @@ class ExpenseDetailsWallet : AppCompatActivity() {
 
         setupViews()
         populateData()
-        setupEditToggle()
-        setupDeleteButton()
+        setupTopBarBehavior()
+        updateTopIcons()
     }
 
     private fun setupViews() {
         editButton = findViewById(R.id.editButton)
-        deleteButton = findViewById(R.id.deleteButton)
 
-        // view mode
         categoryText = findViewById(R.id.expenseCategory)
         amountText = findViewById(R.id.expenseAmount)
         descriptionText = findViewById(R.id.expenseDescription)
         typeText = findViewById(R.id.expenseType)
         dateText = findViewById(R.id.expenseDate)
 
-        // edit mode
         categorySpinner = findViewById(R.id.expenseCategorySpinner)
         amountEdit = findViewById(R.id.expenseAmountEdit)
         descriptionEdit = findViewById(R.id.expenseDescriptionEdit)
@@ -119,7 +112,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         val typeAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, types)
         typeSpinner.adapter = typeAdapter
 
-        // amount formatting
         amountEdit.addTextChangedListener(object : TextWatcher {
             private var current = ""
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -144,7 +136,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             }
         })
 
-        // date picker
         dateEdit.setOnClickListener {
             val calendar = Calendar.getInstance()
             val currentDate = dateEdit.text.toString()
@@ -190,58 +181,62 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         if (typePos >= 0) typeSpinner.setSelection(typePos)
     }
 
-    private fun setupEditToggle() {
-        findViewById<ImageButton>(R.id.backButton).setOnClickListener {
-            onBackPressedDispatcher.onBackPressed()
+
+    private fun setupTopBarBehavior() {
+        val back = findViewById<ImageButton>(R.id.backButton)
+
+        back.setOnClickListener {
+            if (isEditMode) {
+                toggleEditMode(false)
+            } else {
+                onBackPressedDispatcher.onBackPressed()
+            }
         }
+
         editButton.setOnClickListener {
-            if (!isEditMode) toggleEditMode(true) else saveData()
+            if (!isEditMode) {
+                showOverflowMenu()
+            } else {
+                saveData()
+            }
         }
     }
 
-    private fun setupDeleteButton() {
-        deleteButton.setOnClickListener {
-            val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return@setOnClickListener
-            val db = FirebaseFirestore.getInstance()
+    private fun updateTopIcons() {
+        val back = findViewById<ImageButton>(R.id.backButton)
+        if (isEditMode) {
+            editButton.setImageResource(R.drawable.ic_save)
+            back.setImageResource(R.drawable.ic_remove)
+        } else {
+            editButton.setImageResource(R.drawable.ic_more_vert)
+            back.setImageResource(R.drawable.ic_chevron_left)
+        }
+    }
 
-            // Delete from wallet
-            db.collection("users").document(uid).collection("expenses")
-                .document(selectedYear.toString()).collection(selectedMonth)
-                .document(expenseDocumentId)
-                .delete()
-                .addOnSuccessListener {
-                    // Clean "latest"
-                    db.collection("users").document(uid).collection("latest")
-                        .whereEqualTo("expenseId", expenseDocumentId)
-                        .get()
-                        .addOnSuccessListener { snap ->
-                            val batch = db.batch()
-                            for (doc in snap.documents) batch.delete(doc.reference)
-                            batch.commit().addOnSuccessListener {
-                                Toast.makeText(this, "Successfully removed!", Toast.LENGTH_SHORT)
-                                    .show()
-                                finish()
-                            }
-                        }
-                        .addOnFailureListener { e ->
-                            Toast.makeText(
-                                this,
-                                "Deleted from expenses, failed to clean latest: ${e.message}",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                            finish()
-                        }
+    private fun showOverflowMenu() {
+        PopupMenu(this, editButton).apply {
+            menu.add(0, MENU_EDIT, 0, getString(R.string.edit))
+            menu.add(0, MENU_DELETE, 1, getString(R.string.delete))
+            setOnMenuItemClickListener { item ->
+                when (item.itemId) {
+                    MENU_EDIT -> {
+                        toggleEditMode(true); true
+                    }
+
+                    MENU_DELETE -> {
+                        deleteExpense(); true
+                    }
+
+                    else -> false
                 }
-                .addOnFailureListener { e ->
-                    Toast.makeText(this, "Failed to delete: ${e.message}", Toast.LENGTH_SHORT)
-                        .show()
-                }
+            }
+            show()
         }
     }
 
     private fun toggleEditMode(enable: Boolean) {
         isEditMode = enable
-        editButton.setImageResource(if (enable) R.drawable.ic_save else R.drawable.ic_edit)
+        editButton.setImageResource(if (enable) R.drawable.ic_save else R.drawable.ic_more_vert)
 
         val viewVis = if (enable) View.GONE else View.VISIBLE
         val editVis = if (enable) View.VISIBLE else View.GONE
@@ -257,7 +252,40 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         amountEdit.visibility = editVis
         descriptionEdit.visibility = editVis
         dateEdit.visibility = editVis
+
+        updateTopIcons()
     }
+
+    /**
+     * Apply the just-edited values to the view-mode widgets and keep local model in sync.
+     * Call this after a successful save, before leaving edit mode.
+     */
+    private fun applyEditsToView() {
+        val newCategory = categorySpinner.selectedItem.toString()
+        val newDescription = descriptionEdit.text.toString().trim()
+        val newDate = dateEdit.text.toString()
+        val newType = typeSpinner.selectedItem.toString().lowercase(Locale.ENGLISH)
+        val amount = amountEdit.text.toString().trim().replace(",", ".").toDoubleOrNull() ?: 0.0
+        val formattedAmount = String.format(Locale.ENGLISH, "%.2f", amount)
+
+        categoryText.text = newCategory
+        descriptionText.text = newDescription
+        dateText.text = newDate
+        typeText.text = newType.replaceFirstChar { it.uppercase() }
+        amountText.text = if (newType == "expense") "-$formattedAmount" else formattedAmount
+
+        try {
+            expenseItem = expenseItem.copy(
+                category = newCategory,
+                name = newDescription,
+                date = newDate,
+                type = newType,
+                amount = formattedAmount
+            )
+        } catch (_: Throwable) { /* ignore if copy signature differs */
+        }
+    }
+
 
     private fun saveData() {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
@@ -271,11 +299,10 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         val amountStr = amountEdit.text.toString().trim()
         val amount = amountStr.replace(",", ".").toDoubleOrNull() ?: 0.0
 
-        // Store "amount" as NUMBER to prevent future crashes
         val updatedData = mapOf(
             "category" to categorySpinner.selectedItem.toString(),
             "description" to descriptionEdit.text.toString().trim(),
-            "amount" to amount, // NUMBER, not string
+            "amount" to amount,
             "date" to dateEdit.text.toString(),
             "type" to typeSpinner.selectedItem.toString().lowercase(),
             "timestamp" to Timestamp.now()
@@ -285,7 +312,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
 
         val db = FirebaseFirestore.getInstance()
 
-        // 1) Update in user's expenses
         db.collection("users").document(uid)
             .collection("expenses").document(year)
             .collection(month).document(expenseDocumentId)
@@ -293,11 +319,10 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             .addOnSuccessListener {
                 Toast.makeText(this, "Expense updated", Toast.LENGTH_SHORT).show()
 
-                // 2) Also update in 'latest' where expenseId matches
                 val latestPatch = mapOf(
                     "category" to updatedData["category"],
                     "description" to updatedData["description"],
-                    "amount" to updatedData["amount"],   // keep number
+                    "amount" to updatedData["amount"],
                     "date" to updatedData["date"],
                     "type" to updatedData["type"],
                     "timestamp" to updatedData["timestamp"]
@@ -308,17 +333,62 @@ class ExpenseDetailsWallet : AppCompatActivity() {
                     .whereEqualTo("expenseId", expenseDocumentId)
                     .get()
                     .addOnSuccessListener { snap ->
-                        if (snap.isEmpty) return@addOnSuccessListener
-                        val batch = db.batch()
-                        for (doc in snap.documents) {
-                            batch.set(doc.reference, latestPatch, SetOptions.merge())
+                        if (!snap.isEmpty) {
+                            val batch = db.batch()
+                            for (doc in snap.documents) {
+                                batch.set(doc.reference, latestPatch, SetOptions.merge())
+                            }
+                            batch.commit()
                         }
-                        batch.commit()
                     }
+
+                applyEditsToView()
+
+                toggleEditMode(false)
             }
             .addOnFailureListener { e ->
                 Toast.makeText(this, "Failed: ${e.message}", Toast.LENGTH_SHORT).show()
             }
+    }
 
+    private fun deleteExpense() {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val db = FirebaseFirestore.getInstance()
+
+        db.collection("users").document(uid).collection("expenses")
+            .document(selectedYear.toString()).collection(selectedMonth)
+            .document(expenseDocumentId)
+            .delete()
+            .addOnSuccessListener {
+                db.collection("users").document(uid).collection("latest")
+                    .whereEqualTo("expenseId", expenseDocumentId)
+                    .get()
+                    .addOnSuccessListener { snap ->
+                        val batch = db.batch()
+                        for (doc in snap.documents) batch.delete(doc.reference)
+                        batch.commit().addOnSuccessListener {
+                            Toast.makeText(this, "Successfully removed!", Toast.LENGTH_SHORT)
+                                .show()
+                            finish()
+                        }
+                    }
+                    .addOnFailureListener { e ->
+                        Toast.makeText(
+                            this,
+                            "Deleted from expenses, failed to clean latest: ${e.message}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        finish()
+                    }
+            }
+            .addOnFailureListener { e ->
+                Toast.makeText(this, "Failed to delete: ${e.message}", Toast.LENGTH_SHORT)
+                    .show()
+            }
+    }
+
+    companion object {
+        private const val MENU_EDIT = 1
+        private const val MENU_DELETE = 2
     }
 }
