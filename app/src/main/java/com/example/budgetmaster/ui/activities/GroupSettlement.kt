@@ -71,14 +71,23 @@ class GroupSettlement : AppCompatActivity() {
     }
 
     private fun loadSettlement() {
-        val currentUid = auth.currentUser?.uid ?: run { showEmpty(); return }
+        val currentUid = auth.currentUser?.uid ?: run {
+            showNoData() // not authenticated -> no data
+            return
+        }
 
         db.collection("budgets")
             .document(budgetId)
             .collection("expenses")
             .get()
             .addOnSuccessListener { qs ->
-                val pair = mutableMapOf<String, Double>()
+                if (qs.isEmpty) {
+                    // No expenses at all -> everything zero
+                    showNoData()
+                    return@addOnSuccessListener
+                }
+
+                val pair = mutableMapOf<String, Double>() // otherUid -> (+ you receive / - you pay)
                 var totalExpenses = 0.0
 
                 for (doc in qs) {
@@ -94,10 +103,12 @@ class GroupSettlement : AppCompatActivity() {
                     }.toMap()
 
                     if (currentUid == payer) {
+                        // You paid. Others' shares are your receivables (+)
                         shares.forEach { (uid, share) ->
                             if (uid != payer) pair[uid] = (pair[uid] ?: 0.0) + share
                         }
                     } else {
+                        // Someone else paid. Your share is your payable (-) to them
                         val yourShare = shares[currentUid]
                         if (yourShare != null && yourShare > 0.0) {
                             pair[payer] = (pair[payer] ?: 0.0) - yourShare
@@ -105,10 +116,19 @@ class GroupSettlement : AppCompatActivity() {
                     }
                 }
 
+                // Always show the total expenses that exist in the group
                 allGroupExpenses.text = format2(totalExpenses)
 
                 if (pair.isEmpty()) {
-                    showEmpty(); return@addOnSuccessListener
+                    // There are expenses, but none create inter-user balances (e.g., everyone paid only for themselves).
+                    adapter.submit(emptyList())
+                    emptyState.visibility = View.VISIBLE
+                    emptyState.text = getString(
+                        R.string.no_balances_to_settle,
+                    )
+                    youReceive.text = "0.00"
+                    youPay.text = "0.00"
+                    return@addOnSuccessListener
                 }
 
                 val uids = pair.keys.toList()
@@ -133,15 +153,28 @@ class GroupSettlement : AppCompatActivity() {
                     youPay.text = format2(totalPay)
                 }
             }
-            .addOnFailureListener { showEmpty() }
+            .addOnFailureListener {
+                // On failure, we truly don't know totals -> zero all
+                showNoData()
+            }
     }
 
-    private fun showEmpty() {
+    /** Shown when there are no expenses at all or a hard failure occurred. */
+    private fun showNoData() {
         adapter.submit(emptyList())
         emptyState.visibility = View.VISIBLE
+        emptyState.text = getString(
+            R.string.no_group_expenses_yet,
+        )
         youReceive.text = "0.00"
         youPay.text = "0.00"
         allGroupExpenses.text = "0.00"
+    }
+
+    private fun getStringOrFallback(resId: Int, fallback: String): String = try {
+        getString(resId)
+    } catch (_: Exception) {
+        fallback
     }
 
     private fun fetchUsersByIds(

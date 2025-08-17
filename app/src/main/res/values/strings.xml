@@ -22,8 +22,8 @@
     Already on Budget Master? <font color="#FF9C3F">Sign in!</font>
     </string>
     <string name="settlement_title">Settlement</string>
-    <string name="settlement_empty">Nothing to settle yet</string>
-
+    <string name="no_balances_to_settle">No balances to settle</string>
+    <string name="no_group_expenses_yet">"No group expenses yet"</string>
     <string name="you_get_label">you get</string>
     <string name="you_owe_label">you owe</string>
     <string name="settlement_clear_label">settled</string>

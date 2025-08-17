@@ -192,7 +192,7 @@
         android:id="@+id/emptyState"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/settlement_empty"
+        android:text="@string/no_balances_to_settle"
         android:padding="16dp"
         android:gravity="center"
         android:visibility="gone" />
