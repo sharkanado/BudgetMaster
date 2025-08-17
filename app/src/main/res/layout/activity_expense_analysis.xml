@@ -124,7 +124,6 @@
             </LinearLayout>
         </com.google.android.material.appbar.CollapsingToolbarLayout>
 
-        <!-- PINNED: Category filter -->
         <LinearLayout
             android:id="@+id/pinnedCategoryFilter"
             android:layout_width="match_parent"
@@ -161,7 +160,6 @@
             </com.google.android.material.textfield.TextInputLayout>
         </LinearLayout>
 
-        <!-- PINNED: Single stats card with Total + Average -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/statsCard"
             android:layout_width="match_parent"
@@ -228,7 +226,7 @@
                         android:id="@+id/avgLabel"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Average"
+                        android:text="Monthly Average"
                         android:textSize="12sp"
                         android:textColor="@color/grey_light"
                         android:textStyle="bold"
@@ -247,36 +245,44 @@
         </com.google.android.material.card.MaterialCardView>
     </com.google.android.material.appbar.AppBarLayout>
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/expensesRecyclerView"
+    <!-- Container for list + overlays so they center within the scrolling area -->
+    <FrameLayout
+        android:id="@+id/listContainer"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:clipToPadding="false"
         android:paddingBottom="16dp"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
-    <TextView
-        android:id="@+id/noDataText"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:padding="24dp"
-        android:text="No data to show."
-        android:textColor="@color/white"
-        android:textSize="14sp"
-        android:visibility="gone" />
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/expensesRecyclerView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false" />
 
-    <com.google.android.material.progressindicator.CircularProgressIndicator
-        android:id="@+id/loadingProgressBar"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:visibility="gone"
-        android:indeterminate="true"
-        app:indicatorColor="@color/orange"
-        app:indicatorInset="0dp"
-        app:trackThickness="4dp"
-        app:indicatorSize="48dp"
-        android:layout_gravity="center" />
+        <TextView
+            android:id="@+id/noDataText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:padding="24dp"
+            android:text="No data to show."
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
+        <com.google.android.material.progressindicator.CircularProgressIndicator
+            android:id="@+id/loadingProgressBar"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="center"
+            android:visibility="gone"
+            android:indeterminate="true"
+            app:indicatorColor="@color/orange"
+            app:indicatorInset="0dp"
+            app:trackThickness="4dp"
+            app:indicatorSize="48dp" />
+    </FrameLayout>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/addExpenseFab"

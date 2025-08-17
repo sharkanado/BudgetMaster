@@ -150,7 +150,7 @@ class MyWallet : AppCompatActivity() {
                 .addOnSuccessListener { docs ->
                     docs.forEach { doc ->
                         val amount = readAmount(doc.get("amount")).toFloat()
-                        val type = doc.getString("type") ?: "expense"
+                        val type = (doc.getString("type") ?: "expense").lowercase(Locale.ENGLISH)
                         if (type == "expense") monthlyExpenses[index] += amount
                         else monthlyIncome[index] += amount
                     }
@@ -161,15 +161,16 @@ class MyWallet : AppCompatActivity() {
                         barChart.setData(monthlyIncome, monthlyExpenses)
                         val currentIndex = months.indexOf(selectedMonth)
                         if (currentIndex != -1) barChart.highlightMonth(currentIndex)
-                        val incomeSum = monthlyIncome.sum()
-                        val expenseSum = monthlyExpenses.sum()
+
+                        val incomeSum = monthlyIncome.sum().toDouble()
+                        val expenseSum = monthlyExpenses.sum().toDouble()
                         val net = incomeSum - expenseSum
-                        val monthsWithData =
-                            (0 until 12).count { monthlyIncome[it] != 0f || monthlyExpenses[it] != 0f }
-                                .let { if (it == 0) 1 else it }
-                        val avg = net / monthsWithData
+                        val monthsWithExpenses = monthlyExpenses.count { it != 0f }
+                        val avgMonthlyExpenses =
+                            if (monthsWithExpenses == 0) 0.0 else expenseSum / monthsWithExpenses
+
                         balanceValue.text = df2.format(net)
-                        monthlyAvgValue.text = df2.format(avg)
+                        monthlyAvgValue.text = df2.format(avgMonthlyExpenses)
                     }
                 }
         }
@@ -190,7 +191,7 @@ class MyWallet : AppCompatActivity() {
                     val category = doc.getString("category") ?: ""
                     val type = doc.getString("type") ?: "expense"
                     val amountVal = readAmount(doc.get("amount"))
-                    val signedAmount = if (type == "expense") -amountVal else amountVal
+                    val signedAmount = if (type.equals("expense", true)) -amountVal else amountVal
                     val budgetId = doc.getString("budgetId") ?: ""
                     val expenseIdInBudget = doc.getString("expenseIdInBudget") ?: ""
                     val ts = (doc.get("timestamp") as? Timestamp)?.toDate()?.time ?: 0L
