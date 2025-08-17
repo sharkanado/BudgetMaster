@@ -47,7 +47,8 @@ class BudgetsFragment : Fragment() {
 
         adapter = BudgetsAdapter(emptyList()) { clickedBudget ->
             val intent = Intent(requireContext(), BudgetDetails::class.java)
-            intent.putExtra("budget", clickedBudget)
+            intent.putExtra("budgetId", clickedBudget.id)
+            intent.putExtra("budgetName", clickedBudget.name)
             startActivity(intent)
         }
 
