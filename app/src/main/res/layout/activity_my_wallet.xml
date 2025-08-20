@@ -210,16 +210,6 @@
         android:paddingBottom="16dp"
         app:layout_behavior="@string/appbar_scrolling_view_behavior" />
 
-    <TextView
-        android:id="@+id/noDataText"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:padding="24dp"
-        android:text="No data to be shown."
-        android:textColor="@color/white"
-        android:textSize="14sp"
-        android:visibility="gone" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/addExpenseFab"

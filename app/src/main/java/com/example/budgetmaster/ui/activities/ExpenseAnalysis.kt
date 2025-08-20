@@ -39,7 +39,6 @@ class ExpenseAnalysis : AppCompatActivity() {
     private lateinit var totalSpentText: TextView
     private lateinit var averageSpentText: TextView
     private lateinit var recyclerView: RecyclerView
-    private lateinit var noDataText: TextView
     private lateinit var loadingProgressBar: View
     private lateinit var fabNewExpense: FloatingActionButton
 
@@ -85,7 +84,6 @@ class ExpenseAnalysis : AppCompatActivity() {
         totalSpentText = findViewById(R.id.totalSpentText)
         averageSpentText = findViewById(R.id.averageSpentText)
         recyclerView = findViewById(R.id.expensesRecyclerView)
-        noDataText = findViewById(R.id.noDataText)
         loadingProgressBar = findViewById(R.id.loadingProgressBar)
         fabNewExpense = findViewById(R.id.addExpenseFab)
 
@@ -182,7 +180,6 @@ class ExpenseAnalysis : AppCompatActivity() {
 
         loadingProgressBar.visibility = View.VISIBLE
         recyclerView.visibility = View.GONE
-        noDataText.visibility = View.GONE
 
         db.collection("users")
             .document(uid)
@@ -195,7 +192,6 @@ class ExpenseAnalysis : AppCompatActivity() {
 
                 if (result.isEmpty) {
                     recyclerView.visibility = View.GONE
-                    noDataText.visibility = View.VISIBLE
                     pieChart.setData(emptyList(), null)
                     totalSpentText.text = df2.format(0.0)
                     cachedEntries = emptyList()
@@ -248,7 +244,6 @@ class ExpenseAnalysis : AppCompatActivity() {
             .addOnFailureListener {
                 loadingProgressBar.visibility = View.GONE
                 recyclerView.visibility = View.GONE
-                noDataText.visibility = View.VISIBLE
                 totalSpentText.text = df2.format(0.0)
                 averageSpentText.text = df2.format(0.0)
             }
@@ -319,7 +314,6 @@ class ExpenseAnalysis : AppCompatActivity() {
 
         expensesAdapter.updateItems(listItems)
         recyclerView.visibility = if (listItems.isEmpty()) View.GONE else View.VISIBLE
-        noDataText.visibility = if (listItems.isEmpty()) View.VISIBLE else View.GONE
     }
 
     private fun readAmount(raw: Any?): Double = when (raw) {

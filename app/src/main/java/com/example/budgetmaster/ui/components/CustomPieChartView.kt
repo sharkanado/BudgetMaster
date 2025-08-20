@@ -43,12 +43,10 @@ class CustomPieChartView @JvmOverloads constructor(
         color = Color.WHITE
         textSize = 32f
         textAlign = Paint.Align.CENTER
-        // Try to apply Manrope SemiBold (put manrope_semibold.ttf in res/font/)
         try {
             val tf = ResourcesCompat.getFont(context, R.font.manrope_semibold)
             if (tf != null) typeface = tf
         } catch (_: Exception) {
-            // ignore, fallback to default typeface
         }
     }
 
@@ -58,7 +56,17 @@ class CustomPieChartView @JvmOverloads constructor(
         color = Color.WHITE
     }
 
-    /** Set pie data and optionally highlight a category */
+    private val noDataPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textSize = 40f
+        textAlign = Paint.Align.CENTER
+        try {
+            val tf = ResourcesCompat.getFont(context, R.font.manrope_semibold)
+            if (tf != null) typeface = tf
+        } catch (_: Exception) {
+        }
+    }
+
     fun setData(data: List<PieEntry>, highlightCategory: String?) {
         pieData = data
         total = data.sumOf { it.value }
@@ -68,7 +76,13 @@ class CustomPieChartView @JvmOverloads constructor(
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        if (pieData.isEmpty() || total == 0.0) return
+
+        if (pieData.isEmpty() || total == 0.0) {
+            val cx = width / 2f
+            val cy = height / 2f - (noDataPaint.descent() + noDataPaint.ascent()) / 2
+            canvas.drawText("No data", cx, cy, noDataPaint)
+            return
+        }
 
         val width = width.toFloat()
         val height = height.toFloat()
@@ -79,7 +93,6 @@ class CustomPieChartView @JvmOverloads constructor(
 
         var startAngle = -90f
 
-        // First pass: draw slices
         pieData.forEach { entry ->
             val sweepAngle = ((entry.value / total) * 360).toFloat()
 
@@ -90,14 +103,12 @@ class CustomPieChartView @JvmOverloads constructor(
 
             val radius = if (isHighlighted) baseRadius * 1.05f else baseRadius
 
-            // Draw slice
             canvas.drawArc(
                 cx - radius, cy - radius,
                 cx + radius, cy + radius,
                 startAngle, sweepAngle, true, slicePaint
             )
 
-            // Draw percentage text
             val midAngle = startAngle + sweepAngle / 2
             val labelRadius = radius * 0.6f
             val labelX = cx + labelRadius * cos(Math.toRadians(midAngle.toDouble())).toFloat()
@@ -111,7 +122,6 @@ class CustomPieChartView @JvmOverloads constructor(
             startAngle += sweepAngle
         }
 
-        // Second pass: draw outlines on top (only highlighted slices)
         startAngle = -90f
         pieData.forEach { entry ->
             val sweepAngle = ((entry.value / total) * 360).toFloat()
@@ -137,18 +147,14 @@ class CustomPieChartView @JvmOverloads constructor(
             val cy = height / 2f
             val dx = event.x - cx
             val dy = event.y - cy
-
-            // Distance from center
             val distance = Math.sqrt((dx * dx + dy * dy).toDouble())
             val radius = min(width, height) * 0.8f / 2
-            if (distance > radius) return false // Outside pie
+            if (distance > radius) return false
 
-            // Compute angle
             var angle = Math.toDegrees(Math.atan2(dy.toDouble(), dx.toDouble()))
             if (angle < 0) angle += 360.0
             angle = (angle + 90) % 360
 
-            // Find slice
             var currentStart = 0f
             for (i in pieData.indices) {
                 val sweep = ((pieData[i].value / total) * 360).toFloat()

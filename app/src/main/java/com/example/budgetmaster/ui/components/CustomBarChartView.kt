@@ -23,23 +23,19 @@ class CustomBarChartView @JvmOverloads constructor(
     private var incomeData = List(12) { 0f }
     private var expenseData = List(12) { 0f }
 
-    private var animatedProgress = 1f // 0..1 for animation
-
-    // Click callback
+    private var animatedProgress = 1f
     private var onMonthClickListener: ((Int) -> Unit)? = null
-    private var selectedMonthIndex: Int = -1 // Bold legend for this month
+    private var selectedMonthIndex: Int = -1
 
-    // Typeface (Manrope)
-    private val tfRegular: Typeface
-    private val tfBold: Typeface
+    private val tf: Typeface
 
     private val incomePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#4CAF50") // Green for income
+        color = Color.parseColor("#4CAF50")
         style = Paint.Style.FILL
     }
 
     private val expensePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#F44336") // Red for expenses
+        color = Color.parseColor("#F44336")
         style = Paint.Style.FILL
     }
 
@@ -77,16 +73,11 @@ class CustomBarChartView @JvmOverloads constructor(
     )
 
     init {
-        // Load Manrope fonts with safe fallbacks
-        val regular = ResourcesCompat.getFont(context, R.font.manrope_regular)
-        val bold = ResourcesCompat.getFont(context, R.font.manrope_extrabold)
-        tfRegular = regular ?: Typeface.SANS_SERIF
-        tfBold = bold ?: Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
-
-        // Apply typefaces
-        textPaint.typeface = tfRegular
-        monthPaint.typeface = tfRegular
-        noDataPaint.typeface = tfRegular
+        val manrope = ResourcesCompat.getFont(context, R.font.manrope_semibold)
+        tf = manrope ?: Typeface.SANS_SERIF
+        textPaint.typeface = tf
+        monthPaint.typeface = tf
+        noDataPaint.typeface = tf
     }
 
     fun setData(income: List<Float>, expenses: List<Float>) {
@@ -120,18 +111,15 @@ class CustomBarChartView @JvmOverloads constructor(
 
         val width = width.toFloat()
         val height = height.toFloat()
-
         val leftPadding = 80f
         val labelSpace = height * 0.2f
         val chartHeight = height - labelSpace
 
-        // Determine max value rounded to nearest 100
         var maxValue = max(incomeData.maxOrNull() ?: 0f, expenseData.maxOrNull() ?: 0f)
         if (maxValue == 0f) maxValue = 1f
         val maxHundred = ceil(maxValue / 100f) * 100f
         val scale = (chartHeight * 0.8f) / maxHundred
 
-        // Horizontal grid lines + labels
         val steps = 5
         val stepValue = maxHundred / steps
         val stepHeight = (chartHeight * 0.8f) / steps
@@ -142,7 +130,6 @@ class CustomBarChartView @JvmOverloads constructor(
             canvas.drawText("${(i * stepValue).toInt()}", leftPadding - 8f, y + 8f, textPaint)
         }
 
-        // Group layout
         val groupWidth = (width - leftPadding) / 12f
         val barWidth = groupWidth * 0.2f
         val groupSpacing = groupWidth * 0.6f
@@ -156,7 +143,6 @@ class CustomBarChartView @JvmOverloads constructor(
 
             if (incomeData[i] > 0 || expenseData[i] > 0) hasData = true
 
-            // Income bar
             canvas.drawRect(
                 xPos,
                 chartHeight - incomeHeight,
@@ -165,7 +151,6 @@ class CustomBarChartView @JvmOverloads constructor(
                 incomePaint
             )
 
-            // Expense bar (next to income bar)
             canvas.drawRect(
                 xPos + barWidth,
                 chartHeight - expenseHeight,
@@ -174,8 +159,8 @@ class CustomBarChartView @JvmOverloads constructor(
                 expensePaint
             )
 
-            // Month label (bold when selected)
-            monthPaint.typeface = if (i == selectedMonthIndex) tfBold else tfRegular
+            monthPaint.typeface =
+                if (i == selectedMonthIndex) Typeface.create(tf, Typeface.BOLD) else tf
             val labelX = xPos + barWidth
             val labelY = chartHeight + (labelSpace / 2)
             canvas.drawText(months[i], labelX, labelY, monthPaint)
@@ -183,10 +168,8 @@ class CustomBarChartView @JvmOverloads constructor(
             xPos += 2 * barWidth + groupSpacing
         }
 
-        // Baseline
         canvas.drawLine(leftPadding, chartHeight, width, chartHeight, axisPaint)
 
-        // Optional "No data" text (not previously drawn, but kept for completeness)
         if (!hasData) {
             canvas.drawText("No data", width / 2f, height / 2f, noDataPaint)
         }
@@ -204,15 +187,13 @@ class CustomBarChartView @JvmOverloads constructor(
 
             for (i in 0 until 12) {
                 val barStart = xPos
-                val barEnd = xPos + 2 * barWidth // income + expense
-
+                val barEnd = xPos + 2 * barWidth
                 if (event.x in barStart..barEnd) {
                     selectedMonthIndex = i
                     onMonthClickListener?.invoke(i)
                     invalidate()
                     return true
                 }
-
                 xPos += 2 * barWidth + groupSpacing
             }
         }

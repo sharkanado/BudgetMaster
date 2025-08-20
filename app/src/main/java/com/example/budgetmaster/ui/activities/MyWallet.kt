@@ -131,7 +131,6 @@ class MyWallet : AppCompatActivity() {
         val uid = auth.currentUser?.uid ?: return
 
         val recycler = findViewById<RecyclerView>(R.id.expensesRecyclerView)
-        val noDataText = findViewById<TextView>(R.id.noDataText)
         val balanceValue = findViewById<TextView>(R.id.balanceValue)
         val monthlyAvgValue = findViewById<TextView>(R.id.monthlyAvgValue)
 
@@ -180,7 +179,6 @@ class MyWallet : AppCompatActivity() {
             .addOnSuccessListener { result ->
                 if (result.isEmpty) {
                     recycler.visibility = View.GONE
-                    noDataText.visibility = View.VISIBLE
                     return@addOnSuccessListener
                 }
 
@@ -243,7 +241,6 @@ class MyWallet : AppCompatActivity() {
 
                 expensesAdapter.updateItems(listItems)
                 recycler.visibility = View.VISIBLE
-                noDataText.visibility = View.GONE
             }
     }
 
