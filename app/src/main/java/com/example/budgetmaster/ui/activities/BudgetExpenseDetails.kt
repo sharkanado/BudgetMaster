@@ -304,7 +304,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
         updateTopIcons()
     }
 
-
     private fun loadBudgetMembers() {
         db.collection("budgets").document(budgetId).get()
             .addOnSuccessListener { doc ->
@@ -606,7 +605,8 @@ class BudgetExpenseDetails : AppCompatActivity() {
                 )
             }
 
-            tx.set(expenseRef, updates, SetOptions.merge())
+            tx.update(expenseRef, updates)
+
             tx.set(splitsRef, mapOf("payer" to payer, "shares" to normalizedPaidShares))
 
             null
@@ -673,7 +673,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
             Toast.makeText(this, "Failed to delete: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
-
 
     private fun showDatePicker() {
         val cal = Calendar.getInstance()

@@ -178,23 +178,30 @@
     </LinearLayout>
 
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/settlementRecycler"
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:paddingHorizontal="8dp"
-        android:clipToPadding="false"
-        android:paddingTop="4dp"
-        android:paddingBottom="16dp" />
+        android:paddingHorizontal="8dp">
 
-    <TextView
-        android:id="@+id/emptyState"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/no_balances_to_settle"
-        android:padding="16dp"
-        android:gravity="center"
-        android:visibility="gone" />
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/settlementRecycler"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingTop="4dp"
+            android:paddingBottom="16dp" />
+
+        <TextView
+            android:id="@+id/emptyState"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:text="@string/no_balances_to_settle"
+            android:gravity="center"
+            android:visibility="gone"
+            android:textColor="@color/white"
+            android:textSize="16sp"
+            android:fontFamily="@font/manrope_bold" />
+    </FrameLayout>
 
 </LinearLayout>

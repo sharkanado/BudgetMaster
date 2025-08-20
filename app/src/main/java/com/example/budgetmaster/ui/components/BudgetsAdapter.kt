@@ -132,15 +132,11 @@ class BudgetsAdapter(
             }
 
             val currency = budget.preferredCurrency.ifBlank { "PLN" }
-            balanceText.text = "-${df2.format(abs(total))} $currency"
+            val amount = abs(total)
 
-            val colorRes = when {
-                total > 0.0 -> R.color.red_error
-                total == 0.0 -> R.color.grey_light
-                else -> R.color.green_success
-            }
-            balanceText.setTextColor(ContextCompat.getColor(ctx, colorRes))
+            balanceText.text = "${df2.format(amount)} $currency"
         }
+
 
         fun bindStatus(budget: BudgetItem, status: Status?) {
             val ctx = itemView.context

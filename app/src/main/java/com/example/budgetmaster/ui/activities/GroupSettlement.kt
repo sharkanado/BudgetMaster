@@ -159,7 +159,6 @@ class GroupSettlement : AppCompatActivity() {
             }
     }
 
-    /** Shown when there are no expenses at all or a hard failure occurred. */
     private fun showNoData() {
         adapter.submit(emptyList())
         emptyState.visibility = View.VISIBLE
@@ -171,11 +170,6 @@ class GroupSettlement : AppCompatActivity() {
         allGroupExpenses.text = "0.00"
     }
 
-    private fun getStringOrFallback(resId: Int, fallback: String): String = try {
-        getString(resId)
-    } catch (_: Exception) {
-        fallback
-    }
 
     private fun fetchUsersByIds(
         uids: List<String>,
