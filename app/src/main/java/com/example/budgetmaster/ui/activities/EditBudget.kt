@@ -6,6 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -31,6 +32,7 @@ class EditBudget : AppCompatActivity() {
     private lateinit var membersContainer: LinearLayout
     private lateinit var addMemberBtn: MaterialButton
     private lateinit var saveButton: MaterialButton
+    private lateinit var backButton: ImageButton
 
     private val currentMembers = mutableListOf<BudgetMemberItem>()
 
@@ -45,24 +47,25 @@ class EditBudget : AppCompatActivity() {
             insets
         }
 
-        // Get passed budget ID
         budgetId = intent.getStringExtra("budgetId") ?: run {
             Toast.makeText(this, "No budget ID", Toast.LENGTH_SHORT).show()
             finish()
             return
         }
 
-        // Initialize views
+
         budgetNameEdit = findViewById(R.id.budgetNameEdit)
         membersRecycler = findViewById(R.id.membersRecycler)
         membersContainer = findViewById(R.id.membersContainer)
         addMemberBtn = findViewById(R.id.addMemberBtn)
         saveButton = findViewById(R.id.saveButton)
+        backButton = findViewById(R.id.backButton)
 
         membersRecycler.layoutManager = LinearLayoutManager(this)
 
         addMemberBtn.setOnClickListener { addNewMemberField() }
         saveButton.setOnClickListener { updateBudget() }
+        backButton.setOnClickListener { finish() }
 
         loadBudgetData()
     }
