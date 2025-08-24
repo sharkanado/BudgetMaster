@@ -17,8 +17,11 @@ import com.example.budgetmaster.R
 import com.example.budgetmaster.ui.components.CustomPieChartView
 import com.example.budgetmaster.ui.components.ExpensesAdapter
 import com.example.budgetmaster.utils.Categories
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -34,9 +37,10 @@ class ExpenseAnalysis : AppCompatActivity() {
     private lateinit var categorySpinner: AutoCompleteTextView
     private lateinit var pieChart: CustomPieChartView
     private lateinit var totalSpentText: TextView
+    private lateinit var averageSpentText: TextView
     private lateinit var recyclerView: RecyclerView
-    private lateinit var noDataText: TextView
     private lateinit var loadingProgressBar: View
+    private lateinit var fabNewExpense: FloatingActionButton
 
     private lateinit var expensesAdapter: ExpensesAdapter
 
@@ -54,6 +58,8 @@ class ExpenseAnalysis : AppCompatActivity() {
         "July", "August", "September", "October", "November", "December"
     )
 
+    private val df2 by lazy { DecimalFormat("0.00", DecimalFormatSymbols(Locale.US)) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -68,20 +74,18 @@ class ExpenseAnalysis : AppCompatActivity() {
         intent.getIntExtra("selectedYear", -1).let {
             if (it != -1) selectedYear = it
         }
-        intent.getStringExtra("selectedMonth")?.let {
-            selectedMonth = it
-        }
+        intent.getStringExtra("selectedMonth")?.let { selectedMonth = it }
 
-        // Initialize views
         typeSpinner = findViewById(R.id.typeSpinner)
         yearSpinner = findViewById(R.id.yearSpinner)
         monthSpinner = findViewById(R.id.monthSpinner)
         categorySpinner = findViewById(R.id.categorySpinner)
         pieChart = findViewById(R.id.pieChart)
         totalSpentText = findViewById(R.id.totalSpentText)
+        averageSpentText = findViewById(R.id.averageSpentText)
         recyclerView = findViewById(R.id.expensesRecyclerView)
-        noDataText = findViewById(R.id.noDataText)
         loadingProgressBar = findViewById(R.id.loadingProgressBar)
+        fabNewExpense = findViewById(R.id.addExpenseFab)
 
         setupTypeSpinner()
         setupYearSpinner()
@@ -99,17 +103,17 @@ class ExpenseAnalysis : AppCompatActivity() {
         }
         recyclerView.adapter = expensesAdapter
 
+        fabNewExpense.setOnClickListener {
+            startActivity(Intent(this, AddExpense::class.java))
+        }
+
         pieChart.setOnSliceClickListener(object : CustomPieChartView.OnSliceClickListener {
             override fun onSliceClick(label: String) {
-                if (selectedCategory == label) {
-                    selectedCategory = null
-                    categorySpinner.setText("All", false)
-                } else {
-                    selectedCategory = label
-                    categorySpinner.setText(label, false)
-                }
+                selectedCategory = if (selectedCategory == label) null else label
+                categorySpinner.setText(selectedCategory ?: "All", false)
                 pieChart.setData(cachedPieData, selectedCategory)
                 updateRecyclerView(selectedCategory)
+                computeAverageMonthlySum() // re-calc average for new category
             }
         })
 
@@ -126,39 +130,35 @@ class ExpenseAnalysis : AppCompatActivity() {
         val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, types)
         typeSpinner.setAdapter(adapter)
         typeSpinner.setText(selectedType, false)
-
         typeSpinner.setOnItemClickListener { _, _, position, _ ->
             selectedType = types[position]
             loadMonthData()
+            computeAverageMonthlySum()
         }
     }
 
     private fun setupYearSpinner() {
         val currentYear = LocalDate.now().year
         val years = (currentYear - 5..currentYear + 5).map { it.toString() }
-
         val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, years)
         yearSpinner.setAdapter(adapter)
         yearSpinner.setText(selectedYear.toString(), false)
-
         yearSpinner.setOnItemClickListener { _, _, position, _ ->
             selectedYear = years[position].toInt()
             loadMonthData()
+            computeAverageMonthlySum()
         }
     }
 
     private fun setupMonthSpinner() {
         val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, months)
         monthSpinner.setAdapter(adapter)
-
-        val currentMonthIndex = months.indexOf(selectedMonth)
-        if (currentMonthIndex != -1) {
-            monthSpinner.setText(months[currentMonthIndex], false)
+        months.indexOf(selectedMonth).takeIf { it != -1 }?.let {
+            monthSpinner.setText(months[it], false)
         }
-
         monthSpinner.setOnItemClickListener { _, _, position, _ ->
             selectedMonth = months[position]
-            loadMonthData()
+            loadMonthData() // average is yearly; no need to recompute here
         }
     }
 
@@ -167,21 +167,19 @@ class ExpenseAnalysis : AppCompatActivity() {
         val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, categories)
         categorySpinner.setAdapter(adapter)
         categorySpinner.setText("All", false)
-
         categorySpinner.setOnItemClickListener { _, _, position, _ ->
             selectedCategory = if (position == 0) null else categories[position]
             pieChart.setData(cachedPieData, selectedCategory)
             updateRecyclerView(selectedCategory)
+            computeAverageMonthlySum()
         }
     }
 
     private fun loadMonthData() {
         val uid = auth.currentUser?.uid ?: return
 
-        // Show spinner
         loadingProgressBar.visibility = View.VISIBLE
         recyclerView.visibility = View.GONE
-        noDataText.visibility = View.GONE
 
         db.collection("users")
             .document(uid)
@@ -194,20 +192,20 @@ class ExpenseAnalysis : AppCompatActivity() {
 
                 if (result.isEmpty) {
                     recyclerView.visibility = View.GONE
-                    noDataText.visibility = View.VISIBLE
                     pieChart.setData(emptyList(), null)
-                    totalSpentText.text = "0.00"
+                    totalSpentText.text = df2.format(0.0)
+                    cachedEntries = emptyList()
+                    cachedPieData = emptyList()
+                    computeAverageMonthlySum()
                     return@addOnSuccessListener
                 }
 
                 val allCategoryTotals = result.documents
-                    .filter {
-                        it.getString("type")?.equals(selectedType, ignoreCase = true) == true
-                    }
+                    .filter { it.getString("type")?.equals(selectedType, true) == true }
                     .groupBy { it.getString("category") ?: "Other" }
                     .map { (cat, items) ->
                         CustomPieChartView.PieEntry(
-                            items.sumOf { it.getDouble("amount") ?: 0.0 },
+                            items.sumOf { readAmount(it.get("amount")) },
                             cat
                         )
                     }
@@ -218,36 +216,75 @@ class ExpenseAnalysis : AppCompatActivity() {
 
                 cachedEntries = result.documents.mapNotNull { doc ->
                     val category = doc.getString("category") ?: "Other"
-                    val amount = doc.getDouble("amount") ?: 0.0
+                    val amount = readAmount(doc.get("amount"))
                     val type = doc.getString("type") ?: "expense"
                     val description = doc.getString("description") ?: ""
                     val dateStr = doc.getString("date") ?: ""
 
-                    if (!type.equals(selectedType, ignoreCase = true)) return@mapNotNull null
+                    if (!type.equals(selectedType, true)) return@mapNotNull null
 
-                    val signedAmount = if (type == "expense") -amount else amount
+                    val signedAmount = if (type.equals("expense", true)) -amount else amount
 
                     val item = ExpenseListItem.Item(
                         Categories.getIcon(category),
                         description,
                         budgetId = "null", expenseIdInBudget = "null",
                         category,
-                        "%.2f".format(signedAmount),
+                        df2.format(signedAmount),
                         dateStr,
                         type,
                         doc.id
                     )
-
                     Pair(item, signedAmount)
                 }
 
                 updateRecyclerView(selectedCategory)
+                computeAverageMonthlySum()
             }
             .addOnFailureListener {
                 loadingProgressBar.visibility = View.GONE
                 recyclerView.visibility = View.GONE
-                noDataText.visibility = View.VISIBLE
+                totalSpentText.text = df2.format(0.0)
+                averageSpentText.text = df2.format(0.0)
             }
+    }
+
+    private fun computeAverageMonthlySum() {
+        val uid = auth.currentUser?.uid ?: return
+        val yearRef = db.collection("users")
+            .document(uid)
+            .collection("expenses")
+            .document(selectedYear.toString())
+
+        var completed = 0
+        var sumAcrossMonths = 0.0
+        var monthsWithData = 0
+
+        months.forEach { monthName ->
+            yearRef.collection(monthName)
+                .get()
+                .addOnSuccessListener { docs ->
+                    val monthTotal = docs.documents
+                        .asSequence()
+                        .filter { it.getString("type")?.equals(selectedType, true) == true }
+                        .filter {
+                            selectedCategory == null || (it.getString("category")
+                                ?: "Other") == selectedCategory
+                        }
+                        .sumOf { readAmount(it.get("amount")) }
+                    if (monthTotal != 0.0) {
+                        sumAcrossMonths += monthTotal
+                        monthsWithData++
+                    }
+                }
+                .addOnCompleteListener {
+                    completed++
+                    if (completed == 12) {
+                        val avg = if (monthsWithData == 0) 0.0 else sumAcrossMonths / monthsWithData
+                        averageSpentText.text = df2.format(avg)
+                    }
+                }
+        }
     }
 
     private fun updateRecyclerView(category: String?) {
@@ -255,7 +292,7 @@ class ExpenseAnalysis : AppCompatActivity() {
             if (category == null) cachedEntries else cachedEntries.filter { it.first.category == category }
 
         val total = filteredPairs.sumOf { it.second }
-        totalSpentText.text = "${"%.2f".format(total)}"
+        totalSpentText.text = df2.format(total)
 
         val grouped = filteredPairs.map { it.first }.groupBy { it.date }
             .toSortedMap(compareByDescending { LocalDate.parse(it) })
@@ -268,7 +305,7 @@ class ExpenseAnalysis : AppCompatActivity() {
             listItems.add(
                 ExpenseListItem.Header(
                     LocalDate.parse(date).format(formatted),
-                    "%.2f".format(totalForDay),
+                    df2.format(totalForDay),
                     totalForDay >= 0
                 )
             )
@@ -277,6 +314,11 @@ class ExpenseAnalysis : AppCompatActivity() {
 
         expensesAdapter.updateItems(listItems)
         recyclerView.visibility = if (listItems.isEmpty()) View.GONE else View.VISIBLE
-        noDataText.visibility = if (listItems.isEmpty()) View.VISIBLE else View.GONE
+    }
+
+    private fun readAmount(raw: Any?): Double = when (raw) {
+        is Number -> raw.toDouble()
+        is String -> raw.replace(",", ".").toDoubleOrNull() ?: 0.0
+        else -> 0.0
     }
 }

@@ -18,8 +18,11 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
 import com.example.budgetmaster.ui.components.CustomBarChartView
 import com.example.budgetmaster.ui.components.ExpensesAdapter
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -36,6 +39,8 @@ class MyWallet : AppCompatActivity() {
 
     private lateinit var barChart: CustomBarChartView
     private lateinit var monthDropdown: AutoCompleteTextView
+
+    private val df2 by lazy { DecimalFormat("0.00", DecimalFormatSymbols(Locale.US)) }
 
     private val months = listOf(
         "January", "February", "March", "April", "May", "June",
@@ -59,7 +64,6 @@ class MyWallet : AppCompatActivity() {
         barChart = findViewById(R.id.barChart)
         monthDropdown = findViewById(R.id.monthSpinner)
 
-        // Month dropdown
         val monthAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, months)
         monthDropdown.setAdapter(monthAdapter)
 
@@ -74,12 +78,10 @@ class MyWallet : AppCompatActivity() {
             loadExpenses()
         }
 
-        // Recycler with click → details
         expensesAdapter = ExpensesAdapter(emptyList()) { clickedItem ->
             val intent = Intent(this, ExpenseDetailsWallet::class.java)
             intent.putExtra("selectedYear", selectedYear)
             intent.putExtra("selectedMonth", selectedMonth)
-            // Use the key "expense_item" (and also include a fallback-friendly id)
             intent.putExtra("expenseItem", clickedItem)
             intent.putExtra("expenseId", clickedItem.id)
             startActivity(intent)
@@ -129,58 +131,68 @@ class MyWallet : AppCompatActivity() {
         val uid = auth.currentUser?.uid ?: return
 
         val recycler = findViewById<RecyclerView>(R.id.expensesRecyclerView)
-        val noDataText = findViewById<TextView>(R.id.noDataText)
+        val balanceValue = findViewById<TextView>(R.id.balanceValue)
+        val monthlyAvgValue = findViewById<TextView>(R.id.monthlyAvgValue)
 
         val monthlyIncome = MutableList(12) { 0f }
         val monthlyExpenses = MutableList(12) { 0f }
+        var monthsCompleted = 0
 
         val yearRef = db.collection("users")
             .document(uid)
             .collection("expenses")
             .document(selectedYear.toString())
 
-        // Chart data (safe amount parsing)
         months.forEachIndexed { index, monthName ->
             yearRef.collection(monthName)
                 .get()
                 .addOnSuccessListener { docs ->
                     docs.forEach { doc ->
                         val amount = readAmount(doc.get("amount")).toFloat()
-                        val type = doc.getString("type") ?: "expense"
+                        val type = (doc.getString("type") ?: "expense").lowercase(Locale.ENGLISH)
                         if (type == "expense") monthlyExpenses[index] += amount
                         else monthlyIncome[index] += amount
                     }
-                    barChart.setData(monthlyIncome, monthlyExpenses)
-                    val currentIndex = months.indexOf(selectedMonth)
-                    if (currentIndex != -1) barChart.highlightMonth(currentIndex)
+                }
+                .addOnCompleteListener {
+                    monthsCompleted++
+                    if (monthsCompleted == 12) {
+                        barChart.setData(monthlyIncome, monthlyExpenses)
+                        val currentIndex = months.indexOf(selectedMonth)
+                        if (currentIndex != -1) barChart.highlightMonth(currentIndex)
+
+                        val incomeSum = monthlyIncome.sum().toDouble()
+                        val expenseSum = monthlyExpenses.sum().toDouble()
+                        val net = incomeSum - expenseSum
+                        val monthsWithExpenses = monthlyExpenses.count { it != 0f }
+                        val avgMonthlyExpenses =
+                            if (monthsWithExpenses == 0) 0.0 else expenseSum / monthsWithExpenses
+
+                        balanceValue.text = df2.format(net)
+                        monthlyAvgValue.text = df2.format(avgMonthlyExpenses)
+                    }
                 }
         }
 
-        // Month list data (safe amount parsing)
         yearRef.collection(selectedMonth)
             .get()
             .addOnSuccessListener { result ->
                 if (result.isEmpty) {
                     recycler.visibility = View.GONE
-                    noDataText.visibility = View.VISIBLE
                     return@addOnSuccessListener
                 }
 
                 val rows = result.documents.mapNotNull { doc ->
                     val dateStr = doc.getString("date") ?: return@mapNotNull null
                     val parsedDate = LocalDate.parse(dateStr)
-
                     val name = doc.getString("description") ?: ""
                     val category = doc.getString("category") ?: ""
                     val type = doc.getString("type") ?: "expense"
-
                     val amountVal = readAmount(doc.get("amount"))
-                    val signedAmount = if (type == "expense") -amountVal else amountVal
-
-                    // Read IDs for group propagation
+                    val signedAmount = if (type.equals("expense", true)) -amountVal else amountVal
                     val budgetId = doc.getString("budgetId") ?: ""
                     val expenseIdInBudget = doc.getString("expenseIdInBudget") ?: ""
-
+                    val ts = (doc.get("timestamp") as? Timestamp)?.toDate()?.time ?: 0L
                     ExpenseDetailsWithId(
                         date = parsedDate,
                         name = name,
@@ -189,7 +201,8 @@ class MyWallet : AppCompatActivity() {
                         type = type,
                         id = doc.id,
                         budgetId = budgetId,
-                        expenseIdInBudget = expenseIdInBudget
+                        expenseIdInBudget = expenseIdInBudget,
+                        timestampMs = ts
                     )
                 }.groupBy { it.date }
                     .toSortedMap(compareByDescending { it })
@@ -198,8 +211,9 @@ class MyWallet : AppCompatActivity() {
                 val formatted = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
 
                 for ((date, entries) in rows) {
-                    val total = entries.sumOf { it.amount }
-                    val label = "%.2f".format(total)
+                    val sortedEntries = entries.sortedByDescending { it.timestampMs }
+                    val total = sortedEntries.sumOf { it.amount }
+                    val label = df2.format(total)
                     listItems.add(
                         ExpenseListItem.Header(
                             date = date.format(formatted),
@@ -207,10 +221,8 @@ class MyWallet : AppCompatActivity() {
                             isPositive = total >= 0
                         )
                     )
-
-                    entries.forEach { row ->
-                        val displayAmount = "%.2f".format(row.amount)
-                        // IMPORTANT: use named args so budgetId/expenseIdInBudget land correctly
+                    sortedEntries.forEach { row ->
+                        val displayAmount = df2.format(row.amount)
                         listItems.add(
                             ExpenseListItem.Item(
                                 iconResId = R.drawable.ic_home_white_24dp,
@@ -229,7 +241,6 @@ class MyWallet : AppCompatActivity() {
 
                 expensesAdapter.updateItems(listItems)
                 recycler.visibility = View.VISIBLE
-                noDataText.visibility = View.GONE
             }
     }
 
@@ -241,10 +252,10 @@ class MyWallet : AppCompatActivity() {
         val type: String,
         val id: String,
         val budgetId: String,
-        val expenseIdInBudget: String
+        val expenseIdInBudget: String,
+        val timestampMs: Long
     )
 
-    /** Safely parse amount from Number | String | null */
     private fun readAmount(raw: Any?): Double = when (raw) {
         is Number -> raw.toDouble()
         is String -> raw.replace(",", ".").toDoubleOrNull() ?: 0.0

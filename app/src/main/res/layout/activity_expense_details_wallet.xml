@@ -8,7 +8,6 @@
     android:background="@color/grey"
     tools:context=".ui.activities.ExpenseDetailsWallet">
 
-
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/topBar"
         android:layout_width="match_parent"
@@ -46,8 +45,8 @@
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Edit"
-            android:src="@drawable/ic_edit"
+            android:contentDescription="Menu"
+            android:src="@drawable/ic_more_vert"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent" />
@@ -61,7 +60,6 @@
         app:layout_constraintTop_toBottomOf="@id/topBar"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
-
 
     <LinearLayout
         android:id="@+id/infoList"
@@ -98,7 +96,6 @@
             android:visibility="gone"
             android:layout_marginBottom="16dp" />
 
-        <!-- Description -->
         <TextView
             android:text="Description"
             android:textColor="#AAAAAA"
@@ -145,7 +142,6 @@
             android:visibility="gone"
             android:layout_marginBottom="16dp" />
 
-        <!-- Type -->
         <TextView
             android:text="Type"
             android:textColor="#AAAAAA"
@@ -168,8 +164,6 @@
             android:visibility="gone"
             android:layout_marginBottom="16dp" />
 
-
-        <!-- Date -->
         <TextView
             android:text="Date"
             android:textColor="#AAAAAA"
@@ -203,43 +197,7 @@
             android:paddingStart="4dp"
             android:backgroundTint="@color/orange" />
 
-
     </LinearLayout>
-
-    <View
-        android:id="@+id/dividerBottom"
-        android:layout_width="0dp"
-        android:layout_height="1dp"
-        android:background="@color/grey_dark"
-        app:layout_constraintBottom_toTopOf="@id/deleteButton"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginBottom="16dp" />
-
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/deleteButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Delete"
-        android:textColor="@color/red_error"
-        android:fontFamily="@font/manrope_light"
-        android:textStyle="bold"
-        android:textAllCaps="false"
-        android:backgroundTint="@color/grey_light"
-        app:cornerRadius="12dp"
-        app:rippleColor="@color/grey_light"
-        android:stateListAnimator="@null"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:paddingVertical="8dp"
-        app:icon="@drawable/ic_remove"
-        app:iconTint="@color/red_error"
-        app:iconPadding="8dp"
-        app:iconGravity="textStart"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="24dp" />
 
 
 </androidx.constraintlayout.widget.ConstraintLayout>

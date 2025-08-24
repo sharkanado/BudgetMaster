@@ -24,6 +24,7 @@ import com.example.budgetmaster.ui.components.BudgetMemberItem
 import com.example.budgetmaster.ui.components.BudgetMembersAdapter
 import com.example.budgetmaster.ui.components.BudgetSplitMembersAdapter
 import com.google.firebase.Timestamp
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
@@ -83,6 +84,9 @@ class BudgetExpenseDetails : AppCompatActivity() {
 
     private var editSnapshot: EditSnapshot? = null
 
+    // NEW: track if the current user is the creator (owner) of the expense
+    private var isOwner: Boolean = false
+
     private data class EditSnapshot(
         val amount: String,
         val description: String,
@@ -140,6 +144,12 @@ class BudgetExpenseDetails : AppCompatActivity() {
 
         bindViews()
 
+        // Determine ownership right after we have expenseItem
+        val currentUid = FirebaseAuth.getInstance().currentUser?.uid
+        isOwner = (currentUid != null && currentUid == expenseItem.createdBy)
+        // Show/hide the edit button based on ownership
+        editBtn.visibility = if (isOwner) View.VISIBLE else View.GONE
+
         participantsRecycler.layoutManager = LinearLayoutManager(this)
         readOnlyAdapter = BudgetMembersAdapter(participantsReadOnly)
         splitAdapter = BudgetSplitMembersAdapter(
@@ -172,7 +182,14 @@ class BudgetExpenseDetails : AppCompatActivity() {
         loadBudgetMembers()
         loadPaidSharesOnce()
 
-        editBtn.setOnClickListener { if (!isEditMode) showOverflowMenu() else saveChanges() }
+        editBtn.setOnClickListener {
+            if (!isOwner) {
+                Toast.makeText(this, "You can edit only your own expense.", Toast.LENGTH_SHORT)
+                    .show()
+                return@setOnClickListener
+            }
+            if (!isEditMode) showOverflowMenu() else saveChanges()
+        }
         backButton.setOnClickListener { if (isEditMode) cancelEdit() else finish() }
         dateEdit.setOnClickListener { showDatePicker() }
 
@@ -255,6 +272,12 @@ class BudgetExpenseDetails : AppCompatActivity() {
     }
 
     private fun updateTopIcons() {
+        if (!isOwner) {
+            // Ensure the edit button stays hidden for non-owners
+            editBtn.visibility = View.GONE
+            backButton.setImageResource(R.drawable.ic_chevron_left)
+            return
+        }
         if (isEditMode) {
             editBtn.setImageResource(R.drawable.ic_save)
             backButton.setImageResource(R.drawable.ic_remove)
@@ -265,6 +288,10 @@ class BudgetExpenseDetails : AppCompatActivity() {
     }
 
     private fun showOverflowMenu() {
+        if (!isOwner) {
+            Toast.makeText(this, "You can edit only your own expense.", Toast.LENGTH_SHORT).show()
+            return
+        }
         PopupMenu(this, editBtn).apply {
             menu.add(0, MENU_EDIT, 0, getString(R.string.edit))
             menu.add(0, MENU_DELETE, 1, getString(R.string.delete))
@@ -303,7 +330,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
 
         updateTopIcons()
     }
-
 
     private fun loadBudgetMembers() {
         db.collection("budgets").document(budgetId).get()
@@ -455,6 +481,10 @@ class BudgetExpenseDetails : AppCompatActivity() {
     }
 
     private fun toggleEdit(editMode: Boolean) {
+        if (editMode && !isOwner) {
+            Toast.makeText(this, "You can edit only your own expense.", Toast.LENGTH_SHORT).show()
+            return
+        }
         if (editMode) {
             editSnapshot = EditSnapshot(
                 amount = amountEdit.str(),
@@ -495,6 +525,11 @@ class BudgetExpenseDetails : AppCompatActivity() {
     }
 
     private fun saveChanges() {
+        if (!isOwner) {
+            Toast.makeText(this, "You can edit only your own expense.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         val newAmount = amountEdit.str().toAmount()
         if (newAmount == null || newAmount <= 0.0) {
             Toast.makeText(this, getString(R.string.error_negative_not_allowed), Toast.LENGTH_SHORT)
@@ -606,7 +641,8 @@ class BudgetExpenseDetails : AppCompatActivity() {
                 )
             }
 
-            tx.set(expenseRef, updates, SetOptions.merge())
+            tx.update(expenseRef, updates)
+
             tx.set(splitsRef, mapOf("payer" to payer, "shares" to normalizedPaidShares))
 
             null
@@ -624,6 +660,11 @@ class BudgetExpenseDetails : AppCompatActivity() {
     }
 
     private fun deleteExpense() {
+        if (!isOwner) {
+            Toast.makeText(this, "You can delete only your own expense.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         val budgetRef = db.collection("budgets").document(budgetId)
         val expenseRef = budgetRef.collection("expenses").document(expenseItem.id)
         val splitsRef = budgetRef.collection("expenseSplits").document(expenseItem.id)
@@ -673,7 +714,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
             Toast.makeText(this, "Failed to delete: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
-
 
     private fun showDatePicker() {
         val cal = Calendar.getInstance()

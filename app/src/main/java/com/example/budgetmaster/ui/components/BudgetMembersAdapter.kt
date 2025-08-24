@@ -4,8 +4,11 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
 import java.util.Locale
 
 class BudgetMembersAdapter(
@@ -13,13 +16,20 @@ class BudgetMembersAdapter(
     private var spentByUser: Map<String, Double> = emptyMap() // uid -> total spent
 ) : RecyclerView.Adapter<BudgetMembersAdapter.MemberViewHolder>() {
 
+    private val df = DecimalFormat("0.00").apply {
+        decimalFormatSymbols = DecimalFormatSymbols(Locale.ENGLISH).apply {
+            decimalSeparator = '.'
+            groupingSeparator = ' '
+        }
+        isGroupingUsed = false
+    }
+
     inner class MemberViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val nameText: TextView = itemView.findViewById(R.id.memberName)
         val emailText: TextView = itemView.findViewById(R.id.memberEmail)
         val balanceText: TextView = itemView.findViewById(R.id.memberBalance)
     }
 
-    /** Update totals (uid -> spent) after you load expenses, then refresh UI */
     fun setSpentByUser(map: Map<String, Double>) {
         spentByUser = map
         notifyDataSetChanged()
@@ -33,17 +43,21 @@ class BudgetMembersAdapter(
 
     override fun onBindViewHolder(holder: MemberViewHolder, position: Int) {
         val member = members[position]
-        val spent = spentByUser[member.uid] ?: 0.0
+
+        val value = spentByUser[member.uid] ?: member.balance
 
         holder.nameText.text = member.name
         holder.emailText.text = member.email
-        holder.balanceText.text = formatAmount(spent)
+        holder.balanceText.text = df.format(value)
 
-
+        val ctx = holder.itemView.context
+        val colorRes = when {
+            value > 0.0 -> R.color.orange
+            value < 0.0 -> R.color.red_error
+            else -> R.color.grey_light
+        }
+        holder.balanceText.setTextColor(ContextCompat.getColor(ctx, colorRes))
     }
 
     override fun getItemCount(): Int = members.size
-
-    private fun formatAmount(value: Double): String =
-        String.format(Locale.ENGLISH, "%.2f", value)
 }

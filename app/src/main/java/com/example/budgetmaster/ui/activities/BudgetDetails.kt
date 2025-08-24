@@ -1,7 +1,6 @@
 package com.example.budgetmaster.ui.activities
 
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import android.widget.ImageButton
 import android.widget.TextView
@@ -14,7 +13,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
 import com.example.budgetmaster.ui.budgets.BudgetExpenseItem
-import com.example.budgetmaster.ui.budgets.BudgetItem
 import com.example.budgetmaster.ui.components.BudgetExpensesAdapter
 import com.example.budgetmaster.ui.components.BudgetMemberItem
 import com.example.budgetmaster.ui.components.BudgetMembersAdapter
@@ -26,7 +24,8 @@ import java.util.Locale
 class BudgetDetails : AppCompatActivity() {
 
     private val db = FirebaseFirestore.getInstance()
-    private lateinit var budget: BudgetItem
+    private lateinit var budgetId: String
+    private var budgetName: String = ""
 
     private val membersList = mutableListOf<BudgetMemberItem>()
     private lateinit var membersAdapter: BudgetMembersAdapter
@@ -34,7 +33,6 @@ class BudgetDetails : AppCompatActivity() {
     private val expensesList = mutableListOf<BudgetExpenseItem>()
     private lateinit var expensesAdapter: BudgetExpensesAdapter
 
-    // title ("August 2025") -> sorted items within that month (newest→oldest)
     private val monthExpenseMap = mutableMapOf<String, List<BudgetExpenseItem>>()
     private val userNames = mutableMapOf<String, String>()
 
@@ -49,19 +47,14 @@ class BudgetDetails : AppCompatActivity() {
             insets
         }
 
-        budget = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            intent.getParcelableExtra("budget", BudgetItem::class.java)
-        } else {
-            @Suppress("DEPRECATION")
-            intent.getParcelableExtra("budget")
-        } ?: run {
+        budgetId = intent.getStringExtra("budgetId") ?: run {
             Toast.makeText(this, "No budget provided", Toast.LENGTH_SHORT).show()
             finish()
             return
         }
+        budgetName = intent.getStringExtra("budgetName") ?: ""
 
-        // Set budget name
-        findViewById<TextView>(R.id.budgetNameText).text = budget.name
+        findViewById<TextView>(R.id.budgetNameText).text = budgetName
 
         val membersRecycler = findViewById<RecyclerView>(R.id.membersRecycler)
         membersAdapter = BudgetMembersAdapter(membersList)
@@ -75,8 +68,8 @@ class BudgetDetails : AppCompatActivity() {
             onHeaderClick = { headerPosition -> toggleAccordion(headerPosition) },
             onExpenseClick = { expenseItem ->
                 val intent = Intent(this, BudgetExpenseDetails::class.java)
-                intent.putExtra("expenseItem", expenseItem) // Pass the whole object
-                intent.putExtra("budgetId", budget.id)
+                intent.putExtra("expenseItem", expenseItem)
+                intent.putExtra("budgetId", budgetId)
                 startActivity(intent)
             }
         )
@@ -85,20 +78,20 @@ class BudgetDetails : AppCompatActivity() {
 
         findViewById<MaterialButton>(R.id.newExpenseBtn).setOnClickListener {
             val intent = Intent(this, CreateGroupExpense::class.java)
-            intent.putExtra("budgetId", budget.id)
-            intent.putExtra("budgetName", budget.name)
+            intent.putExtra("budgetId", budgetId)
+            intent.putExtra("budgetName", budgetName)
             startActivity(intent)
         }
 
         findViewById<MaterialButton>(R.id.settleUpBtn).setOnClickListener {
             val intent = Intent(this, GroupSettlement::class.java)
-            intent.putExtra("budgetId", budget.id)
+            intent.putExtra("budgetId", budgetId)
             startActivity(intent)
         }
 
         findViewById<ImageButton>(R.id.settingsBtn).setOnClickListener {
             val intent = Intent(this, EditBudget::class.java)
-            intent.putExtra("budgetId", budget.id)
+            intent.putExtra("budgetId", budgetId)
             startActivity(intent)
         }
     }
@@ -109,8 +102,22 @@ class BudgetDetails : AppCompatActivity() {
     }
 
     private fun refreshData() {
-        loadMembers()
-        loadExpenses()
+        loadBudgetMetaThenData()
+    }
+
+    private fun loadBudgetMetaThenData() {
+        db.collection("budgets").document(budgetId).get()
+            .addOnSuccessListener { doc ->
+                budgetName = doc.getString("name") ?: budgetName
+                findViewById<TextView>(R.id.budgetNameText).text = budgetName
+                val members = (doc.get("members") as? List<String>).orEmpty()
+                loadMembers(members)
+                loadExpenses()
+            }
+            .addOnFailureListener { e ->
+                Toast.makeText(this, "Failed to load budget: ${e.message}", Toast.LENGTH_SHORT)
+                    .show()
+            }
     }
 
     private fun loadExpenses() {
@@ -118,30 +125,27 @@ class BudgetDetails : AppCompatActivity() {
         monthExpenseMap.clear()
         expensesAdapter.notifyDataSetChanged()
 
-        db.collection("budgets").document(budget.id)
+        db.collection("budgets").document(budgetId)
             .collection("expenses")
             .get()
             .addOnSuccessListener { snapshot ->
                 if (snapshot.isEmpty) {
-                    // No expenses -> also clear spentByUser in members list
                     membersAdapter.setSpentByUser(emptyMap())
                     expensesAdapter.notifyDataSetChanged()
                     return@addOnSuccessListener
                 }
 
-                // 1) Build raw rows
                 val allRows: List<BudgetExpenseItem> = snapshot.documents.map { doc ->
                     BudgetExpenseItem(
                         id = doc.id,
                         amount = readAmount(doc),
                         description = doc.getString("description") ?: "",
-                        date = doc.getString("date") ?: "", // expected "yyyy-MM-dd"
+                        date = doc.getString("date") ?: "",
                         createdBy = doc.getString("createdBy") ?: "",
                         paidFor = readStringList(doc.get("paidFor")),
                     )
                 }
 
-                // >>> FEED "spent by user" (uid -> total spent) INTO MEMBERS ADAPTER <<<
                 val spentByUser: Map<String, Double> = allRows
                     .filter { it.createdBy.isNotBlank() }
                     .groupBy { it.createdBy }
@@ -149,27 +153,21 @@ class BudgetDetails : AppCompatActivity() {
 
                 membersAdapter.setSpentByUser(spentByUser)
 
-                // 2) Group by month key "yyyy-MM"
-                val groupedByMonthKey = allRows.groupBy { it.date.take(7) } // safe on short strings
-
-                // 3) Sort months newest → oldest by key (string works for yyyy-MM)
+                val groupedByMonthKey = allRows.groupBy { it.date.take(7) }
                 val sortedMonthKeys = groupedByMonthKey.keys
                     .filter { it.length == 7 }
                     .sortedDescending()
 
-                // 4) Rebuild UI list with headers and with rows inside each month sorted by date desc
                 expensesList.clear()
                 monthExpenseMap.clear()
 
                 for (monthKey in sortedMonthKeys) {
-                    val monthTitle = monthKeyToTitle(monthKey) // e.g., "August 2025"
-
+                    val monthTitle = monthKeyToTitle(monthKey)
                     val monthItems = groupedByMonthKey[monthKey].orEmpty()
-                        .sortedByDescending { it.date } // "yyyy-MM-dd" sorts correctly as string
+                        .sortedByDescending { it.date }
 
                     monthExpenseMap[monthTitle] = monthItems
 
-                    // Add header
                     val headerItem = BudgetExpenseItem(
                         id = "header_$monthTitle",
                         amount = 0.0,
@@ -178,8 +176,6 @@ class BudgetDetails : AppCompatActivity() {
                         isExpanded = true
                     )
                     expensesList.add(headerItem)
-
-                    // Add children (expanded by default)
                     expensesList.addAll(monthItems)
                 }
 
@@ -194,9 +190,7 @@ class BudgetDetails : AppCompatActivity() {
     private fun toggleAccordion(headerPosition: Int) {
         val header = expensesList[headerPosition]
         if (!header.isHeader) return
-
         header.isExpanded = !header.isExpanded
-
         if (!header.isExpanded) {
             val toRemove = mutableListOf<BudgetExpenseItem>()
             var i = headerPosition + 1
@@ -206,24 +200,21 @@ class BudgetDetails : AppCompatActivity() {
             }
             expensesList.removeAll(toRemove)
         } else {
-            val monthKey = header.description // this is the title like "August 2025"
+            val monthKey = header.description
             val children = monthExpenseMap[monthKey] ?: return
-            // children are already sorted by date desc
             expensesList.addAll(headerPosition + 1, children)
         }
-
         expensesAdapter.notifyDataSetChanged()
     }
 
-    private fun loadMembers() {
+    private fun loadMembers(memberIds: List<String>) {
         membersList.clear()
         userNames.clear()
         membersAdapter.notifyDataSetChanged()
-
-        if (budget.members.isEmpty()) return
+        if (memberIds.isEmpty()) return
 
         var processed = 0
-        for (uid in budget.members) {
+        for (uid in memberIds) {
             db.collection("users").document(uid).get()
                 .addOnSuccessListener { doc ->
                     if (doc.exists()) {
@@ -240,22 +231,19 @@ class BudgetDetails : AppCompatActivity() {
                 }
                 .addOnCompleteListener {
                     processed++
-                    if (processed == budget.members.size) {
+                    if (processed == memberIds.size) {
                         membersAdapter.notifyDataSetChanged()
-                        expensesAdapter.notifyDataSetChanged() // refresh names in expense rows
+                        expensesAdapter.notifyDataSetChanged()
                     }
                 }
         }
     }
 
-    // ===== Helpers =====
-
     private fun monthKeyToTitle(key: String): String {
-        // key: "yyyy-MM"
         return try {
             val (yearStr, monthStr) = key.split("-")
             val year = yearStr.toInt()
-            val month = monthStr.toInt() // 1..12
+            val month = monthStr.toInt()
             val monthName = java.text.DateFormatSymbols(Locale.ENGLISH).months[month - 1]
             "$monthName $year"
         } catch (_: Exception) {

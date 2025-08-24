@@ -18,6 +18,7 @@ import com.google.firebase.firestore.AggregateField
 import com.google.firebase.firestore.AggregateSource
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -28,6 +29,7 @@ class BudgetsFragment : Fragment() {
     private val binding get() = _binding!!
 
     private lateinit var adapter: BudgetsAdapter
+    private var loadJob: Job? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -47,7 +49,8 @@ class BudgetsFragment : Fragment() {
 
         adapter = BudgetsAdapter(emptyList()) { clickedBudget ->
             val intent = Intent(requireContext(), BudgetDetails::class.java)
-            intent.putExtra("budget", clickedBudget)
+            intent.putExtra("budgetId", clickedBudget.id)
+            intent.putExtra("budgetName", clickedBudget.name)
             startActivity(intent)
         }
 
@@ -60,21 +63,39 @@ class BudgetsFragment : Fragment() {
         return root
     }
 
+    override fun onResume() {
+        super.onResume()
+        loadBudgets()
+    }
+
     override fun onDestroyView() {
         super.onDestroyView()
+        loadJob?.cancel()
         _binding = null
     }
 
     private fun loadBudgets() {
+        loadJob?.cancel()
+
         val db = FirebaseFirestore.getInstance()
-        val currentUser = FirebaseAuth.getInstance().currentUser ?: return
+        val currentUser = FirebaseAuth.getInstance().currentUser ?: run {
+            if (isAdded && _binding != null) {
+                adapter.submitList(emptyList())
+                binding.loadingProgressBar.visibility = View.GONE
+            }
+            return
+        }
+
+        if (!isAdded || _binding == null) return
 
         binding.loadingProgressBar.visibility = View.VISIBLE
 
-        viewLifecycleOwner.lifecycleScope.launch {
+        loadJob = viewLifecycleOwner.lifecycleScope.launch {
             try {
                 val userDoc = db.collection("users").document(currentUser.uid).get().await()
                 val accessed = (userDoc.get("budgetsAccessed") as? List<String>).orEmpty()
+                if (!isAdded || _binding == null) return@launch
+
                 if (accessed.isEmpty()) {
                     adapter.submitList(emptyList())
                     binding.loadingProgressBar.visibility = View.GONE
@@ -101,6 +122,7 @@ class BudgetsFragment : Fragment() {
                 }
 
                 val list = byId.values.toList()
+                if (!isAdded || _binding == null) return@launch
                 adapter.submitList(list)
                 binding.loadingProgressBar.visibility = View.GONE
 
@@ -108,7 +130,9 @@ class BudgetsFragment : Fragment() {
                     launch(Dispatchers.IO) {
                         val total = sumBudgetExpenses(db, budget.id)
                         withContext(Dispatchers.Main) {
-                            adapter.updateBudgetTotal(budget.id, total)
+                            if (isAdded && _binding != null) {
+                                adapter.updateBudgetTotal(budget.id, total)
+                            }
                         }
                     }
                 }
@@ -117,13 +141,17 @@ class BudgetsFragment : Fragment() {
                     launch(Dispatchers.IO) {
                         val (recv, debt) = fetchUserTotals(db, budget.id, currentUser.uid)
                         withContext(Dispatchers.Main) {
-                            adapter.updateBudgetStatus(budget.id, recv, debt)
+                            if (isAdded && _binding != null) {
+                                adapter.updateBudgetStatus(budget.id, recv, debt)
+                            }
                         }
                     }
                 }
             } catch (_: Exception) {
-                adapter.submitList(emptyList())
-                binding.loadingProgressBar.visibility = View.GONE
+                if (isAdded && _binding != null) {
+                    adapter.submitList(emptyList())
+                    binding.loadingProgressBar.visibility = View.GONE
+                }
             }
         }
     }
