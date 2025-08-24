@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.budgetmaster.databinding.FragmentSettingsBinding
+import com.example.budgetmaster.ui.activities.ChangeBaseSettings
 import com.example.budgetmaster.ui.activities.ChangePassword
 import com.example.budgetmaster.ui.activities.SignInActivity
 import com.google.firebase.auth.FirebaseAuth
@@ -17,11 +18,11 @@ class SettingsFragment : Fragment() {
     private var _binding: FragmentSettingsBinding? = null
     private val binding get() = _binding!!
 
-    // Define menu actions here
     private val menuItems by lazy {
         listOf(
             MenuItem("Change Password") { navigateToChangePassword() },
             MenuItem("Sign Out") { signOut() },
+            MenuItem("Base Settings") { navigateToBaseSettings() },
 
             )
     }
@@ -49,6 +50,13 @@ class SettingsFragment : Fragment() {
 
     private fun navigateToChangePassword() {
         val intent = Intent(requireContext(), ChangePassword::class.java)
+        startActivity(intent)
+
+
+    }
+
+    private fun navigateToBaseSettings() {
+        val intent = Intent(requireContext(), ChangeBaseSettings::class.java)
         startActivity(intent)
 
 
