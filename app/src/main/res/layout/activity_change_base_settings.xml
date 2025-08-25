@@ -99,7 +99,7 @@
             android:fontFamily="@font/manrope_extrabold"
             android:letterSpacing="0"
             android:paddingVertical="12dp"
-            android:text="Change Password"
+            android:text="Save Changes"
             android:textAllCaps="false"
             android:textColor="@android:color/white"
             android:textColorHint="@color/grey_light"
