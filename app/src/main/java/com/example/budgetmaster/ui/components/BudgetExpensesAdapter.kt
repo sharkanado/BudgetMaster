@@ -12,20 +12,14 @@ import java.util.Locale
 
 class BudgetExpensesAdapter(
     private val expenses: MutableList<BudgetExpenseItem>,
-    private val userNames: Map<String, String>,             // UID → Name map
-    private val onHeaderClick: (Int) -> Unit,               // For accordion toggle
-    private val onExpenseClick: (BudgetExpenseItem) -> Unit // For navigation
+    private val userNames: Map<String, String>,
+    private val onHeaderClick: (Int) -> Unit,
+    private val onExpenseClick: (BudgetExpenseItem) -> Unit
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     private val TYPE_HEADER = 0
     private val TYPE_ITEM = 1
 
-    /**
-     * Pass ONLY raw expense rows (no headers).
-     * Rebuilds list as [Header, month-rows…] with:
-     * - Months sorted newest → oldest
-     * - Rows within each month sorted by DATE (yyyy-MM-dd string) newest → oldest
-     */
     fun setData(rawExpenses: List<BudgetExpenseItem>) {
         val rebuilt = groupSortAndBuild(rawExpenses)
         expenses.clear()
@@ -56,7 +50,11 @@ class BudgetExpensesAdapter(
             holder.itemView.setOnClickListener { onHeaderClick(position) }
         } else if (holder is ItemViewHolder) {
             holder.description.text = item.description
-            holder.amount.text = String.format(Locale.ENGLISH, "%.2f", item.amount)
+            val code = item.currencyCode.ifBlank { "" }
+            holder.amount.text = if (code.isEmpty())
+                String.format(Locale.ENGLISH, "%.2f", item.amount)
+            else
+                String.format(Locale.ENGLISH, "%.2f %s", item.amount, code)
             holder.date.text = formatDate(item.date)
             holder.paidBy.text = userNames[item.createdBy] ?: "Unknown"
             holder.itemView.setOnClickListener { onExpenseClick(item) }
@@ -65,7 +63,6 @@ class BudgetExpensesAdapter(
 
     override fun getItemCount(): Int = expenses.size
 
-    // --- ViewHolders ---
     class HeaderViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val title: TextView = view.findViewById(R.id.headerTitle)
         val arrow: ImageView = view.findViewById(R.id.headerArrow)
@@ -78,55 +75,37 @@ class BudgetExpensesAdapter(
         val paidBy: TextView = view.findViewById(R.id.expensePaidBy)
     }
 
-    /**
-     * Groups by "yyyy-MM" (first 7 chars), sorts months DESC, and items within each month DESC by date string.
-     */
     private fun groupSortAndBuild(rowsInput: List<BudgetExpenseItem>): List<BudgetExpenseItem> {
-        // Safety: only item rows
         val rows = rowsInput.filter { !it.isHeader }
-
-        // Group by month key "yyyy-MM"
-        val grouped = rows.groupBy { item ->
-            item.date.take(7) // assumes "yyyy-MM-dd"
-        }
-
-        // Sort months newest → oldest by key (string order works for yyyy-MM)
+        val grouped = rows.groupBy { it.date.take(7) }
         val sortedMonthKeys = grouped.keys.sortedDescending()
-
         val result = mutableListOf<BudgetExpenseItem>()
         for (monthKey in sortedMonthKeys) {
-            // Build header like "August 2025"
             val headerTitle = monthKeyToTitle(monthKey)
-
             result += BudgetExpenseItem(
                 description = headerTitle,
                 amount = 0.0,
-                date = "$monthKey-01", // internal; not shown
+                currencyCode = "",
+                date = "$monthKey-01",
                 createdBy = "",
                 isHeader = true,
                 isExpanded = true
             )
-
-            // Sort items within this month newest → oldest by date string "yyyy-MM-dd"
-            val monthItems = grouped[monthKey].orEmpty()
-                .sortedByDescending { it.date }
-
+            val monthItems = grouped[monthKey].orEmpty().sortedByDescending { it.date }
             result += monthItems
         }
-
         return result
     }
 
     private fun monthKeyToTitle(key: String): String {
-        // key expected: "yyyy-MM"
         return try {
             val (yearStr, monthStr) = key.split("-")
             val year = yearStr.toInt()
-            val month = monthStr.toInt() // 1..12
+            val month = monthStr.toInt()
             val monthName = java.text.DateFormatSymbols(Locale.ENGLISH).months[month - 1]
             "$monthName $year"
         } catch (_: Exception) {
-            key // fallback
+            key
         }
     }
 }

@@ -35,6 +35,9 @@ class GroupSettlement : AppCompatActivity() {
     private lateinit var adapter: SettlementAdapter
     private var budgetId: String = ""
 
+    // Currency for this budget (code like "CZK", "PLN")
+    private var budgetCurrencyCode: String = "EUR"
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -60,19 +63,38 @@ class GroupSettlement : AppCompatActivity() {
         backButton.setOnClickListener { finish() }
 
         adapter = SettlementAdapter(onItemClick = { row ->
-            val msg = "You owe ${row.name} ${format2(abs(row.amount))}"
+            val msg = "You owe ${row.name} ${format2(abs(row.amount))} $budgetCurrencyCode"
             Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
         })
 
         recycler.layoutManager = LinearLayoutManager(this)
         recycler.adapter = adapter
 
-        loadSettlement()
+        // Load currency first, then settlement (so labels have the code)
+        loadBudgetCurrency {
+            loadSettlement()
+        }
+    }
+
+    /** Fetch the budget's currency code (e.g., "CZK"). */
+    private fun loadBudgetCurrency(onReady: () -> Unit) {
+        db.collection("budgets").document(budgetId)
+            .get()
+            .addOnSuccessListener { doc ->
+                val code = (doc.getString("currency")
+                    ?: doc.getString("baseCurrency")
+                    ?: "EUR").uppercase(Locale.ENGLISH)
+                budgetCurrencyCode = code
+            }
+            .addOnFailureListener {
+                budgetCurrencyCode = "EUR"
+            }
+            .addOnCompleteListener { onReady() }
     }
 
     private fun loadSettlement() {
         val currentUid = auth.currentUser?.uid ?: run {
-            showNoData() // not authenticated -> no data
+            showNoData()
             return
         }
 
@@ -82,7 +104,6 @@ class GroupSettlement : AppCompatActivity() {
             .get()
             .addOnSuccessListener { qs ->
                 if (qs.isEmpty) {
-                    // No expenses at all -> everything zero
                     showNoData()
                     return@addOnSuccessListener
                 }
@@ -116,18 +137,15 @@ class GroupSettlement : AppCompatActivity() {
                     }
                 }
 
-                // Always show the total expenses that exist in the group
-                allGroupExpenses.text = format2(totalExpenses)
+                // Show the total group spend with currency code
+                allGroupExpenses.text = "${format2(totalExpenses)} $budgetCurrencyCode"
 
                 if (pair.isEmpty()) {
-                    // There are expenses, but none create inter-user balances (e.g., everyone paid only for themselves).
                     adapter.submit(emptyList())
                     emptyState.visibility = View.VISIBLE
-                    emptyState.text = getString(
-                        R.string.no_balances_to_settle,
-                    )
-                    youReceive.text = "0.00"
-                    youPay.text = "0.00"
+                    emptyState.text = getString(R.string.no_balances_to_settle)
+                    youReceive.text = "0.00 $budgetCurrencyCode"
+                    youPay.text = "0.00 $budgetCurrencyCode"
                     return@addOnSuccessListener
                 }
 
@@ -149,12 +167,11 @@ class GroupSettlement : AppCompatActivity() {
                     val totalReceive = items.filter { it.amount > 0 }.sumOf { it.amount }
                     val totalPay = items.filter { it.amount < 0 }.sumOf { abs(it.amount) }
 
-                    youReceive.text = format2(totalReceive)
-                    youPay.text = format2(totalPay)
+                    youReceive.text = "${format2(totalReceive)} $budgetCurrencyCode"
+                    youPay.text = "${format2(totalPay)} $budgetCurrencyCode"
                 }
             }
             .addOnFailureListener {
-                // On failure, we truly don't know totals -> zero all
                 showNoData()
             }
     }
@@ -162,14 +179,11 @@ class GroupSettlement : AppCompatActivity() {
     private fun showNoData() {
         adapter.submit(emptyList())
         emptyState.visibility = View.VISIBLE
-        emptyState.text = getString(
-            R.string.no_group_expenses_yet,
-        )
-        youReceive.text = "0.00"
-        youPay.text = "0.00"
-        allGroupExpenses.text = "0.00"
+        emptyState.text = getString(R.string.no_group_expenses_yet)
+        youReceive.text = "0.00 $budgetCurrencyCode"
+        youPay.text = "0.00 $budgetCurrencyCode"
+        allGroupExpenses.text = "0.00 $budgetCurrencyCode"
     }
-
 
     private fun fetchUsersByIds(
         uids: List<String>,
@@ -253,7 +267,7 @@ class GroupSettlement : AppCompatActivity() {
             nameText.text = row.name
             emailText.text = row.email
 
-            val formatted = String.format(Locale.US, "%.2f", abs(row.amount))
+            val formatted = "${format2(abs(row.amount))} $budgetCurrencyCode"
             val owes = row.amount < 0
 
             when {
@@ -268,7 +282,7 @@ class GroupSettlement : AppCompatActivity() {
                 }
 
                 else -> {
-                    amountText.text = "0.00"
+                    amountText.text = "0.00 $budgetCurrencyCode"
                     amountText.setTextColor(getColorCompat(android.R.color.darker_gray))
                 }
             }

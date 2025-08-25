@@ -26,6 +26,7 @@ class BudgetDetails : AppCompatActivity() {
     private val db = FirebaseFirestore.getInstance()
     private lateinit var budgetId: String
     private var budgetName: String = ""
+    private var budgetCurrency: String = "EUR"
 
     private val membersList = mutableListOf<BudgetMemberItem>()
     private lateinit var membersAdapter: BudgetMembersAdapter
@@ -110,6 +111,18 @@ class BudgetDetails : AppCompatActivity() {
             .addOnSuccessListener { doc ->
                 budgetName = doc.getString("name") ?: budgetName
                 findViewById<TextView>(R.id.budgetNameText).text = budgetName
+
+                budgetCurrency = (
+                        doc.getString("currency")
+                            ?: doc.getString("currencyCode")
+                            ?: "EUR"
+                        ).uppercase(Locale.ENGLISH)
+
+                // update adapters with currency code (members requires it for balances text)
+                membersAdapter.updateCurrency(budgetCurrency)
+                // If your BudgetExpensesAdapter also supports currency, uncomment the next line:
+                // expensesAdapter.updateCurrency(budgetCurrency)
+
                 val members = (doc.get("members") as? List<String>).orEmpty()
                 loadMembers(members)
                 loadExpenses()

@@ -13,7 +13,8 @@ import java.util.Locale
 
 class BudgetMembersAdapter(
     private val members: List<BudgetMemberItem>,
-    private var spentByUser: Map<String, Double> = emptyMap() // uid -> total spent
+    private var spentByUser: Map<String, Double> = emptyMap(),
+    private var currencyCode: String = ""
 ) : RecyclerView.Adapter<BudgetMembersAdapter.MemberViewHolder>() {
 
     private val df = DecimalFormat("0.00").apply {
@@ -24,14 +25,13 @@ class BudgetMembersAdapter(
         isGroupingUsed = false
     }
 
-    inner class MemberViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        val nameText: TextView = itemView.findViewById(R.id.memberName)
-        val emailText: TextView = itemView.findViewById(R.id.memberEmail)
-        val balanceText: TextView = itemView.findViewById(R.id.memberBalance)
-    }
-
     fun setSpentByUser(map: Map<String, Double>) {
         spentByUser = map
+        notifyDataSetChanged()
+    }
+
+    fun updateCurrency(code: String) {
+        currencyCode = code.trim().uppercase(Locale.ENGLISH)
         notifyDataSetChanged()
     }
 
@@ -43,12 +43,12 @@ class BudgetMembersAdapter(
 
     override fun onBindViewHolder(holder: MemberViewHolder, position: Int) {
         val member = members[position]
-
         val value = spentByUser[member.uid] ?: member.balance
 
         holder.nameText.text = member.name
         holder.emailText.text = member.email
-        holder.balanceText.text = df.format(value)
+        holder.balanceText.text =
+            if (currencyCode.isBlank()) df.format(value) else "${df.format(value)} $currencyCode"
 
         val ctx = holder.itemView.context
         val colorRes = when {
@@ -60,4 +60,10 @@ class BudgetMembersAdapter(
     }
 
     override fun getItemCount(): Int = members.size
+
+    inner class MemberViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        val nameText: TextView = itemView.findViewById(R.id.memberName)
+        val emailText: TextView = itemView.findViewById(R.id.memberEmail)
+        val balanceText: TextView = itemView.findViewById(R.id.memberBalance)
+    }
 }
