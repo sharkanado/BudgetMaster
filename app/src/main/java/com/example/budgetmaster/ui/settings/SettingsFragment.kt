@@ -45,21 +45,16 @@ class SettingsFragment : Fragment() {
         val intent = Intent(requireContext(), SignInActivity::class.java)
         startActivity(intent)
         requireActivity().finish()
-
     }
 
     private fun navigateToChangePassword() {
         val intent = Intent(requireContext(), ChangePassword::class.java)
         startActivity(intent)
-
-
     }
 
     private fun navigateToBaseSettings() {
         val intent = Intent(requireContext(), ChangeBaseSettings::class.java)
         startActivity(intent)
-
-
     }
 
     override fun onDestroyView() {

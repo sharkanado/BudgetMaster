@@ -1,11 +1,9 @@
 package com.example.budgetmaster.ui.activities
 
-import ExpenseListItem
 import android.app.DatePickerDialog
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
-import android.util.Log
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.EditText
@@ -22,11 +20,23 @@ import com.example.budgetmaster.R
 import com.example.budgetmaster.utils.Categories
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import kotlin.math.round
 
 class ExpenseDetailsWallet : AppCompatActivity() {
 
@@ -41,51 +51,56 @@ class ExpenseDetailsWallet : AppCompatActivity() {
 
     private lateinit var categorySpinner: Spinner
     private lateinit var amountEdit: EditText
+    private lateinit var amountCurrencyLabel: TextView
+    private lateinit var amountInMainText: TextView
+    private lateinit var originalAmountStatic: TextView
     private lateinit var descriptionEdit: EditText
     private lateinit var typeSpinner: Spinner
     private lateinit var dateEdit: EditText
 
-    private lateinit var expenseItem: ExpenseListItem.Item
-
     private var selectedYear: Int = 0
     private var selectedMonth: String = ""
     private var expenseDocumentId: String = ""
+
+    // loaded from Firestore doc
+    private var originalCurrency: String = "EUR"  // expense's original currency
+    private var originalAmount: Double = 0.0      // expense's stored amount (original currency)
+    private var originalDateStr: String = ""      // yyyy-MM-dd
+    private var expenseType: String = "expense"
+    private var expenseCategory: String = ""
+    private var expenseDescription: String = ""
+
+    // user preference
+    private var mainCurrency: String = "EUR"
+    private var mainCurrencyLoaded = false
+
+    // rates cache EUR->*
+    private val df2 by lazy { DecimalFormat("0.00", DecimalFormatSymbols(Locale.US)) }
+    private val eurRatesCache =
+        mutableMapOf<String, Map<String, Double>>() // key = date or "latest"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_expense_details_wallet)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
-            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+            val sys = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            v.setPadding(sys.left, sys.top, sys.right, sys.bottom)
             insets
         }
 
+        // We still receive path info from intent (year, month, id) but we READ the document.
         selectedYear = intent.getIntExtra("selectedYear", 0)
         selectedMonth = intent.getStringExtra("selectedMonth") ?: ""
         expenseDocumentId = intent.getStringExtra("expenseId") ?: ""
 
-        val item: ExpenseListItem.Item? =
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                intent.getParcelableExtra("expense_item", ExpenseListItem.Item::class.java)
-                    ?: intent.getParcelableExtra("expenseItem", ExpenseListItem.Item::class.java)
-            } else {
-                @Suppress("DEPRECATION")
-                intent.getParcelableExtra<ExpenseListItem.Item>("expense_item")
-                    ?: @Suppress("DEPRECATION") intent.getParcelableExtra("expenseItem")
-            }
-
-        if (item == null) {
-            Toast.makeText(this, "No expense data received", Toast.LENGTH_SHORT).show()
-            finish(); return
-        }
-        expenseItem = item
-        if (expenseDocumentId.isBlank()) expenseDocumentId = expenseItem.id
-
         setupViews()
-        populateData()
         setupTopBarBehavior()
         updateTopIcons()
+
+        // Load user main currency & expense doc
+        fetchUserMainCurrency()
+        fetchExpenseDoc()
     }
 
     private fun setupViews() {
@@ -99,18 +114,20 @@ class ExpenseDetailsWallet : AppCompatActivity() {
 
         categorySpinner = findViewById(R.id.expenseCategorySpinner)
         amountEdit = findViewById(R.id.expenseAmountEdit)
+        amountCurrencyLabel = findViewById(R.id.amountCurrencyLabel)
+        amountInMainText = findViewById(R.id.amountInMainText)
+        originalAmountStatic = findViewById(R.id.originalAmountStatic)
         descriptionEdit = findViewById(R.id.expenseDescriptionEdit)
         typeSpinner = findViewById(R.id.expenseTypeSpinner)
         dateEdit = findViewById(R.id.expenseDateEdit)
 
-        val categoryAdapter = ArrayAdapter(
+        categorySpinner.adapter = ArrayAdapter(
             this, android.R.layout.simple_spinner_dropdown_item, Categories.categoryList
         )
-        categorySpinner.adapter = categoryAdapter
 
         val types = listOf("Expense", "Income")
-        val typeAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, types)
-        typeSpinner.adapter = typeAdapter
+        typeSpinner.adapter =
+            ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, types)
 
         amountEdit.addTextChangedListener(object : TextWatcher {
             private var current = ""
@@ -133,72 +150,34 @@ class ExpenseDetailsWallet : AppCompatActivity() {
                 current = sanitized
                 amountEdit.setText(sanitized)
                 amountEdit.setSelection(sanitized.length)
+
+                // live preview (orig -> main)
+                updatePreviewInMain()
             }
         })
 
         dateEdit.setOnClickListener {
-            val calendar = Calendar.getInstance()
-            val currentDate = dateEdit.text.toString()
+            val cal = Calendar.getInstance()
             val format = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH)
             try {
-                format.parse(currentDate)?.let { calendar.time = it }
+                format.parse(dateEdit.text.toString())?.let { cal.time = it }
             } catch (_: Exception) {
             }
-            val y = calendar.get(Calendar.YEAR)
-            val m = calendar.get(Calendar.MONTH)
-            val d = calendar.get(Calendar.DAY_OF_MONTH)
+            val y = cal.get(Calendar.YEAR)
+            val m = cal.get(Calendar.MONTH)
+            val d = cal.get(Calendar.DAY_OF_MONTH)
             DatePickerDialog(this, { _, yy, mm, dd ->
-                dateEdit.setText(String.format("%04d-%02d-%02d", yy, mm + 1, dd))
+                val newDate = String.format("%04d-%02d-%02d", yy, mm + 1, dd)
+                dateEdit.setText(newDate)
+                updatePreviewInMain() // date change affects rate
             }, y, m, d).show()
         }
     }
 
-    private fun populateData() {
-        val titleText = if (expenseItem.type == "income") "Income Details" else "Expense Details"
-        findViewById<TextView>(R.id.topBarTitle).text = titleText
-
-        val prefillAmount =
-            expenseItem.amount.replace(",", ".").replace("-", "").toDoubleOrNull() ?: 0.0
-        val formattedAmount = "%.2f".format(prefillAmount)
-
-        amountText.text =
-            if (expenseItem.type == "expense") "-$formattedAmount" else formattedAmount
-        dateText.text = expenseItem.date
-        categoryText.text = expenseItem.category
-        typeText.text = expenseItem.type.replaceFirstChar { it.uppercase() }
-        descriptionText.text = expenseItem.name
-
-        amountEdit.setText(formattedAmount)
-        descriptionEdit.setText(expenseItem.name)
-        dateEdit.setText(expenseItem.date)
-
-        val catPos =
-            (categorySpinner.adapter as ArrayAdapter<String>).getPosition(expenseItem.category)
-        if (catPos >= 0) categorySpinner.setSelection(catPos)
-
-        val typePos = (typeSpinner.adapter as ArrayAdapter<String>)
-            .getPosition(expenseItem.type.replaceFirstChar { it.uppercase() })
-        if (typePos >= 0) typeSpinner.setSelection(typePos)
-    }
-
     private fun setupTopBarBehavior() {
         val back = findViewById<ImageButton>(R.id.backButton)
-
-        back.setOnClickListener {
-            if (isEditMode) {
-                toggleEditMode(false)
-            } else {
-                onBackPressedDispatcher.onBackPressed()
-            }
-        }
-
-        editButton.setOnClickListener {
-            if (!isEditMode) {
-                showOverflowMenu()
-            } else {
-                saveData()
-            }
-        }
+        back.setOnClickListener { if (isEditMode) toggleEditMode(false) else onBackPressedDispatcher.onBackPressed() }
+        editButton.setOnClickListener { if (!isEditMode) showOverflowMenu() else saveData() }
     }
 
     private fun updateTopIcons() {
@@ -246,145 +225,322 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         descriptionText.visibility = viewVis
         dateText.visibility = viewVis
 
+        findViewById<View>(R.id.amountEditRow).visibility = editVis
+        originalAmountStatic.visibility = editVis
+        amountInMainText.visibility = editVis
+
         categorySpinner.visibility = editVis
         typeSpinner.visibility = editVis
-        amountEdit.visibility = editVis
         descriptionEdit.visibility = editVis
         dateEdit.visibility = editVis
 
         updateTopIcons()
+
+        if (enable) updatePreviewInMain()
     }
 
-    private fun applyEditsToView() {
-        val newCategory = categorySpinner.selectedItem.toString()
-        val newDescription = descriptionEdit.text.toString().trim()
-        val newDate = dateEdit.text.toString()
-        val newType = typeSpinner.selectedItem.toString().lowercase(Locale.ENGLISH)
-        val amount = amountEdit.text.toString().trim().replace(",", ".").toDoubleOrNull() ?: 0.0
-        val formattedAmount = String.format(Locale.ENGLISH, "%.2f", amount)
+    // ——— Data loading ———
+    private fun fetchExpenseDoc() {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        if (selectedYear == 0 || selectedMonth.isEmpty() || expenseDocumentId.isEmpty()) {
+            Toast.makeText(this, "Missing expense path.", Toast.LENGTH_SHORT)
+                .show(); finish(); return
+        }
 
-        categoryText.text = newCategory
-        descriptionText.text = newDescription
-        dateText.text = newDate
-        typeText.text = newType.replaceFirstChar { it.uppercase() }
-        amountText.text = if (newType == "expense") "-$formattedAmount" else formattedAmount
+        FirebaseFirestore.getInstance()
+            .collection("users").document(uid)
+            .collection("expenses").document(selectedYear.toString())
+            .collection(selectedMonth).document(expenseDocumentId)
+            .get()
+            .addOnSuccessListener { doc ->
+                if (!doc.exists()) {
+                    Toast.makeText(this, "Expense not found.", Toast.LENGTH_SHORT)
+                        .show(); finish(); return@addOnSuccessListener
+                }
+                bindFromDoc(doc)
+            }
+            .addOnFailureListener {
+                Toast.makeText(this, "Failed to load expense.", Toast.LENGTH_SHORT).show()
+                finish()
+            }
+    }
 
-        try {
-            expenseItem = expenseItem.copy(
-                category = newCategory,
-                name = newDescription,
-                date = newDate,
-                type = newType,
-                amount = formattedAmount
-            )
-        } catch (_: Throwable) {
+    private fun bindFromDoc(doc: DocumentSnapshot) {
+        originalCurrency = (doc.getString("currency") ?: "EUR").uppercase(Locale.ENGLISH)
+        originalAmount = readAmount(doc.get("amount"))
+        originalDateStr = doc.getString("date") ?: ""
+        expenseType = (doc.getString("type") ?: "expense").lowercase(Locale.ENGLISH)
+        expenseCategory = doc.getString("category") ?: ""
+        expenseDescription = doc.getString("description") ?: ""
+
+        // View mode
+        findViewById<TextView>(R.id.topBarTitle).text =
+            if (expenseType == "income") "Income Details" else "Expense Details"
+        amountText.text = formatAmountSigned(originalAmount, originalCurrency, expenseType)
+        dateText.text = originalDateStr
+        categoryText.text = expenseCategory
+        typeText.text = expenseType.replaceFirstChar { it.uppercase() }
+        descriptionText.text = expenseDescription
+
+        // Edit mode prefill
+        amountCurrencyLabel.text = originalCurrency
+        originalAmountStatic.text = "Original: ${df2.format(originalAmount)} $originalCurrency"
+        descriptionEdit.setText(expenseDescription)
+        dateEdit.setText(originalDateStr)
+
+        val catPos = (categorySpinner.adapter as ArrayAdapter<String>).getPosition(expenseCategory)
+        if (catPos >= 0) categorySpinner.setSelection(catPos)
+        val typePos =
+            (typeSpinner.adapter as ArrayAdapter<String>).getPosition(expenseType.replaceFirstChar { it.uppercase() })
+        if (typePos >= 0) typeSpinner.setSelection(typePos)
+
+        // If the list item came formatted, we still re-fill with raw
+        amountEdit.setText(df2.format(originalAmount))
+    }
+
+    private fun fetchUserMainCurrency() {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        FirebaseFirestore.getInstance().collection("users").document(uid)
+            .get()
+            .addOnSuccessListener {
+                mainCurrency = (it.getString("mainCurrency") ?: "EUR").uppercase(Locale.ENGLISH)
+                mainCurrencyLoaded = true
+                updatePreviewInMain()
+            }
+            .addOnFailureListener {
+                mainCurrency = "EUR"
+                mainCurrencyLoaded = true
+            }
+    }
+
+    // ——— Live preview (orig -> main) ———
+    private fun updatePreviewInMain() {
+        if (!isEditMode || !mainCurrencyLoaded) return
+        val amount = amountEdit.text?.toString()?.replace(",", ".")?.toDoubleOrNull() ?: return
+        val dateStr = dateEdit.text?.toString()?.takeIf { it.isNotBlank() } ?: originalDateStr
+        if (dateStr.isBlank()) return
+
+        CoroutineScope(Dispatchers.Main).launch {
+            val snap = getEurRates(dateStr) ?: run {
+                amountInMainText.text = "≈ —"
+                return@launch
+            }
+            val value = convertOrigToMain(amount, originalCurrency, mainCurrency, snap)
+            amountInMainText.text = "≈ ${df2.format(value)} $mainCurrency (as of ${snap.first})"
         }
     }
 
+    // ——— Save: recompute amountBase from ORIGINAL currency ———
     private fun saveData() {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
-        val year = dateEdit.text.toString().substring(0, 4)
-        val month = SimpleDateFormat("MMMM", Locale.ENGLISH)
-            .format(
-                SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH)
-                    .parse(dateEdit.text.toString())!!
+
+        val editedAmountOrig =
+            amountEdit.text.toString().trim().replace(",", ".").toDoubleOrNull() ?: 0.0
+        val newDescription = descriptionEdit.text.toString().trim()
+        val newCategory = categorySpinner.selectedItem.toString()
+        val newType = typeSpinner.selectedItem.toString().lowercase(Locale.ENGLISH)
+        val dateStr = dateEdit.text.toString().ifBlank { originalDateStr }
+        val parsedDate = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH).parse(dateStr)!!
+        val dayTs = Timestamp(parsedDate)
+
+        val newYear = dateStr.substring(0, 4)
+        val newMonth = SimpleDateFormat("MMMM", Locale.ENGLISH).format(parsedDate)
+
+        val pathChanged = (newYear != selectedYear.toString()) || (newMonth != selectedMonth)
+        val db = FirebaseFirestore.getInstance()
+        val oldRef = db.collection("users").document(uid)
+            .collection("expenses").document(selectedYear.toString())
+            .collection(selectedMonth).document(expenseDocumentId)
+        val newRef = db.collection("users").document(uid)
+            .collection("expenses").document(newYear)
+            .collection(newMonth).document(expenseDocumentId)
+
+        CoroutineScope(Dispatchers.Main).launch {
+            val patch = mutableMapOf<String, Any>(
+                "amount" to editedAmountOrig,            // original currency amount
+                "currency" to originalCurrency,          // keep original currency
+                "description" to newDescription,
+                "category" to newCategory,
+                "type" to newType,
+                "date" to dateStr,
+                "timestamp" to Timestamp.now(),
+                "dayTimestamp" to dayTs
             )
 
-        val amountStr = amountEdit.text.toString().trim()
-        val amount = amountStr.replace(",", ".").toDoubleOrNull() ?: 0.0
+            // Recalculate amountBase (cur -> EUR) using historical snapshot (fallback latest)
+            val snap = getEurRates(dateStr) ?: getEurRates(null)
+            snap?.let { s ->
+                val curToEur = curToEurRate(originalCurrency, s.second)
+                if (curToEur != null) {
+                    val amountBase = round2(editedAmountOrig * curToEur)
+                    patch["baseCurrency"] = "EUR"
+                    patch["amountBase"] = amountBase
+                    patch["fx"] = mapOf(
+                        "rate" to curToEur,      // ORIGINAL -> EUR
+                        "asOf" to s.first,
+                        "provider" to "frankfurter"
+                    )
+                }
+            }
 
-        val dateStr = dateEdit.text.toString()
-        val parsedDate = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH).parse(dateStr)!!
-        val dayTimestamp = Timestamp(parsedDate)
+            try {
+                if (pathChanged) {
+                    val b = db.batch()
+                    b.set(newRef, patch, SetOptions.merge())
+                    b.delete(oldRef)
+                    b.commit().await()
+                } else {
+                    newRef.set(patch, SetOptions.merge()).await()
+                }
 
-        val updatedData = mapOf(
-            "category" to categorySpinner.selectedItem.toString(),
-            "description" to descriptionEdit.text.toString().trim(),
-            "amount" to amount,
-            "date" to dateStr,
-            "type" to typeSpinner.selectedItem.toString().lowercase(),
-            "timestamp" to Timestamp.now(),
-            "dayTimestamp" to dayTimestamp
-        )
-
-        Log.d("DEBUG_FIRESTORE", "Updating doc: $uid / $year / $month / $expenseDocumentId")
-
-        val db = FirebaseFirestore.getInstance()
-
-        db.collection("users").document(uid)
-            .collection("expenses").document(year)
-            .collection(month).document(expenseDocumentId)
-            .set(updatedData, SetOptions.merge())
-            .addOnSuccessListener {
-                Toast.makeText(this, "Expense updated", Toast.LENGTH_SHORT).show()
-
-                val latestPatch = mapOf(
-                    "category" to updatedData["category"],
-                    "description" to updatedData["description"],
-                    "amount" to updatedData["amount"],
-                    "date" to updatedData["date"],
-                    "type" to updatedData["type"],
-                    "timestamp" to updatedData["timestamp"],
-                    "dayTimestamp" to updatedData["dayTimestamp"]
-                )
-
-                db.collection("users").document(uid)
+                // Update 'latest' mirror identically (amount, base fields if computed)
+                val latestSnap = db.collection("users").document(uid)
                     .collection("latest")
                     .whereEqualTo("expenseId", expenseDocumentId)
-                    .get()
-                    .addOnSuccessListener { snap ->
-                        if (!snap.isEmpty) {
-                            val batch = db.batch()
-                            for (doc in snap.documents) {
-                                batch.set(doc.reference, latestPatch, SetOptions.merge())
-                            }
-                            batch.commit()
-                        }
-                    }
+                    .get().await()
+                if (!latestSnap.isEmpty) {
+                    val b2 = db.batch()
+                    latestSnap.documents.forEach { b2.set(it.reference, patch, SetOptions.merge()) }
+                    b2.commit().await()
+                }
 
-                applyEditsToView()
+                Toast.makeText(this@ExpenseDetailsWallet, "Expense updated", Toast.LENGTH_SHORT)
+                    .show()
+
+                // refresh local state
+                selectedYear = newYear.toInt(); selectedMonth = newMonth
+                originalAmount = editedAmountOrig
+                originalDateStr = dateStr
+                expenseType = newType
+                expenseCategory = newCategory
+                expenseDescription = newDescription
+
+                bindViewModeFromState()
                 toggleEditMode(false)
+            } catch (e: Exception) {
+                Toast.makeText(
+                    this@ExpenseDetailsWallet,
+                    "Failed: ${e.message}",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
-            .addOnFailureListener { e ->
-                Toast.makeText(this, "Failed: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
+        }
+    }
+
+    private fun bindViewModeFromState() {
+        findViewById<TextView>(R.id.topBarTitle).text =
+            if (expenseType == "income") "Income Details" else "Expense Details"
+        amountText.text = formatAmountSigned(originalAmount, originalCurrency, expenseType)
+        dateText.text = originalDateStr
+        categoryText.text = expenseCategory
+        typeText.text = expenseType.replaceFirstChar { it.uppercase() }
+        descriptionText.text = expenseDescription
     }
 
     private fun deleteExpense() {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
-        val db = FirebaseFirestore.getInstance()
-
-        db.collection("users").document(uid).collection("expenses")
+        FirebaseFirestore.getInstance()
+            .collection("users").document(uid).collection("expenses")
             .document(selectedYear.toString()).collection(selectedMonth)
             .document(expenseDocumentId)
             .delete()
             .addOnSuccessListener {
-                db.collection("users").document(uid).collection("latest")
+                FirebaseFirestore.getInstance()
+                    .collection("users").document(uid).collection("latest")
                     .whereEqualTo("expenseId", expenseDocumentId)
                     .get()
                     .addOnSuccessListener { snap ->
-                        val batch = db.batch()
-                        for (doc in snap.documents) batch.delete(doc.reference)
-                        batch.commit().addOnSuccessListener {
-                            Toast.makeText(this, "Successfully removed!", Toast.LENGTH_SHORT)
-                                .show()
+                        val b = FirebaseFirestore.getInstance().batch()
+                        for (d in snap.documents) b.delete(d.reference)
+                        b.commit().addOnSuccessListener {
+                            Toast.makeText(this, "Successfully removed!", Toast.LENGTH_SHORT).show()
                             finish()
                         }
                     }
                     .addOnFailureListener { e ->
                         Toast.makeText(
                             this,
-                            "Deleted from expenses, failed to clean latest: ${e.message}",
+                            "Deleted, but failed to clean latest: ${e.message}",
                             Toast.LENGTH_SHORT
                         ).show()
                         finish()
                     }
             }
             .addOnFailureListener { e ->
-                Toast.makeText(this, "Failed to delete: ${e.message}", Toast.LENGTH_SHORT)
-                    .show()
+                Toast.makeText(this, "Failed to delete: ${e.message}", Toast.LENGTH_SHORT).show()
             }
     }
+
+    // ——— Rates helpers ———
+
+    /** Returns Pair<asOfDate, ratesMap(EUR->CODE)> for given date (yyyy-MM-dd) or latest (null). */
+    private suspend fun getEurRates(asOf: String?): Pair<String, Map<String, Double>>? =
+        withContext(Dispatchers.IO) {
+            val key = asOf ?: "latest"
+            eurRatesCache[key]?.let { return@withContext (asOf ?: "latest") to it }
+
+            var conn: HttpURLConnection? = null
+            try {
+                val url = if (asOf != null)
+                    URL("https://api.frankfurter.dev/v1/$asOf?from=EUR")
+                else
+                    URL("https://api.frankfurter.dev/v1/latest?from=EUR")
+
+                conn = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"; connectTimeout = 8000; readTimeout = 8000
+                }
+                val text = conn.inputStream.bufferedReader().use { it.readText() }
+                val json = JSONObject(text)
+                val dateUsed = json.optString("date", asOf ?: "latest")
+                val rj = json.optJSONObject("rates") ?: return@withContext null
+                val map = mutableMapOf<String, Double>()
+                val it = rj.keys()
+                while (it.hasNext()) {
+                    val k = it.next()
+                    map[k.uppercase(Locale.ENGLISH)] = rj.getDouble(k)
+                }
+                eurRatesCache[asOf ?: "latest"] = map
+                dateUsed to map
+            } catch (_: Exception) {
+                null
+            } finally {
+                conn?.disconnect()
+            }
+        }
+
+    private fun curToEurRate(cur: String, eurToMap: Map<String, Double>): Double? {
+        if (cur.equals("EUR", true)) return 1.0
+        val eurToCur = eurToMap[cur.uppercase(Locale.ENGLISH)] ?: return null
+        return 1.0 / eurToCur
+    }
+
+    private fun convertOrigToMain(
+        amount: Double,
+        orig: String,
+        main: String,
+        snap: Pair<String, Map<String, Double>>
+    ): Double {
+        val eurTo = snap.second
+        val curToEur = curToEurRate(orig, eurTo) ?: return Double.NaN
+        val eurToMain =
+            if (main.equals("EUR", true)) 1.0 else (eurTo[main.uppercase(Locale.ENGLISH)]
+                ?: return Double.NaN)
+        return amount * curToEur * eurToMain
+    }
+
+    // ——— Utils ———
+    private fun formatAmountSigned(amount: Double, currency: String, type: String): String {
+        val v = if (type.equals("expense", true)) -amount else amount
+        return "${df2.format(v)} $currency"
+    }
+
+    private fun readAmount(raw: Any?): Double = when (raw) {
+        is Number -> raw.toDouble()
+        is String -> raw.replace(",", ".").toDoubleOrNull() ?: 0.0
+        else -> 0.0
+    }
+
+    private fun round2(v: Double) = round(v * 100.0) / 100.0
 
     companion object {
         private const val MENU_EDIT = 1

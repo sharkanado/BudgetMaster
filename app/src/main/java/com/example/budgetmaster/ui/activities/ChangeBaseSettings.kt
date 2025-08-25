@@ -47,6 +47,7 @@ class ChangeBaseSettings : AppCompatActivity() {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
+
         nameEdit = findViewById(R.id.currentPasswordEditText)
         currencyDropdown = findViewById(R.id.currencyDropdown)
         saveBtn = findViewById(R.id.signInButton)
@@ -129,19 +130,49 @@ class ChangeBaseSettings : AppCompatActivity() {
 
         toggleUi(false)
 
+        val currencyChanged = currencyCode != originalCurrency.uppercase()
+
         val updates = hashMapOf<String, Any>(
             "name" to name,
             "mainCurrency" to currencyCode,
             "updatedAt" to FieldValue.serverTimestamp()
         )
+        if (currencyChanged) {
+            updates["previousMainCurrency"] = originalCurrency.uppercase()
+            updates["mainCurrencyChangedAt"] = FieldValue.serverTimestamp()
+            updates["aggregatesDirty"] = true
+            updates["aggregateRecomputeRequestedAt"] = FieldValue.serverTimestamp()
+        }
 
         val db = FirebaseFirestore.getInstance()
-        db.collection("users").document(uid)
+        val userRef = db.collection("users").document(uid)
+
+        userRef
             .set(updates, com.google.firebase.firestore.SetOptions.merge())
             .addOnSuccessListener {
+                if (currencyChanged) {
+                    userRef.collection("events").add(
+                        mapOf(
+                            "type" to "MAIN_CURRENCY_CHANGED",
+                            "from" to originalCurrency.uppercase(),
+                            "to" to currencyCode,
+                            "at" to FieldValue.serverTimestamp()
+                        )
+                    )
+                    getSharedPreferences("budgetmaster_prefs", MODE_PRIVATE)
+                        .edit()
+                        .putString("main_currency", currencyCode)
+                        .apply()
+                }
+
                 user.updateProfile(UserProfileChangeRequest.Builder().setDisplayName(name).build())
                     .addOnCompleteListener {
                         Toast.makeText(this, "Settings saved.", Toast.LENGTH_SHORT).show()
+                        setResult(
+                            RESULT_OK,
+                            intent.putExtra("currency_changed", currencyChanged)
+                                .putExtra("main_currency", currencyCode)
+                        )
                         toggleUi(true)
                         finish()
                     }

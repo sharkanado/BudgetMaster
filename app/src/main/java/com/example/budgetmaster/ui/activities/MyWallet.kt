@@ -20,12 +20,21 @@ import com.example.budgetmaster.ui.components.CustomBarChartView
 import com.example.budgetmaster.ui.components.ExpensesAdapter
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.abs
 
 class MyWallet : AppCompatActivity() {
 
@@ -46,6 +55,11 @@ class MyWallet : AppCompatActivity() {
         "January", "February", "March", "April", "May", "June",
         "July", "August", "September", "October", "November", "December"
     )
+
+    // Currency view state
+    private var mainCurrency: String = "PLN"
+    private var eurRatesLatest: Map<String, Double> = emptyMap() // EUR -> CODE
+    private var eurToMainRate: Double = 1.0                      // EUR -> mainCurrency
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -68,9 +82,7 @@ class MyWallet : AppCompatActivity() {
         monthDropdown.setAdapter(monthAdapter)
 
         val currentMonthIndex = months.indexOf(selectedMonth)
-        if (currentMonthIndex != -1) {
-            monthDropdown.setText(months[currentMonthIndex], false)
-        }
+        if (currentMonthIndex != -1) monthDropdown.setText(months[currentMonthIndex], false)
 
         monthDropdown.setOnItemClickListener { _, _, position, _ ->
             selectedMonth = months[position]
@@ -78,7 +90,7 @@ class MyWallet : AppCompatActivity() {
             loadExpenses()
         }
 
-        expensesAdapter = ExpensesAdapter(emptyList()) { clickedItem ->
+        expensesAdapter = ExpensesAdapter(emptyList(), currencyCode = mainCurrency) { clickedItem ->
             val intent = Intent(this, ExpenseDetailsWallet::class.java)
             intent.putExtra("selectedYear", selectedYear)
             intent.putExtra("selectedMonth", selectedMonth)
@@ -92,16 +104,11 @@ class MyWallet : AppCompatActivity() {
         }
 
         yearButton.text = selectedYear.toString()
-
         prevYearBtn.setOnClickListener {
-            selectedYear--
-            yearButton.text = selectedYear.toString()
-            loadExpenses()
+            selectedYear--; yearButton.text = selectedYear.toString(); loadExpenses()
         }
         nextYearBtn.setOnClickListener {
-            selectedYear++
-            yearButton.text = selectedYear.toString()
-            loadExpenses()
+            selectedYear++; yearButton.text = selectedYear.toString(); loadExpenses()
         }
 
         barChart.setOnMonthClickListener { monthIndex ->
@@ -124,7 +131,31 @@ class MyWallet : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        loadExpenses()
+        refreshCurrencyAndRatesThenLoad()
+    }
+
+    /** Load user's mainCurrency, fetch latest EUR rates, then load Firestore data */
+    private fun refreshCurrencyAndRatesThenLoad() {
+        val uid = auth.currentUser?.uid ?: return
+        db.collection("users").document(uid).get()
+            .addOnSuccessListener { doc ->
+                mainCurrency = (doc.getString("mainCurrency") ?: "PLN").uppercase()
+                expensesAdapter.updateCurrency(mainCurrency) // headers show this currency
+            }
+            .addOnFailureListener {
+                mainCurrency = "PLN"
+                expensesAdapter.updateCurrency(mainCurrency)
+            }
+            .addOnCompleteListener {
+                MainScope().launch {
+                    eurRatesLatest =
+                        withContext(Dispatchers.IO) { fetchEurRatesLatest() } ?: emptyMap()
+                    eurToMainRate =
+                        if (mainCurrency.equals("EUR", true)) 1.0 else eurRatesLatest[mainCurrency]
+                            ?: 1.0
+                    loadExpenses()
+                }
+            }
     }
 
     private fun loadExpenses() {
@@ -134,8 +165,9 @@ class MyWallet : AppCompatActivity() {
         val balanceValue = findViewById<TextView>(R.id.balanceValue)
         val monthlyAvgValue = findViewById<TextView>(R.id.monthlyAvgValue)
 
-        val monthlyIncome = MutableList(12) { 0f }
-        val monthlyExpenses = MutableList(12) { 0f }
+        // Aggregate in MAIN currency for charts/summaries; items will show ORIGINAL ONLY.
+        val monthlyIncomeMain = MutableList(12) { 0.0 }
+        val monthlyExpensesMain = MutableList(12) { 0.0 }
         var monthsCompleted = 0
 
         val yearRef = db.collection("users")
@@ -148,28 +180,34 @@ class MyWallet : AppCompatActivity() {
                 .get()
                 .addOnSuccessListener { docs ->
                     docs.forEach { doc ->
-                        val amount = readAmount(doc.get("amount")).toFloat()
                         val type = (doc.getString("type") ?: "expense").lowercase(Locale.ENGLISH)
-                        if (type == "expense") monthlyExpenses[index] += amount
-                        else monthlyIncome[index] += amount
+                        val amountUnsignedMain = amountInMainUnsigned(doc) ?: return@forEach
+                        if (type == "expense") monthlyExpensesMain[index] += amountUnsignedMain
+                        else monthlyIncomeMain[index] += amountUnsignedMain
                     }
                 }
                 .addOnCompleteListener {
                     monthsCompleted++
                     if (monthsCompleted == 12) {
-                        barChart.setData(monthlyIncome, monthlyExpenses)
+                        val monthlyIncome = monthlyIncomeMain.map { it.toFloat() }
+                        val monthlyExpenses = monthlyExpensesMain.map { it.toFloat() }
+
+                        barChart.setData(
+                            monthlyIncome.toMutableList(),
+                            monthlyExpenses.toMutableList()
+                        )
                         val currentIndex = months.indexOf(selectedMonth)
                         if (currentIndex != -1) barChart.highlightMonth(currentIndex)
 
-                        val incomeSum = monthlyIncome.sum().toDouble()
-                        val expenseSum = monthlyExpenses.sum().toDouble()
+                        val incomeSum = monthlyIncomeMain.sum()
+                        val expenseSum = monthlyExpensesMain.sum()
                         val net = incomeSum - expenseSum
                         val monthsWithExpenses = monthlyExpenses.count { it != 0f }
                         val avgMonthlyExpenses =
                             if (monthsWithExpenses == 0) 0.0 else expenseSum / monthsWithExpenses
 
-                        balanceValue.text = df2.format(net)
-                        monthlyAvgValue.text = df2.format(avgMonthlyExpenses)
+                        balanceValue.text = "${df2.format(net)} $mainCurrency"
+                        monthlyAvgValue.text = "${df2.format(avgMonthlyExpenses)} $mainCurrency"
                     }
                 }
         }
@@ -187,17 +225,29 @@ class MyWallet : AppCompatActivity() {
                     val parsedDate = LocalDate.parse(dateStr)
                     val name = doc.getString("description") ?: ""
                     val category = doc.getString("category") ?: ""
-                    val type = doc.getString("type") ?: "expense"
-                    val amountVal = readAmount(doc.get("amount"))
-                    val signedAmount = if (type.equals("expense", true)) -amountVal else amountVal
+                    val type = (doc.getString("type") ?: "expense").lowercase(Locale.ENGLISH)
+
+                    // ORIGINAL values (what user typed) — used for ITEM DISPLAY ONLY
+                    val curOrig = (doc.getString("currency") ?: "EUR").uppercase(Locale.ENGLISH)
+                    val amountOrig = readAmount(doc.get("amount"))
+                    val signedOrig = if (type == "expense") -amountOrig else amountOrig
+
+                    // For headers (totals) we still need MAIN currency
+                    val amountUnsignedMain = amountInMainUnsigned(doc) ?: 0.0
+                    val signedMain =
+                        if (type == "expense") -amountUnsignedMain else amountUnsignedMain
+
                     val budgetId = doc.getString("budgetId") ?: ""
                     val expenseIdInBudget = doc.getString("expenseIdInBudget") ?: ""
                     val ts = (doc.get("timestamp") as? Timestamp)?.toDate()?.time ?: 0L
+
                     ExpenseDetailsWithId(
                         date = parsedDate,
                         name = name,
                         category = category,
-                        amount = signedAmount,
+                        amountSignedMain = signedMain, // used for headers/totals
+                        amountSignedOrig = signedOrig,  // used for item display
+                        currencyOrig = curOrig,
                         type = type,
                         id = doc.id,
                         budgetId = budgetId,
@@ -212,17 +262,23 @@ class MyWallet : AppCompatActivity() {
 
                 for ((date, entries) in rows) {
                     val sortedEntries = entries.sortedByDescending { it.timestampMs }
-                    val total = sortedEntries.sumOf { it.amount }
-                    val label = df2.format(total)
+
+                    // Header totals in MAIN currency (signed)
+                    val totalMain = sortedEntries.sumOf { it.amountSignedMain }
+                    val headerLabel = df2.format(totalMain) // adapter appends currency
                     listItems.add(
                         ExpenseListItem.Header(
                             date = date.format(formatted),
-                            total = label,
-                            isPositive = total >= 0
+                            total = headerLabel,
+                            isPositive = totalMain >= 0
                         )
                     )
+
+                    // Items: show ONLY the original value + its currency (no main currency here)
                     sortedEntries.forEach { row ->
-                        val displayAmount = df2.format(row.amount)
+                        val displayAmount =
+                            "${df2.format(row.amountSignedOrig)} ${row.currencyOrig}"
+
                         listItems.add(
                             ExpenseListItem.Item(
                                 iconResId = R.drawable.ic_home_white_24dp,
@@ -230,7 +286,7 @@ class MyWallet : AppCompatActivity() {
                                 budgetId = row.budgetId,
                                 expenseIdInBudget = row.expenseIdInBudget,
                                 category = row.category,
-                                amount = displayAmount,
+                                amount = displayAmount, // <-- original only
                                 date = row.date.toString(),
                                 type = row.type,
                                 id = row.id
@@ -248,7 +304,9 @@ class MyWallet : AppCompatActivity() {
         val date: LocalDate,
         val name: String,
         val category: String,
-        val amount: Double,
+        val amountSignedMain: Double, // signed, MAIN currency (headers/totals)
+        val amountSignedOrig: Double, // signed, ORIGINAL currency (items)
+        val currencyOrig: String,
         val type: String,
         val id: String,
         val budgetId: String,
@@ -256,9 +314,59 @@ class MyWallet : AppCompatActivity() {
         val timestampMs: Long
     )
 
+    /** Amount in MAIN currency, unsigned (always positive), with "no-recalc-if-same-currency" rule. */
+    private fun amountInMainUnsigned(doc: DocumentSnapshot): Double? {
+        val cur = (doc.getString("currency") ?: "EUR").uppercase(Locale.ENGLISH)
+        val amountOrig = readAmount(doc.get("amount"))
+        if (cur == mainCurrency.uppercase(Locale.ENGLISH)) {
+            // Original expense already in display currency → do NOT convert.
+            return abs(amountOrig)
+        }
+
+        // Otherwise convert:
+        // 1) Prefer stored amountBase (EUR), 2) fallback to latest snapshot using original currency
+        val amountBase = (doc.get("amountBase") as? Number)?.toDouble()
+            ?: run {
+                if (cur.equals("EUR", true)) amountOrig
+                else {
+                    val eurToCur = eurRatesLatest[cur] ?: return null
+                    val curToEur = 1.0 / eurToCur
+                    amountOrig * curToEur
+                }
+            }
+        return abs(amountBase * eurToMainRate)
+    }
+
     private fun readAmount(raw: Any?): Double = when (raw) {
         is Number -> raw.toDouble()
         is String -> raw.replace(",", ".").toDoubleOrNull() ?: 0.0
         else -> 0.0
+    }
+
+    /** Fetch a single latest EUR snapshot (EUR -> CODE map). */
+    private fun fetchEurRatesLatest(): Map<String, Double>? {
+        var conn: HttpURLConnection? = null
+        return try {
+            val url = URL("https://api.frankfurter.dev/v1/latest?from=EUR")
+            conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 8000
+                readTimeout = 8000
+            }
+            val text = conn.inputStream.bufferedReader().use { it.readText() }
+            val json = JSONObject(text)
+            val rates = json.optJSONObject("rates") ?: return emptyMap()
+            val out = mutableMapOf<String, Double>()
+            val keys = rates.keys()
+            while (keys.hasNext()) {
+                val k = keys.next()
+                out[k.uppercase(Locale.ENGLISH)] = rates.getDouble(k)
+            }
+            out
+        } catch (_: Exception) {
+            null
+        } finally {
+            conn?.disconnect()
+        }
     }
 }
