@@ -19,12 +19,21 @@ import com.example.budgetmaster.ui.components.ExpensesAdapter
 import com.example.budgetmaster.utils.Categories
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.abs
 
 class ExpenseAnalysis : AppCompatActivity() {
 
@@ -50,6 +59,7 @@ class ExpenseAnalysis : AppCompatActivity() {
     private var selectedCategory: String? = null
     private var selectedType = "Expense"
 
+    // (display item with ORIGINAL string, SIGNED amount in MAIN currency for math)
     private var cachedEntries: List<Pair<ExpenseListItem.Item, Double>> = emptyList()
     private var cachedPieData: List<CustomPieChartView.PieEntry> = emptyList()
 
@@ -59,6 +69,11 @@ class ExpenseAnalysis : AppCompatActivity() {
     )
 
     private val df2 by lazy { DecimalFormat("0.00", DecimalFormatSymbols(Locale.US)) }
+
+    // Currency view state — SAME as in MyWallet
+    private var mainCurrency: String = "PLN"
+    private var eurRatesLatest: Map<String, Double> = emptyMap() // EUR -> CODE
+    private var eurToMainRate: Double = 1.0                      // EUR -> main
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,9 +86,7 @@ class ExpenseAnalysis : AppCompatActivity() {
             insets
         }
 
-        intent.getIntExtra("selectedYear", -1).let {
-            if (it != -1) selectedYear = it
-        }
+        intent.getIntExtra("selectedYear", -1).let { if (it != -1) selectedYear = it }
         intent.getStringExtra("selectedMonth")?.let { selectedMonth = it }
 
         typeSpinner = findViewById(R.id.typeSpinner)
@@ -93,36 +106,24 @@ class ExpenseAnalysis : AppCompatActivity() {
         setupCategorySpinner()
 
         recyclerView.layoutManager = LinearLayoutManager(this)
-
-        expensesAdapter = ExpensesAdapter(emptyList()) { clickedItem ->
+        expensesAdapter = ExpensesAdapter(emptyList(), currencyCode = mainCurrency) { clickedItem ->
             val intent = Intent(this, ExpenseDetailsWallet::class.java)
             intent.putExtra("selectedYear", selectedYear)
             intent.putExtra("selectedMonth", selectedMonth)
             intent.putExtra("expenseItem", clickedItem)
+            intent.putExtra("expenseId", clickedItem.id)
             startActivity(intent)
         }
         recyclerView.adapter = expensesAdapter
 
-        fabNewExpense.setOnClickListener {
-            startActivity(Intent(this, AddExpense::class.java))
-        }
+        fabNewExpense.setOnClickListener { startActivity(Intent(this, AddExpense::class.java)) }
 
-        pieChart.setOnSliceClickListener(object : CustomPieChartView.OnSliceClickListener {
-            override fun onSliceClick(label: String) {
-                selectedCategory = if (selectedCategory == label) null else label
-                categorySpinner.setText(selectedCategory ?: "All", false)
-                pieChart.setData(cachedPieData, selectedCategory)
-                updateRecyclerView(selectedCategory)
-                computeAverageMonthlySum() // re-calc average for new category
-            }
-        })
-
-        loadMonthData()
+        refreshCurrencyAndRatesThenLoad()
     }
 
     override fun onResume() {
         super.onResume()
-        loadMonthData()
+        refreshCurrencyAndRatesThenLoad()
     }
 
     private fun setupTypeSpinner() {
@@ -132,8 +133,7 @@ class ExpenseAnalysis : AppCompatActivity() {
         typeSpinner.setText(selectedType, false)
         typeSpinner.setOnItemClickListener { _, _, position, _ ->
             selectedType = types[position]
-            loadMonthData()
-            computeAverageMonthlySum()
+            refreshCurrencyAndRatesThenLoad()
         }
     }
 
@@ -145,8 +145,7 @@ class ExpenseAnalysis : AppCompatActivity() {
         yearSpinner.setText(selectedYear.toString(), false)
         yearSpinner.setOnItemClickListener { _, _, position, _ ->
             selectedYear = years[position].toInt()
-            loadMonthData()
-            computeAverageMonthlySum()
+            refreshCurrencyAndRatesThenLoad()
         }
     }
 
@@ -158,7 +157,7 @@ class ExpenseAnalysis : AppCompatActivity() {
         }
         monthSpinner.setOnItemClickListener { _, _, position, _ ->
             selectedMonth = months[position]
-            loadMonthData() // average is yearly; no need to recompute here
+            refreshCurrencyAndRatesThenLoad()
         }
     }
 
@@ -166,13 +165,38 @@ class ExpenseAnalysis : AppCompatActivity() {
         val categories = listOf("All") + Categories.categoryList
         val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, categories)
         categorySpinner.setAdapter(adapter)
-        categorySpinner.setText("All", false)
+        categorySpinner.setText(selectedCategory ?: "All", false)
         categorySpinner.setOnItemClickListener { _, _, position, _ ->
             selectedCategory = if (position == 0) null else categories[position]
             pieChart.setData(cachedPieData, selectedCategory)
             updateRecyclerView(selectedCategory)
             computeAverageMonthlySum()
         }
+    }
+
+    /** EXACTLY like MyWallet: load user's mainCurrency, fetch latest EUR rates, then load data */
+    private fun refreshCurrencyAndRatesThenLoad() {
+        val uid = auth.currentUser?.uid ?: return
+        db.collection("users").document(uid).get()
+            .addOnSuccessListener { doc ->
+                mainCurrency = (doc.getString("mainCurrency") ?: "PLN").uppercase()
+                expensesAdapter.updateCurrency(mainCurrency)
+            }
+            .addOnFailureListener {
+                mainCurrency = "PLN"
+                expensesAdapter.updateCurrency(mainCurrency)
+            }
+            .addOnCompleteListener {
+                MainScope().launch {
+                    eurRatesLatest =
+                        withContext(Dispatchers.IO) { fetchEurRatesLatest() } ?: emptyMap()
+                    eurToMainRate =
+                        if (mainCurrency.equals("EUR", true)) 1.0 else eurRatesLatest[mainCurrency]
+                            ?: 1.0
+                    loadMonthData()
+                    computeAverageMonthlySum()
+                }
+            }
     }
 
     private fun loadMonthData() {
@@ -193,132 +217,195 @@ class ExpenseAnalysis : AppCompatActivity() {
                 if (result.isEmpty) {
                     recyclerView.visibility = View.GONE
                     pieChart.setData(emptyList(), null)
-                    totalSpentText.text = df2.format(0.0)
+                    totalSpentText.text = "0.00 $mainCurrency"
+                    averageSpentText.text = "0.00 $mainCurrency"
                     cachedEntries = emptyList()
                     cachedPieData = emptyList()
-                    computeAverageMonthlySum()
                     return@addOnSuccessListener
                 }
 
+                // Pie data in MAIN currency (unsigned per category, filtered by selectedType & selectedCategory)
                 val allCategoryTotals = result.documents
+                    .asSequence()
                     .filter { it.getString("type")?.equals(selectedType, true) == true }
+                    .filter {
+                        selectedCategory == null || (it.getString("category")
+                            ?: "Other") == selectedCategory
+                    }
                     .groupBy { it.getString("category") ?: "Other" }
                     .map { (cat, items) ->
-                        CustomPieChartView.PieEntry(
-                            items.sumOf { readAmount(it.get("amount")) },
-                            cat
-                        )
+                        val sumMainUnsigned = items.sumOf { amountInMainUnsigned(it) ?: 0.0 }
+                        CustomPieChartView.PieEntry(sumMainUnsigned, cat)
                     }
                     .sortedByDescending { it.value }
 
                 cachedPieData = allCategoryTotals
                 pieChart.setData(cachedPieData, selectedCategory)
 
+                // Build items: ORIGINAL display only + SIGNED MAIN for headers/total
                 cachedEntries = result.documents.mapNotNull { doc ->
+                    val type = (doc.getString("type") ?: "expense").lowercase(Locale.ENGLISH)
+                    if (!type.equals(selectedType, true)) return@mapNotNull null
+                    if (selectedCategory != null && (doc.getString("category")
+                            ?: "Other") != selectedCategory
+                    ) return@mapNotNull null
+
                     val category = doc.getString("category") ?: "Other"
-                    val amount = readAmount(doc.get("amount"))
-                    val type = doc.getString("type") ?: "expense"
                     val description = doc.getString("description") ?: ""
                     val dateStr = doc.getString("date") ?: ""
 
-                    if (!type.equals(selectedType, true)) return@mapNotNull null
+                    // ORIGINAL display (what user typed)
+                    val curOrig = (doc.getString("currency") ?: "EUR").uppercase(Locale.ENGLISH)
+                    val amountOrig = readAmount(doc.get("amount"))
+                    val signedOrig = if (type == "expense") -amountOrig else amountOrig
+                    val displayAmount = "${df2.format(signedOrig)} $curOrig"
 
-                    val signedAmount = if (type.equals("expense", true)) -amount else amount
+                    // SIGNED MAIN for headers/totals
+                    val unsignedMain = amountInMainUnsigned(doc) ?: 0.0
+                    val signedMain = if (type == "expense") -unsignedMain else unsignedMain
 
                     val item = ExpenseListItem.Item(
-                        Categories.getIcon(category),
-                        description,
+                        iconResId = Categories.getIcon(category),
+                        name = description,
                         budgetId = "null", expenseIdInBudget = "null",
-                        category,
-                        df2.format(signedAmount),
-                        dateStr,
-                        type,
-                        doc.id
+                        category = category,
+                        amount = displayAmount, // ORIGINAL ONLY
+                        date = dateStr,
+                        type = type,
+                        id = doc.id
                     )
-                    Pair(item, signedAmount)
+                    Pair(item, signedMain)
                 }
 
                 updateRecyclerView(selectedCategory)
-                computeAverageMonthlySum()
             }
             .addOnFailureListener {
                 loadingProgressBar.visibility = View.GONE
                 recyclerView.visibility = View.GONE
-                totalSpentText.text = df2.format(0.0)
-                averageSpentText.text = df2.format(0.0)
+                totalSpentText.text = "0.00 $mainCurrency"
+                averageSpentText.text = "0.00 $mainCurrency"
             }
     }
 
     private fun computeAverageMonthlySum() {
         val uid = auth.currentUser?.uid ?: return
-        val yearRef = db.collection("users")
-            .document(uid)
-            .collection("expenses")
-            .document(selectedYear.toString())
+        val yearRef = db.collection("users").document(uid)
+            .collection("expenses").document(selectedYear.toString())
 
         var completed = 0
-        var sumAcrossMonths = 0.0
+        var sumAcrossMonthsMain = 0.0
         var monthsWithData = 0
 
         months.forEach { monthName ->
             yearRef.collection(monthName)
                 .get()
                 .addOnSuccessListener { docs ->
-                    val monthTotal = docs.documents
+                    val monthTotalMainUnsigned = docs.documents
                         .asSequence()
                         .filter { it.getString("type")?.equals(selectedType, true) == true }
                         .filter {
                             selectedCategory == null || (it.getString("category")
                                 ?: "Other") == selectedCategory
                         }
-                        .sumOf { readAmount(it.get("amount")) }
-                    if (monthTotal != 0.0) {
-                        sumAcrossMonths += monthTotal
+                        .sumOf { amountInMainUnsigned(it) ?: 0.0 }
+                    if (monthTotalMainUnsigned != 0.0) {
+                        sumAcrossMonthsMain += monthTotalMainUnsigned
                         monthsWithData++
                     }
                 }
                 .addOnCompleteListener {
                     completed++
                     if (completed == 12) {
-                        val avg = if (monthsWithData == 0) 0.0 else sumAcrossMonths / monthsWithData
-                        averageSpentText.text = df2.format(avg)
+                        val avg =
+                            if (monthsWithData == 0) 0.0 else sumAcrossMonthsMain / monthsWithData
+                        averageSpentText.text = "${df2.format(avg)} $mainCurrency"
                     }
                 }
         }
     }
 
     private fun updateRecyclerView(category: String?) {
-        val filteredPairs =
+        val filtered =
             if (category == null) cachedEntries else cachedEntries.filter { it.first.category == category }
 
-        val total = filteredPairs.sumOf { it.second }
-        totalSpentText.text = df2.format(total)
+        val totalMainSigned = filtered.sumOf { it.second }
+        totalSpentText.text = "${df2.format(totalMainSigned)} $mainCurrency"
 
-        val grouped = filteredPairs.map { it.first }.groupBy { it.date }
+        val grouped = filtered.groupBy { it.first.date }
             .toSortedMap(compareByDescending { LocalDate.parse(it) })
 
         val listItems = mutableListOf<ExpenseListItem>()
-        val formatted = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
+        val dayFmt = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
 
-        for ((date, items) in grouped) {
-            val totalForDay = filteredPairs.filter { it.first.date == date }.sumOf { it.second }
+        for ((date, pairs) in grouped) {
+            val dayTotalMainSigned = pairs.sumOf { it.second }
             listItems.add(
                 ExpenseListItem.Header(
-                    LocalDate.parse(date).format(formatted),
-                    df2.format(totalForDay),
-                    totalForDay >= 0
+                    LocalDate.parse(date).format(dayFmt),
+                    df2.format(dayTotalMainSigned), // adapter appends currency code
+                    isPositive = dayTotalMainSigned >= 0
                 )
             )
-            listItems.addAll(items)
+            listItems.addAll(pairs.map { it.first }) // ORIGINAL values per item
         }
 
         expensesAdapter.updateItems(listItems)
         recyclerView.visibility = if (listItems.isEmpty()) View.GONE else View.VISIBLE
     }
 
+    // ---------- SAME conversions as in MyWallet ----------
+
+    /** Amount in MAIN currency, unsigned; with "no-recalc-if-same-currency" rule. */
+    private fun amountInMainUnsigned(doc: DocumentSnapshot): Double? {
+        val cur = (doc.getString("currency") ?: "EUR").uppercase(Locale.ENGLISH)
+        val amountOrig = readAmount(doc.get("amount"))
+        if (cur == mainCurrency.uppercase(Locale.ENGLISH)) {
+            // Already in display currency → do NOT convert.
+            return abs(amountOrig)
+        }
+        // Prefer stored amountBase (EUR), else compute via EUR snapshot
+        val amountBase = (doc.get("amountBase") as? Number)?.toDouble()
+            ?: run {
+                if (cur.equals("EUR", true)) amountOrig
+                else {
+                    val eurToCur = eurRatesLatest[cur] ?: return null
+                    val curToEur = 1.0 / eurToCur
+                    amountOrig * curToEur
+                }
+            }
+        return abs(amountBase * eurToMainRate)
+    }
+
     private fun readAmount(raw: Any?): Double = when (raw) {
         is Number -> raw.toDouble()
         is String -> raw.replace(",", ".").toDoubleOrNull() ?: 0.0
         else -> 0.0
+    }
+
+    /** Fetch a single latest EUR snapshot (EUR -> CODE map). */
+    private fun fetchEurRatesLatest(): Map<String, Double>? {
+        var conn: HttpURLConnection? = null
+        return try {
+            val url = URL("https://api.frankfurter.dev/v1/latest?from=EUR")
+            conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 8000
+                readTimeout = 8000
+            }
+            val text = conn.inputStream.bufferedReader().use { it.readText() }
+            val json = JSONObject(text)
+            val rates = json.optJSONObject("rates") ?: return emptyMap()
+            val out = mutableMapOf<String, Double>()
+            val keys = rates.keys()
+            while (keys.hasNext()) {
+                val k = keys.next()
+                out[k.uppercase(Locale.ENGLISH)] = rates.getDouble(k)
+            }
+            out
+        } catch (_: Exception) {
+            null
+        } finally {
+            conn?.disconnect()
+        }
     }
 }
