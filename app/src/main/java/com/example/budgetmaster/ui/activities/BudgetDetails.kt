@@ -118,10 +118,9 @@ class BudgetDetails : AppCompatActivity() {
                             ?: "EUR"
                         ).uppercase(Locale.ENGLISH)
 
-                // update adapters with currency code (members requires it for balances text)
+                // update adapters with currency code
                 membersAdapter.updateCurrency(budgetCurrency)
-                // If your BudgetExpensesAdapter also supports currency, uncomment the next line:
-                // expensesAdapter.updateCurrency(budgetCurrency)
+                expensesAdapter.updateCurrency(budgetCurrency) // ✅ added
 
                 val members = (doc.get("members") as? List<String>).orEmpty()
                 loadMembers(members)

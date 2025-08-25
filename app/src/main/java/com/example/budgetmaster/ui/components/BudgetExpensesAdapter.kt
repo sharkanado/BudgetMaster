@@ -20,6 +20,13 @@ class BudgetExpensesAdapter(
     private val TYPE_HEADER = 0
     private val TYPE_ITEM = 1
 
+    private var groupCurrency: String = "EUR"
+
+    fun updateCurrency(code: String) {
+        groupCurrency = code
+        notifyDataSetChanged()
+    }
+
     fun setData(rawExpenses: List<BudgetExpenseItem>) {
         val rebuilt = groupSortAndBuild(rawExpenses)
         expenses.clear()
@@ -50,11 +57,11 @@ class BudgetExpensesAdapter(
             holder.itemView.setOnClickListener { onHeaderClick(position) }
         } else if (holder is ItemViewHolder) {
             holder.description.text = item.description
-            val code = item.currencyCode.ifBlank { "" }
-            holder.amount.text = if (code.isEmpty())
-                String.format(Locale.ENGLISH, "%.2f", item.amount)
-            else
-                String.format(Locale.ENGLISH, "%.2f %s", item.amount, code)
+
+            // ✅ Always show budget currency if expense currency is blank
+            val code = if (item.currencyCode.isNotBlank()) item.currencyCode else groupCurrency
+            holder.amount.text = String.format(Locale.ENGLISH, "%.2f %s", item.amount, code)
+
             holder.date.text = formatDate(item.date)
             holder.paidBy.text = userNames[item.createdBy] ?: "Unknown"
             holder.itemView.setOnClickListener { onExpenseClick(item) }
