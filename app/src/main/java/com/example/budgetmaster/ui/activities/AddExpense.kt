@@ -44,6 +44,8 @@ class AddExpense : AppCompatActivity() {
     private val BASE_CURRENCY = "EUR"
     private var userMainCurrency: String = "PLN"
 
+    private lateinit var currencyDropdown: AutoCompleteTextView
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -55,14 +57,17 @@ class AddExpense : AppCompatActivity() {
             insets
         }
 
-        // prefetch user's main currency as fallback/default
         Firebase.auth.currentUser?.uid?.let { uid ->
             FirebaseFirestore.getInstance().collection("users").document(uid)
                 .get()
                 .addOnSuccessListener { doc ->
                     doc.getString("mainCurrency")?.let { userMainCurrency = it.uppercase() }
+                    bindCurrencies() // bind after we know main currency
                 }
-        }
+                .addOnFailureListener {
+                    bindCurrencies()
+                }
+        } ?: bindCurrencies()
 
         val dateInputLayout = findViewById<TextInputLayout>(R.id.dateInputLayout)
         val dateInput = findViewById<TextInputEditText>(R.id.dateInput)
@@ -140,9 +145,31 @@ class AddExpense : AppCompatActivity() {
 
         findViewById<MaterialButton>(R.id.saveTransactionBtn).setOnClickListener {
             val userId = Firebase.auth.currentUser?.uid
-            if (userId != null) {
-                saveExpense(this, userId)
-            }
+            if (userId != null) saveExpense(this, userId)
+        }
+    }
+
+    private fun bindCurrencies() {
+        currencyDropdown = findViewById(R.id.currencyDropdown)
+        if (currencyDropdown == null) return
+
+        lifecycleScope.launch {
+            val currencies = withContext(Dispatchers.IO) { fetchCurrenciesFrankfurter() }
+                ?: fallbackCurrencies()
+            val items = currencies.entries
+                .sortedBy { it.key }
+                .map { "${it.key} — ${it.value}" }
+
+            val adapter = ArrayAdapter(this@AddExpense, android.R.layout.simple_list_item_1, items)
+            currencyDropdown.setAdapter(adapter)
+
+            val preselect = items.firstOrNull {
+                it.startsWith("${userMainCurrency.uppercase()} ")
+                        || it.startsWith("${userMainCurrency.uppercase()}—")
+                        || it.startsWith("${userMainCurrency.uppercase()} —")
+            } ?: items.firstOrNull { it.startsWith("EUR") }
+
+            currencyDropdown.setText(preselect ?: userMainCurrency, false)
         }
     }
 
@@ -164,7 +191,6 @@ class AddExpense : AppCompatActivity() {
         return withContext(Dispatchers.IO) {
             var conn: HttpURLConnection? = null
             try {
-                // Try historical for the given date
                 var url = URL(urlFor("$dateStr?from=$from&to=$to"))
                 conn = (url.openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
@@ -180,7 +206,6 @@ class AddExpense : AppCompatActivity() {
                 }
                 conn.disconnect()
 
-                // Fallback to latest
                 url = URL(urlFor("latest?from=$from&to=$to"))
                 conn = (url.openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
@@ -202,6 +227,41 @@ class AddExpense : AppCompatActivity() {
             }
         }
     }
+
+    private suspend fun fetchCurrenciesFrankfurter(): Map<String, String>? =
+        withContext(Dispatchers.IO) {
+            var conn: HttpURLConnection? = null
+            try {
+                val url = URL("https://api.frankfurter.dev/v1/currencies")
+                conn = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 8000
+                    readTimeout = 8000
+                }
+                val text = conn.inputStream.bufferedReader().use { it.readText() }
+                val json = JSONObject(text)
+                val out = mutableMapOf<String, String>()
+                val keys = json.keys()
+                while (keys.hasNext()) {
+                    val k = keys.next()
+                    out[k.uppercase(Locale.ENGLISH)] = json.getString(k)
+                }
+                out
+            } catch (_: Exception) {
+                null
+            } finally {
+                conn?.disconnect()
+            }
+        }
+
+    private fun fallbackCurrencies(): Map<String, String> = mapOf(
+        "EUR" to "Euro",
+        "PLN" to "Polish Złoty",
+        "USD" to "US Dollar",
+        "CZK" to "Czech Koruna",
+        "GBP" to "British Pound",
+        "CHF" to "Swiss Franc"
+    )
 
     private fun round2(value: Double): Double = round(value * 100.0) / 100.0
 
@@ -241,10 +301,10 @@ class AddExpense : AppCompatActivity() {
             val amountBase = round2(amount * rate)
 
             val expenseData = hashMapOf(
-                "amount" to amount,                    // original amount
-                "currency" to currency,                // original currency
-                "baseCurrency" to BASE_CURRENCY,       // EUR
-                "amountBase" to amountBase,            // converted to EUR
+                "amount" to amount,
+                "currency" to currency,
+                "baseCurrency" to BASE_CURRENCY,
+                "amountBase" to amountBase,
                 "fx" to mapOf(
                     "rate" to rate,
                     "asOf" to asOf,
