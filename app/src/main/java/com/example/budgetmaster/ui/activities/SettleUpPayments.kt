@@ -157,25 +157,25 @@ class SettleUpPayments : AppCompatActivity() {
 
                 val serverTime = FieldValue.serverTimestamp()
 
-                // receiver gets receivable
+                // receiver loses receivable
                 val receiverTotalsRef = db.collection("budgets").document(budgetId)
                     .collection("totals").document(receiverId)
                 batch.set(
                     receiverTotalsRef,
                     mapOf(
-                        "receivable" to FieldValue.increment(amount),
+                        "receivable" to FieldValue.increment(-amount),
                         "updatedAt" to serverTime
                     ),
                     com.google.firebase.firestore.SetOptions.merge()
                 )
 
-                // payer gets debt
+                // payer loses debt
                 val payerTotalsRef = db.collection("budgets").document(budgetId)
                     .collection("totals").document(uid)
                 batch.set(
                     payerTotalsRef,
                     mapOf(
-                        "debt" to FieldValue.increment(amount),
+                        "debt" to FieldValue.increment(-amount),
                         "updatedAt" to serverTime
                     ),
                     com.google.firebase.firestore.SetOptions.merge()
