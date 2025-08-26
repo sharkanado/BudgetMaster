@@ -69,7 +69,6 @@ class SettleUpPayments : AppCompatActivity() {
         prefillTodayDate()
         dateInput.setOnClickListener { showDatePicker() }
 
-        // prefill description + amount
         fetchCurrentUserName { yourName ->
             descriptionInput.setText("$yourName and $receiverName settlement")
         }
@@ -139,7 +138,7 @@ class SettleUpPayments : AppCompatActivity() {
             "description" to description,
             "date" to dateStr,
             "timestamp" to Timestamp.now(),
-            "type" to "expense",
+            "type" to "settlement",
             "createdBy" to uid,
             "paidFor" to listOf(receiverId),
             "paidShares" to paidShares

@@ -129,10 +129,18 @@ class GroupSettlement : AppCompatActivity() {
                 var totalExpenses = 0.0
 
                 for (doc in qs) {
-                    if ((doc.getString("type") ?: "expense") != "expense") continue
+                    val type = doc.getString("type") ?: "expense"
+
+                    // Count total spent ONLY for normal expenses
+                    if (type == "expense") {
+                        val amt = doc.getDouble("amount") ?: 0.0
+                        totalExpenses += amt
+                    }
+
+                    // Settlement balances: include both expenses and settlements
+                    if (type != "expense" && type != "settlement") continue
+
                     val payer = doc.getString("createdBy") ?: continue
-                    val amount = doc.getDouble("amount") ?: 0.0
-                    totalExpenses += amount
 
                     @Suppress("UNCHECKED_CAST")
                     val rawShares = doc.get("paidShares") as? Map<String, Any> ?: continue
@@ -154,7 +162,7 @@ class GroupSettlement : AppCompatActivity() {
                     }
                 }
 
-                // Show the total group spend with currency code
+                // Show the total group spend with currency code (only expenses)
                 allGroupExpenses.text = "${format2(totalExpenses)} $budgetCurrencyCode"
 
                 if (pair.isEmpty()) {

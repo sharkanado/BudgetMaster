@@ -14,8 +14,6 @@ import com.example.budgetmaster.ui.activities.BudgetDetails
 import com.example.budgetmaster.ui.activities.MyWallet
 import com.example.budgetmaster.ui.components.BudgetsAdapter
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.AggregateField
-import com.google.firebase.firestore.AggregateSource
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -156,16 +154,15 @@ class BudgetsFragment : Fragment() {
         }
     }
 
+    // only sumBudgetExpenses changed to skip settlement
     private suspend fun sumBudgetExpenses(db: FirebaseFirestore, budgetId: String): Double {
         val col = db.collection("budgets").document(budgetId).collection("expenses")
         return try {
-            val agg = col.aggregate(AggregateField.sum("amount"))
-                .get(AggregateSource.SERVER).await()
-            (agg.get(AggregateField.sum("amount")) as? Number)?.toDouble() ?: 0.0
-        } catch (_: Exception) {
+            // aggregation cannot filter -> fallback to manual
             val snap = col.get().await()
             var total = 0.0
             for (doc in snap.documents) {
+                if ((doc.getString("type") ?: "expense") == "settlement") continue // 👈 skip
                 val raw = doc.get("amount")
                 total += when (raw) {
                     is Number -> raw.toDouble()
@@ -174,6 +171,8 @@ class BudgetsFragment : Fragment() {
                 }
             }
             total
+        } catch (_: Exception) {
+            0.0
         }
     }
 
