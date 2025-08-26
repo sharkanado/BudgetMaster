@@ -3,7 +3,11 @@ package com.example.budgetmaster.ui.activities
 import android.app.DatePickerDialog
 import android.os.Bundle
 import android.view.View
+import android.widget.ArrayAdapter
 import android.widget.CheckBox
+import android.widget.ImageView
+import android.widget.Spinner
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -15,11 +19,14 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
 import com.example.budgetmaster.ui.components.BudgetMemberItem
 import com.example.budgetmaster.ui.components.BudgetSplitMembersAdapter
+import com.google.android.material.imageview.ShapeableImageView
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.time.LocalDate
@@ -34,6 +41,9 @@ class CreateGroupExpense : AppCompatActivity() {
     private val db = FirebaseFirestore.getInstance()
     private lateinit var budgetId: String
     private lateinit var budgetName: String
+    private lateinit var amountCurrencyText: TextView
+
+    private var budgetCurrency: String = "EUR" // default, will be fetched from budget
 
     private lateinit var membersRecycler: RecyclerView
     private lateinit var selectAllCheckbox: CheckBox
@@ -43,6 +53,13 @@ class CreateGroupExpense : AppCompatActivity() {
     private lateinit var dateInput: TextInputEditText
     private lateinit var descriptionInput: TextInputEditText
     private lateinit var amountInput: TextInputEditText
+
+    // exchange component
+    private lateinit var exchangeInput: TextInputEditText
+    private lateinit var exchangeSpinner: Spinner
+    private lateinit var exchangeSwap: ShapeableImageView
+    private lateinit var exchangeComponent: View
+    private var currencies: List<String> = emptyList()
 
     private lateinit var splitAdapter: BudgetSplitMembersAdapter
 
@@ -77,16 +94,35 @@ class CreateGroupExpense : AppCompatActivity() {
         }
         budgetName = intent.getStringExtra("budgetName") ?: "Unknown Budget"
 
+        amountCurrencyText = findViewById(R.id.amountCurrencyText)
         dateInput = findViewById(R.id.dateInput)
         descriptionInput = findViewById(R.id.descriptionInput)
         amountInput = findViewById(R.id.amountInput)
         membersRecycler = findViewById(R.id.membersRecycler)
         selectAllCheckbox = findViewById(R.id.selectAllCheckbox)
 
+        // exchange views
+        exchangeComponent = findViewById(R.id.exchangeOfficeContainer)
+        exchangeInput = findViewById(R.id.exchangeInput)
+        exchangeSpinner = findViewById(R.id.exchangeSpinner)
+        exchangeSwap = findViewById(R.id.exchangeSwapIcon)
+
         prefillTodayDate()
         dateInput.setOnClickListener { showDatePicker() }
 
         membersRecycler.layoutManager = LinearLayoutManager(this)
+        val exchangeHeader = findViewById<View>(R.id.exchangeOfficeHeader)
+        val exchangeContent = findViewById<View>(R.id.exchangeOfficeContent)
+        val exchangeArrow = findViewById<ImageView>(R.id.exchangeOfficeArrow)
+
+        var expanded = false
+
+        exchangeHeader.setOnClickListener {
+            expanded = !expanded
+            exchangeContent.visibility = if (expanded) View.VISIBLE else View.GONE
+            // rotate arrow for effect
+            exchangeArrow.animate().rotation(if (expanded) 180f else 0f).setDuration(200).start()
+        }
 
         amountInput.addTextChangedListener(afterTextChanged = {
             if (suppressAmountWatcher) return@addTextChangedListener
@@ -126,7 +162,87 @@ class CreateGroupExpense : AppCompatActivity() {
 
         findViewById<View>(R.id.saveExpenseBtn).setOnClickListener { saveGroupExpense() }
 
+        // load members + budget currency
         loadBudgetMembers()
+
+        // exchange component setup
+        loadCurrencies()
+        exchangeSwap.setOnClickListener {
+            triggerConversion()
+        }
+    }
+
+    private fun triggerConversion() {
+        val rawAmount = exchangeInput.text?.toString()?.toDoubleOrNull()
+        val fromCode = exchangeSpinner.selectedItem?.toString()
+        if (rawAmount != null && !fromCode.isNullOrBlank()) {
+            if (fromCode == budgetCurrency) {
+                amountInput.setText(df2.format(rawAmount))
+                return
+            }
+
+            convertCurrency(rawAmount, fromCode, budgetCurrency) { converted ->
+                runOnUiThread {
+                    if (converted != null) {
+                        amountInput.setText(df2.format(converted))
+                    } else {
+                        amountInput.setText(df2.format(rawAmount))
+                    }
+                }
+            }
+        }
+    }
+
+    private fun loadCurrencies() {
+        Thread {
+            try {
+                val url = URL("https://api.frankfurter.app/currencies")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "GET"
+                val reader = conn.inputStream.bufferedReader()
+                val response = reader.readText()
+                reader.close()
+                val regex = Regex("\"([A-Z]{3})\":\"[^\"]+\"")
+                val found = regex.findAll(response).map { it.groupValues[1] }.sorted().toList()
+                runOnUiThread {
+                    currencies = found
+                    val adapter =
+                        ArrayAdapter(this, android.R.layout.simple_spinner_item, currencies)
+                    adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+                    exchangeSpinner.adapter = adapter
+                    val defaultIdx = currencies.indexOf(budgetCurrency)
+                    if (defaultIdx >= 0) exchangeSpinner.setSelection(defaultIdx)
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    Toast.makeText(this, "Failed to load currencies", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }.start()
+    }
+
+    private fun convertCurrency(
+        amount: Double,
+        from: String,
+        to: String,
+        callback: (Double?) -> Unit
+    ) {
+        Thread {
+            try {
+                val url = URL("https://api.frankfurter.app/latest?amount=$amount&from=$from&to=$to")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "GET"
+                val reader = conn.inputStream.bufferedReader()
+                val response = reader.readText()
+                reader.close()
+                val regex = Regex("\"$to\":([0-9.]+)")
+                val match = regex.find(response)
+                val value = match?.groupValues?.get(1)?.toDoubleOrNull()
+                callback(value)
+            } catch (e: Exception) {
+                callback(null)
+            }
+        }.start()
     }
 
     private fun parseFlexible(txt: String?): Double? {
@@ -148,6 +264,9 @@ class CreateGroupExpense : AppCompatActivity() {
             .addOnSuccessListener { doc ->
                 val memberIds = doc.get("members") as? List<String> ?: emptyList()
                 budgetName = doc.getString("name") ?: budgetName
+                budgetCurrency = (doc.getString("currency") ?: "EUR").uppercase(Locale.ENGLISH)
+                amountCurrencyText.text = budgetCurrency
+
                 if (memberIds.isEmpty()) return@addOnSuccessListener
 
                 var processed = 0
