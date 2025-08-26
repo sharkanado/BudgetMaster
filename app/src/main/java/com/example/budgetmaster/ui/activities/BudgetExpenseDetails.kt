@@ -48,9 +48,11 @@ class BudgetExpenseDetails : AppCompatActivity() {
     private lateinit var amountEdit: EditText
     private lateinit var descriptionEdit: EditText
     private lateinit var dateEdit: EditText
-
+    private lateinit var amountCurrencyView: TextView
     private lateinit var backButton: ImageButton
     private lateinit var editBtn: ImageButton
+    private var budgetCurrency: String = "EUR"
+
 
     private lateinit var participantsRecycler: RecyclerView
 
@@ -61,6 +63,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
     private lateinit var readOnlyAdapter: BudgetMembersAdapter
     private lateinit var splitAdapter: BudgetSplitMembersAdapter
 
+
     private var isEditMode = false
     private var isRowEditing = false
 
@@ -68,6 +71,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
     private val userNames: MutableMap<String, String> = mutableMapOf()
     private val userEmails: MutableMap<String, String> = mutableMapOf()
     private var budgetId: String = ""
+
 
     private val db by lazy { FirebaseFirestore.getInstance() }
 
@@ -259,17 +263,20 @@ class BudgetExpenseDetails : AppCompatActivity() {
         editBtn = findViewById(R.id.editButton)
 
         amountView = findViewById(R.id.expenseAmount)
+        amountEdit = findViewById(R.id.expenseAmountEdit)
+        amountCurrencyView = findViewById(R.id.expenseAmountCurrency)   // ⬅️ add this
+
         descriptionView = findViewById(R.id.expenseDescription)
         dateView = findViewById(R.id.expenseDate)
         paidByView = findViewById(R.id.whoPaidName)
         paidByMailView = findViewById(R.id.whoPaidEmail)
 
-        amountEdit = findViewById(R.id.expenseAmountEdit)
         descriptionEdit = findViewById(R.id.expenseDescriptionEdit)
         dateEdit = findViewById(R.id.expenseDateEdit)
 
         participantsRecycler = findViewById(R.id.expenseParticipantsRecyclerView)
     }
+
 
     private fun updateTopIcons() {
         if (!isOwner) {
@@ -320,7 +327,9 @@ class BudgetExpenseDetails : AppCompatActivity() {
         amountEdit.visibility = visEdit
         descriptionEdit.visibility = visEdit
         dateEdit.visibility = visEdit
+        findViewById<View>(R.id.amountEditRow).visibility = visEdit
 
+        amountView.visibility = visView
         amountView.visibility = visView
         descriptionView.visibility = visView
         dateView.visibility = visView
@@ -376,6 +385,14 @@ class BudgetExpenseDetails : AppCompatActivity() {
                             }
                         }
                 }
+            }
+
+        db.collection("budgets").document(budgetId).get()
+            .addOnSuccessListener { doc ->
+
+                budgetCurrency = (doc.getString("currency") ?: "EUR").uppercase(Locale.ENGLISH)
+                amountCurrencyView.text = budgetCurrency
+
             }
     }
 
@@ -472,7 +489,10 @@ class BudgetExpenseDetails : AppCompatActivity() {
         paidByView.text = userNames[e.createdBy] ?: e.createdBy
         paidByMailView.text = userEmails[e.createdBy] ?: ""
 
+        amountView.text = "${df2.format(e.amount)} $budgetCurrency"
         amountEdit.setText(df2.format(e.amount))
+        amountCurrencyView.text = budgetCurrency
+
         descriptionEdit.setText(e.description)
         dateEdit.setText(e.date)
 
