@@ -147,13 +147,8 @@ class SettleUpPayments : AppCompatActivity() {
         db.collection("budgets").document(budgetId)
             .collection("expenses")
             .add(expenseData)
-            .addOnSuccessListener { ref ->
+            .addOnSuccessListener {
                 val batch = db.batch()
-
-                val splitsRef = db.collection("budgets").document(budgetId)
-                    .collection("expenseSplits").document(ref.id)
-                batch.set(splitsRef, mapOf("payer" to uid, "shares" to paidShares))
-
                 val serverTime = FieldValue.serverTimestamp()
 
                 // receiver loses receivable
@@ -198,6 +193,7 @@ class SettleUpPayments : AppCompatActivity() {
                 Toast.makeText(this, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
             }
     }
+
 
     private fun fetchCurrentUserName(callback: (String) -> Unit) {
         val uid = auth.currentUser?.uid ?: return callback("You")

@@ -416,6 +416,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
             }
     }
 
+
     private fun rebuildReadOnlyParticipants() {
         participantsReadOnly.clear()
         val byUid = allMembers.associateBy { it.uid }
@@ -568,6 +569,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
             return
         }
 
+        // normalize shares
         val normalizedPaidShares = run {
             val sel = selectedMembers.toList()
             val tmp = LinkedHashMap<String, Double>()
@@ -599,15 +601,14 @@ class BudgetExpenseDetails : AppCompatActivity() {
 
         val budgetRef = db.collection("budgets").document(budgetId)
         val expenseRef = budgetRef.collection("expenses").document(expenseItem.id)
-        val splitsRef = budgetRef.collection("expenseSplits").document(expenseItem.id)
         val totalsCol = budgetRef.collection("totals")
         val payer = expenseItem.createdBy
 
         db.runTransaction { tx ->
-            val old = tx.get(splitsRef)
-            val oldPayer = old.getString("payer") ?: payer
+            // rollback old
+            val oldDoc = tx.get(expenseRef)
             val oldShares: Map<String, Double> =
-                (old.get("shares") as? Map<*, *>)?.mapNotNull { (k, v) ->
+                (oldDoc.get("paidShares") as? Map<*, *>)?.mapNotNull { (k, v) ->
                     val id = k?.toString() ?: return@mapNotNull null
                     val d = (v as? Number)?.toDouble() ?: return@mapNotNull null
                     id to d
@@ -615,7 +616,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
 
             var oldOthers = 0.0
             oldShares.forEach { (uid, share) ->
-                if (uid == oldPayer) return@forEach
+                if (uid == payer) return@forEach
                 oldOthers += share
                 tx.set(
                     totalsCol.document(uid),
@@ -628,7 +629,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
             }
             if (oldOthers != 0.0) {
                 tx.set(
-                    totalsCol.document(oldPayer),
+                    totalsCol.document(payer),
                     mapOf(
                         "receivable" to FieldValue.increment(-oldOthers),
                         "updatedAt" to FieldValue.serverTimestamp()
@@ -637,6 +638,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
                 )
             }
 
+            // apply new
             var newOthers = 0.0
             normalizedPaidShares.forEach { (uid, share) ->
                 if (uid == payer) return@forEach
@@ -662,9 +664,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
             }
 
             tx.update(expenseRef, updates)
-
-            tx.set(splitsRef, mapOf("payer" to payer, "shares" to normalizedPaidShares))
-
             null
         }.addOnSuccessListener {
             savedPaidShares.clear()
@@ -679,6 +678,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
         }
     }
 
+
     private fun deleteExpense() {
         if (!isOwner) {
             Toast.makeText(this, "You can delete only your own expense.", Toast.LENGTH_SHORT).show()
@@ -687,14 +687,13 @@ class BudgetExpenseDetails : AppCompatActivity() {
 
         val budgetRef = db.collection("budgets").document(budgetId)
         val expenseRef = budgetRef.collection("expenses").document(expenseItem.id)
-        val splitsRef = budgetRef.collection("expenseSplits").document(expenseItem.id)
         val totalsCol = budgetRef.collection("totals")
 
         db.runTransaction { tx ->
-            val old = tx.get(splitsRef)
-            val payer = old.getString("payer") ?: expenseItem.createdBy
+            val oldDoc = tx.get(expenseRef)
+            val payer = expenseItem.createdBy
             val shares: Map<String, Double> =
-                (old.get("shares") as? Map<*, *>)?.mapNotNull { (k, v) ->
+                (oldDoc.get("paidShares") as? Map<*, *>)?.mapNotNull { (k, v) ->
                     val id = k?.toString() ?: return@mapNotNull null
                     val d = (v as? Number)?.toDouble() ?: return@mapNotNull null
                     id to d
@@ -725,7 +724,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
             }
 
             tx.delete(expenseRef)
-            tx.delete(splitsRef)
             null
         }.addOnSuccessListener {
             Toast.makeText(this, "Expense deleted", Toast.LENGTH_SHORT).show()
@@ -734,6 +732,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
             Toast.makeText(this, "Failed to delete: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
+
 
     private fun showDatePicker() {
         val cal = Calendar.getInstance()

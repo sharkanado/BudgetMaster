@@ -423,7 +423,7 @@ class CreateGroupExpense : AppCompatActivity() {
             "amount" to amount,
             "category" to "No Category",
             "description" to description,
-            "date" to dateStr,     // yyyy-MM-dd
+            "date" to dateStr,
             "timestamp" to Timestamp.now(),
             "type" to "expense",
             "createdBy" to uid,
@@ -431,19 +431,13 @@ class CreateGroupExpense : AppCompatActivity() {
             "paidShares" to paidShares
         )
 
-        // 1) Create expense
+        // Save expense + update totals
         db.collection("budgets").document(budgetId)
             .collection("expenses")
             .add(expenseData)
-            .addOnSuccessListener { ref ->
-                // 2) Write expenseSplits mirror + increment per-budget totals in a batch
+            .addOnSuccessListener { _ ->
                 val batch = db.batch()
 
-                val splitsRef = db.collection("budgets").document(budgetId)
-                    .collection("expenseSplits").document(ref.id)
-                batch.set(splitsRef, mapOf("payer" to uid, "shares" to paidShares))
-
-                // Sum of others' shares for payer receivable
                 var othersSum = 0.0
                 paidShares.forEach { (participantUid, share) ->
                     if (participantUid != uid) othersSum += share
@@ -498,6 +492,7 @@ class CreateGroupExpense : AppCompatActivity() {
                 Toast.makeText(this, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
             }
     }
+
 
     private fun prefillTodayDate() {
         val today = LocalDate.now()
