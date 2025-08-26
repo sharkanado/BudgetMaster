@@ -4,11 +4,11 @@ import android.os.Bundle
 import android.view.View
 import android.widget.ImageButton
 import android.widget.TextView
-import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
@@ -63,14 +63,31 @@ class GroupSettlement : AppCompatActivity() {
         backButton.setOnClickListener { finish() }
 
         adapter = SettlementAdapter(onItemClick = { row ->
-            val msg = "You owe ${row.name} ${format2(abs(row.amount))} $budgetCurrencyCode"
-            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+            if (row.amount < 0) {
+                val intent =
+                    android.content.Intent(this, SettleUpPayments::class.java).apply {
+                        putExtra("budgetId", budgetId)
+                        putExtra("receiverId", row.uid)
+                        putExtra("receiverName", row.name)
+                        putExtra("amount", abs(row.amount))
+                        putExtra("currency", budgetCurrencyCode)
+                    }
+                startActivity(intent)
+            }
         })
 
         recycler.layoutManager = LinearLayoutManager(this)
         recycler.adapter = adapter
 
-        // Load currency first, then settlement (so labels have the code)
+        // Initial load
+        loadBudgetCurrency {
+            loadSettlement()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Refresh on return
         loadBudgetCurrency {
             loadSettlement()
         }
@@ -233,9 +250,24 @@ class GroupSettlement : AppCompatActivity() {
         private val data = mutableListOf<SettlementRow>()
 
         fun submit(items: List<SettlementRow>) {
+            val diff = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
+                override fun getOldListSize() = data.size
+                override fun getNewListSize() = items.size
+
+                override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+                    return data[oldItemPosition].uid == items[newItemPosition].uid
+                }
+
+                override fun areContentsTheSame(
+                    oldItemPosition: Int,
+                    newItemPosition: Int
+                ): Boolean {
+                    return data[oldItemPosition] == items[newItemPosition]
+                }
+            })
             data.clear()
             data.addAll(items)
-            notifyDataSetChanged()
+            diff.dispatchUpdatesTo(this)
         }
 
         override fun onCreateViewHolder(
