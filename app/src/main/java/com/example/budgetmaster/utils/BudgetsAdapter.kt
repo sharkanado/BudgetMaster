@@ -1,4 +1,4 @@
-package com.example.budgetmaster.ui.components
+package com.example.budgetmaster.utils
 
 import android.view.LayoutInflater
 import android.view.View
@@ -11,7 +11,6 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
-import com.example.budgetmaster.ui.budgets.BudgetItem
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.util.Locale

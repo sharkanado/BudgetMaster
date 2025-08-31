@@ -12,10 +12,10 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
-import com.example.budgetmaster.ui.budgets.BudgetExpenseItem
-import com.example.budgetmaster.ui.components.BudgetExpensesAdapter
-import com.example.budgetmaster.ui.components.BudgetMemberItem
-import com.example.budgetmaster.ui.components.BudgetMembersAdapter
+import com.example.budgetmaster.utils.BudgetExpenseItem
+import com.example.budgetmaster.utils.BudgetExpensesAdapter
+import com.example.budgetmaster.utils.BudgetMemberItem
+import com.example.budgetmaster.utils.BudgetMembersAdapter
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore

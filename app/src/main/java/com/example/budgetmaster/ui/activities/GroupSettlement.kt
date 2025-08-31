@@ -35,7 +35,6 @@ class GroupSettlement : AppCompatActivity() {
     private lateinit var adapter: SettlementAdapter
     private var budgetId: String = ""
 
-    // Currency for this budget (code like "CZK", "PLN")
     private var budgetCurrencyCode: String = "EUR"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -79,7 +78,6 @@ class GroupSettlement : AppCompatActivity() {
         recycler.layoutManager = LinearLayoutManager(this)
         recycler.adapter = adapter
 
-        // Initial load
         loadBudgetCurrency {
             loadSettlement()
         }
@@ -87,13 +85,11 @@ class GroupSettlement : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Refresh on return
         loadBudgetCurrency {
             loadSettlement()
         }
     }
 
-    /** Fetch the budget's currency code (e.g., "CZK"). */
     private fun loadBudgetCurrency(onReady: () -> Unit) {
         db.collection("budgets").document(budgetId)
             .get()

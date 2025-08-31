@@ -17,8 +17,8 @@ import androidx.core.widget.addTextChangedListener
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
-import com.example.budgetmaster.ui.components.BudgetMemberItem
-import com.example.budgetmaster.ui.components.BudgetSplitMembersAdapter
+import com.example.budgetmaster.utils.BudgetMemberItem
+import com.example.budgetmaster.utils.BudgetSplitMembersAdapter
 import com.google.android.material.imageview.ShapeableImageView
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.Timestamp

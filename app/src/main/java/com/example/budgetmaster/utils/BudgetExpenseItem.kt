@@ -1,4 +1,4 @@
-package com.example.budgetmaster.ui.budgets
+package com.example.budgetmaster.utils
 
 import android.os.Parcelable
 import kotlinx.parcelize.Parcelize

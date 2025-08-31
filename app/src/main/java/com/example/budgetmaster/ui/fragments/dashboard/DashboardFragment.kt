@@ -1,6 +1,5 @@
-package com.example.budgetmaster.ui.dashboard
+package com.example.budgetmaster.ui.fragments.dashboard
 
-import ExpenseListItem
 import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -13,7 +12,8 @@ import com.example.budgetmaster.R
 import com.example.budgetmaster.databinding.FragmentDashboardBinding
 import com.example.budgetmaster.ui.activities.AddExpense
 import com.example.budgetmaster.ui.activities.MyWallet
-import com.example.budgetmaster.ui.components.ExpensesAdapter
+import com.example.budgetmaster.utils.ExpenseListItem
+import com.example.budgetmaster.utils.ExpensesAdapter
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
@@ -49,7 +49,6 @@ class DashboardFragment : Fragment() {
         isGroupingUsed = false
     }
 
-    // Currency state (same approach as MyWallet)
     private var mainCurrency: String = "PLN"
     private var eurRatesLatest: Map<String, Double> = emptyMap() // EUR -> CODE
     private var eurToMainRate: Double = 1.0                      // EUR -> main
@@ -84,8 +83,8 @@ class DashboardFragment : Fragment() {
 
         expensesAdapter = ExpensesAdapter(
             emptyList(),
-            currencyCode = mainCurrency,   // headers will append this if your adapter does
-            onItemClick = null             // dashboard list is read-only here
+            currencyCode = mainCurrency,
+            onItemClick = null
         )
         binding.latestExpensesRecycler.apply {
             layoutManager = LinearLayoutManager(requireContext())
@@ -99,14 +98,12 @@ class DashboardFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        // Ensure we get main currency + EUR rates first, then load both sections.
         refreshCurrencyAndRatesThen {
             loadLatestExpenses()
             loadTotalsFromBudgets()
         }
     }
 
-    /** Load user's mainCurrency, fetch EUR snapshot, then invoke [afterReady]. */
     private fun refreshCurrencyAndRatesThen(afterReady: () -> Unit) {
         val uid = auth.currentUser?.uid ?: return
         db.collection("users").document(uid).get()
@@ -151,28 +148,39 @@ class DashboardFragment : Fragment() {
                         ?: emptyList()
 
                 if (budgets.isEmpty()) {
-                    binding.receivableAmount.text = df2.format(0.0)   // no currency suffix
-                    binding.debtAmount.text = df2.format(0.0)         // no currency suffix
+                    binding.receivableAmount.text = df2.format(0.0)
+                    binding.debtAmount.text = df2.format(0.0)
                     showTotalsLoading(false)
                     return@addOnSuccessListener
                 }
 
+                val netPerBudget = mutableMapOf<String, Double>()
                 var done = 0
-                var sumReceivableMain = 0.0
-                var sumDebtMain = 0.0
 
                 budgets.forEach { bid ->
                     db.collection("budgets").document(bid)
                         .collection("totals").document(uid)
                         .get()
                         .addOnSuccessListener { tdoc ->
-                            sumReceivableMain += readBudgetAmountInMain(tdoc, "receivable")
-                            sumDebtMain += readBudgetAmountInMain(tdoc, "debt")
+                            val receivable = readBudgetAmountInMain(tdoc, "receivable")
+                            val debt = readBudgetAmountInMain(tdoc, "debt")
+
+                            // net for this budget = receivable - debt
+                            val net = receivable - debt
+                            netPerBudget[bid] = net
                         }
                         .addOnCompleteListener {
                             done++
                             if (done == budgets.size) {
-                                // amounts only (titles carry the currency)
+                                // after all budgets loaded
+                                var sumReceivableMain = 0.0
+                                var sumDebtMain = 0.0
+
+                                for (net in netPerBudget.values) {
+                                    if (net > 0) sumReceivableMain += net
+                                    if (net < 0) sumDebtMain += -net
+                                }
+
                                 binding.receivableAmount.text = df2.format(sumReceivableMain)
                                 binding.debtAmount.text = df2.format(sumDebtMain)
                                 showTotalsLoading(false)
@@ -181,11 +189,12 @@ class DashboardFragment : Fragment() {
                 }
             }
             .addOnFailureListener {
-                binding.receivableAmount.text = df2.format(0.0)  // no currency suffix
-                binding.debtAmount.text = df2.format(0.0)        // no currency suffix
+                binding.receivableAmount.text = df2.format(0.0)
+                binding.debtAmount.text = df2.format(0.0)
                 showTotalsLoading(false)
             }
     }
+
 
     private fun showTotalsLoading(loading: Boolean) {
         binding.receivableLoading.visibility = if (loading) View.VISIBLE else View.GONE
@@ -194,11 +203,7 @@ class DashboardFragment : Fragment() {
         binding.debtAmount.visibility = if (loading) View.GONE else View.VISIBLE
     }
 
-    /**
-     * Latest list:
-     * - Items: ORIGINAL amount + ORIGINAL currency (no conversion)
-     * - Headers (day totals): summed in MAIN currency using the same rule as MyWallet
-     */
+
     private fun loadLatestExpenses() {
         val uid = auth.currentUser?.uid ?: return
 
@@ -364,7 +369,6 @@ class DashboardFragment : Fragment() {
         return abs(amountBase * eurToMainRate)
     }
 
-    /** Read a budget total field (e.g., "debt" / "receivable") and return it in MAIN currency. */
     private fun readBudgetAmountInMain(doc: DocumentSnapshot, field: String): Double {
         val baseVal = (doc.get("${field}Base") as? Number)?.toDouble()
         if (baseVal != null) return baseVal * eurToMainRate
@@ -379,7 +383,7 @@ class DashboardFragment : Fragment() {
             cur == "EUR" -> amount * eurToMainRate
             else -> {
                 val eurToCur =
-                    eurRatesLatest[cur] ?: return amount // fallback: treat as main if rate missing
+                    eurRatesLatest[cur] ?: return amount
                 val curToEur = 1.0 / eurToCur
                 (amount * curToEur) * eurToMainRate
             }
@@ -392,7 +396,6 @@ class DashboardFragment : Fragment() {
         else -> 0.0
     }
 
-    /** EUR -> CODE rates snapshot */
     private fun fetchEurRatesLatest(): Map<String, Double>? {
         var conn: HttpURLConnection? = null
         return try {

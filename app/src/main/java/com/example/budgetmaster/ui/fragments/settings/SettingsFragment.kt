@@ -1,4 +1,4 @@
-package com.example.budgetmaster.ui.settings
+package com.example.budgetmaster.ui.fragments.settings
 
 import android.content.Intent
 import android.os.Bundle

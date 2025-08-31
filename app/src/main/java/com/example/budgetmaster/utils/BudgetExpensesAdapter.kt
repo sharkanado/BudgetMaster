@@ -1,4 +1,4 @@
-package com.example.budgetmaster.ui.components
+package com.example.budgetmaster.utils
 
 import android.view.LayoutInflater
 import android.view.View
@@ -7,7 +7,6 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
-import com.example.budgetmaster.ui.budgets.BudgetExpenseItem
 import java.util.Locale
 
 class BudgetExpensesAdapter(

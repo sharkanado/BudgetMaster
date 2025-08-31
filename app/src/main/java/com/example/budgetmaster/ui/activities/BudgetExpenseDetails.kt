@@ -19,10 +19,10 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
-import com.example.budgetmaster.ui.budgets.BudgetExpenseItem
-import com.example.budgetmaster.ui.components.BudgetMemberItem
-import com.example.budgetmaster.ui.components.BudgetMembersAdapter
-import com.example.budgetmaster.ui.components.BudgetSplitMembersAdapter
+import com.example.budgetmaster.utils.BudgetExpenseItem
+import com.example.budgetmaster.utils.BudgetMemberItem
+import com.example.budgetmaster.utils.BudgetMembersAdapter
+import com.example.budgetmaster.utils.BudgetSplitMembersAdapter
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue

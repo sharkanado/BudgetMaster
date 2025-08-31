@@ -1,6 +1,5 @@
 package com.example.budgetmaster.ui.activities
 
-import ExpenseListItem
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
@@ -17,7 +16,8 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
 import com.example.budgetmaster.ui.components.CustomBarChartView
-import com.example.budgetmaster.ui.components.ExpensesAdapter
+import com.example.budgetmaster.utils.ExpenseListItem
+import com.example.budgetmaster.utils.ExpensesAdapter
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
@@ -56,7 +56,6 @@ class MyWallet : AppCompatActivity() {
         "July", "August", "September", "October", "November", "December"
     )
 
-    // Currency view state
     private var mainCurrency: String = "PLN"
     private var eurRatesLatest: Map<String, Double> = emptyMap() // EUR -> CODE
     private var eurToMainRate: Double = 1.0                      // EUR -> mainCurrency
@@ -343,7 +342,6 @@ class MyWallet : AppCompatActivity() {
         else -> 0.0
     }
 
-    /** Fetch a single latest EUR snapshot (EUR -> CODE map). */
     private fun fetchEurRatesLatest(): Map<String, Double>? {
         var conn: HttpURLConnection? = null
         return try {

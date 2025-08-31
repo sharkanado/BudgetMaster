@@ -1,6 +1,5 @@
 package com.example.budgetmaster.ui.activities
 
-import ExpenseListItem
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
@@ -15,8 +14,9 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
 import com.example.budgetmaster.ui.components.CustomPieChartView
-import com.example.budgetmaster.ui.components.ExpensesAdapter
 import com.example.budgetmaster.utils.Categories
+import com.example.budgetmaster.utils.ExpenseListItem
+import com.example.budgetmaster.utils.ExpensesAdapter
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot

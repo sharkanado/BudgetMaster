@@ -1,4 +1,4 @@
-package com.example.budgetmaster.ui.budgets
+package com.example.budgetmaster.ui.fragments.budgets
 
 import android.content.Intent
 import android.os.Bundle
@@ -12,7 +12,8 @@ import com.example.budgetmaster.databinding.FragmentBudgetsBinding
 import com.example.budgetmaster.ui.activities.AddNewBudget
 import com.example.budgetmaster.ui.activities.BudgetDetails
 import com.example.budgetmaster.ui.activities.MyWallet
-import com.example.budgetmaster.ui.components.BudgetsAdapter
+import com.example.budgetmaster.utils.BudgetItem
+import com.example.budgetmaster.utils.BudgetsAdapter
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers

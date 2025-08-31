@@ -18,7 +18,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
-import com.example.budgetmaster.ui.components.BudgetMemberItem
+import com.example.budgetmaster.utils.BudgetMemberItem
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -236,14 +236,14 @@ class EditBudget : AppCompatActivity() {
  * - No balances, no spent totals — just displays current members
  */
 private class EditMembersAdapter(
-    private val members: List<com.example.budgetmaster.ui.components.BudgetMemberItem>
+    private val members: List<BudgetMemberItem>
 ) : RecyclerView.Adapter<EditMembersAdapter.ViewHolder>() {
 
     inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val nameText: TextView = itemView.findViewById(R.id.memberName)
         private val emailText: TextView = itemView.findViewById(R.id.memberEmail)
 
-        fun bind(item: com.example.budgetmaster.ui.components.BudgetMemberItem) {
+        fun bind(item: BudgetMemberItem) {
             nameText.text = item.name
             emailText.text = item.email
         }
