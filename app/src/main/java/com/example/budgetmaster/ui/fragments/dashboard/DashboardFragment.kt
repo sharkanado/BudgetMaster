@@ -154,39 +154,58 @@ class DashboardFragment : Fragment() {
                     return@addOnSuccessListener
                 }
 
-                val netPerBudget = mutableMapOf<String, Double>()
                 var done = 0
+                var totalReceivable = 0.0
+                var totalDebt = 0.0
 
                 budgets.forEach { bid ->
-                    db.collection("budgets").document(bid)
-                        .collection("totals").document(uid)
-                        .get()
-                        .addOnSuccessListener { tdoc ->
-                            val receivable = readBudgetAmountInMain(tdoc, "receivable")
-                            val debt = readBudgetAmountInMain(tdoc, "debt")
+                    db.collection("budgets").document(bid).get()
+                        .addOnSuccessListener { budgetDoc ->
+                            val budgetCurrency =
+                                (budgetDoc.getString("currency") ?: "EUR").uppercase(Locale.ENGLISH)
 
-                            // net for this budget = receivable - debt
-                            val net = receivable - debt
-                            netPerBudget[bid] = net
-                        }
-                        .addOnCompleteListener {
-                            done++
-                            if (done == budgets.size) {
-                                // after all budgets loaded
-                                var sumReceivableMain = 0.0
-                                var sumDebtMain = 0.0
+                            db.collection("budgets").document(bid)
+                                .collection("totals").document(uid)
+                                .get()
+                                .addOnSuccessListener { tdoc ->
+                                    val data = tdoc.data ?: emptyMap<String, Any>()
+                                    var receivableBudget = 0.0
+                                    var debtBudget = 0.0
 
-                                for (net in netPerBudget.values) {
-                                    if (net > 0) sumReceivableMain += net
-                                    if (net < 0) sumDebtMain += -net
+                                    for ((key, value) in data) {
+                                        if (key.startsWith("with.") && value is Number) {
+                                            val v = value.toDouble()
+                                            if (v > 0) receivableBudget += v
+                                            if (v < 0) debtBudget += -v
+                                        }
+                                    }
+
+                                    val rateToMain = when {
+                                        budgetCurrency == mainCurrency -> 1.0
+                                        budgetCurrency == "EUR" -> eurToMainRate
+                                        else -> {
+                                            val eurToCur = eurRatesLatest[budgetCurrency]
+                                            if (eurToCur != null) {
+                                                val curToEur = 1.0 / eurToCur
+                                                curToEur * eurToMainRate
+                                            } else 1.0
+                                        }
+                                    }
+
+                                    totalReceivable += receivableBudget * rateToMain
+                                    totalDebt += debtBudget * rateToMain
                                 }
-
-                                binding.receivableAmount.text = df2.format(sumReceivableMain)
-                                binding.debtAmount.text = df2.format(sumDebtMain)
-                                showTotalsLoading(false)
-                            }
+                                .addOnCompleteListener {
+                                    done++
+                                    if (done == budgets.size) {
+                                        binding.receivableAmount.text = df2.format(totalReceivable)
+                                        binding.debtAmount.text = df2.format(totalDebt)
+                                        showTotalsLoading(false)
+                                    }
+                                }
                         }
                 }
+
             }
             .addOnFailureListener {
                 binding.receivableAmount.text = df2.format(0.0)

@@ -112,7 +112,7 @@ class BudgetsFragment : Fragment() {
                         byId[id] = BudgetItem(
                             id = id,
                             name = doc.getString("name") ?: "",
-                            preferredCurrency = doc.getString("preferredCurrency") ?: "PLN",
+                            preferredCurrency = doc.getString("currency") ?: "EUR",
                             members = (doc.get("members") as? List<String>).orEmpty(),
                             ownerId = doc.getString("ownerId") ?: "",
                             balance = 0.0
@@ -155,15 +155,13 @@ class BudgetsFragment : Fragment() {
         }
     }
 
-    // only sumBudgetExpenses changed to skip settlement
     private suspend fun sumBudgetExpenses(db: FirebaseFirestore, budgetId: String): Double {
         val col = db.collection("budgets").document(budgetId).collection("expenses")
         return try {
-            // aggregation cannot filter -> fallback to manual
             val snap = col.get().await()
             var total = 0.0
             for (doc in snap.documents) {
-                if ((doc.getString("type") ?: "expense") == "settlement") continue // 👈 skip
+                if ((doc.getString("type") ?: "expense") == "settlement") continue
                 val raw = doc.get("amount")
                 total += when (raw) {
                     is Number -> raw.toDouble()
@@ -186,11 +184,23 @@ class BudgetsFragment : Fragment() {
             val doc = db.collection("budgets").document(budgetId)
                 .collection("totals").document(uid)
                 .get().await()
-            val receivable = (doc.getDouble("receivable") ?: 0.0).coerceAtLeast(0.0)
-            val debt = (doc.getDouble("debt") ?: 0.0).coerceAtLeast(0.0)
+
+            val data = doc.data ?: emptyMap<String, Any>()
+            var receivable = 0.0
+            var debt = 0.0
+
+            for ((key, value) in data) {
+                if (key.startsWith("with.") && value is Number) {
+                    val v = value.toDouble()
+                    if (v > 0) receivable += v else if (v < 0) debt += -v
+                }
+            }
+
             receivable to debt
-        } catch (_: Exception) {
+        } catch (e: Exception) {
             0.0 to 0.0
         }
     }
+
+
 }

@@ -59,18 +59,35 @@
     </LinearLayout>
 
 
-    <TextView
-        android:id="@+id/statusText"
+    <LinearLayout
+        android:id="@+id/statusLayout"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="you're settled"
-        android:textSize="12sp"
-        android:textColor="@color/grey_light"
-        android:fontFamily="@font/manrope_bold"
+        android:orientation="horizontal"
         android:layout_marginTop="8dp"
-        android:layout_marginEnd="4dp"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <TextView
+            android:id="@+id/receivableText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Receivable: 0"
+            android:textSize="12sp"
+            android:textColor="@color/green_success"
+            android:fontFamily="@font/manrope_bold"
+            android:layout_marginEnd="8dp" />
+
+        <TextView
+            android:id="@+id/debtText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Debt: 0"
+            android:textSize="12sp"
+            android:textColor="@color/red_error"
+            android:fontFamily="@font/manrope_bold" />
+
+    </LinearLayout>
 
 
 </androidx.constraintlayout.widget.ConstraintLayout>

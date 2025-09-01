@@ -400,7 +400,8 @@ class CreateGroupExpense : AppCompatActivity() {
 
     private fun saveGroupExpense() {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: run {
-            Toast.makeText(this, "Not authenticated", Toast.LENGTH_SHORT).show(); return
+            Toast.makeText(this, "Not authenticated", Toast.LENGTH_SHORT).show()
+            return
         }
 
         val description = descriptionInput.text?.toString()?.trim()
@@ -408,14 +409,17 @@ class CreateGroupExpense : AppCompatActivity() {
         val dateStr = dateInput.text?.toString()?.trim()
 
         if (description.isNullOrEmpty() || amount == null) {
-            Toast.makeText(this, "Please enter all data", Toast.LENGTH_SHORT).show(); return
+            Toast.makeText(this, "Please enter all data", Toast.LENGTH_SHORT).show()
+            return
         }
         if (amount <= 0.0 || dateStr.isNullOrEmpty()) {
-            Toast.makeText(this, "Please enter valid data", Toast.LENGTH_SHORT).show(); return
+            Toast.makeText(this, "Please enter valid data", Toast.LENGTH_SHORT).show()
+            return
         }
         if (selectedMembers.isEmpty()) {
             Toast.makeText(this, "Select at least one participant", Toast.LENGTH_SHORT)
-                .show(); return
+                .show()
+            return
         }
 
         val paidShares = buildPaidShares(amount)
@@ -431,43 +435,36 @@ class CreateGroupExpense : AppCompatActivity() {
             "paidShares" to paidShares
         )
 
-        // Save expense + update totals
         db.collection("budgets").document(budgetId)
             .collection("expenses")
             .add(expenseData)
-            .addOnSuccessListener { _ ->
+            .addOnSuccessListener {
                 val batch = db.batch()
-
-                var othersSum = 0.0
-                paidShares.forEach { (participantUid, share) ->
-                    if (participantUid != uid) othersSum += share
-                }
-
                 val serverTime = FieldValue.serverTimestamp()
 
-                // Payer receivable++
-                if (othersSum != 0.0) {
+                // --- totals (new unified format: "with" map, positive = receivable, negative = debt) ---
+                paidShares.forEach { (participantUid, share) ->
+                    if (participantUid == uid) return@forEach
+
+                    // payer: positive share against participant
                     val payerTotalsRef = db.collection("budgets").document(budgetId)
                         .collection("totals").document(uid)
                     batch.set(
                         payerTotalsRef,
                         mapOf(
-                            "receivable" to FieldValue.increment(othersSum),
+                            "with.$participantUid" to FieldValue.increment(share),
                             "updatedAt" to serverTime
                         ),
                         com.google.firebase.firestore.SetOptions.merge()
                     )
-                }
 
-                // Each participant debt++
-                paidShares.forEach { (participantUid, share) ->
-                    if (participantUid == uid) return@forEach
-                    val participantRef = db.collection("budgets").document(budgetId)
+                    // participant: negative share against payer
+                    val participantTotalsRef = db.collection("budgets").document(budgetId)
                         .collection("totals").document(participantUid)
                     batch.set(
-                        participantRef,
+                        participantTotalsRef,
                         mapOf(
-                            "debt" to FieldValue.increment(share),
+                            "with.$uid" to FieldValue.increment(-share),
                             "updatedAt" to serverTime
                         ),
                         com.google.firebase.firestore.SetOptions.merge()

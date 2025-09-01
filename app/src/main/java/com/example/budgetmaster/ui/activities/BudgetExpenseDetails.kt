@@ -1,5 +1,6 @@
 package com.example.budgetmaster.ui.activities
 
+
 import android.app.DatePickerDialog
 import android.os.Build
 import android.os.Bundle
@@ -23,8 +24,8 @@ import com.example.budgetmaster.utils.BudgetExpenseItem
 import com.example.budgetmaster.utils.BudgetMemberItem
 import com.example.budgetmaster.utils.BudgetMembersAdapter
 import com.example.budgetmaster.utils.BudgetSplitMembersAdapter
-import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
@@ -36,6 +37,7 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.round
+
 
 class BudgetExpenseDetails : AppCompatActivity() {
 
@@ -545,6 +547,50 @@ class BudgetExpenseDetails : AppCompatActivity() {
         toggleEdit(false)
     }
 
+    // === Helpers for share math ===
+    private fun rollbackShares(
+        tx: com.google.firebase.firestore.Transaction,
+        totalsCol: CollectionReference,
+        payer: String,
+        shares: Map<String, Double>
+    ) {
+        shares.forEach { (uid, share) ->
+            if (uid == payer) return@forEach
+            tx.set(
+                totalsCol.document(uid),
+                mapOf("with.$payer" to FieldValue.increment(-share)),
+                SetOptions.merge()
+            )
+            tx.set(
+                totalsCol.document(payer),
+                mapOf("with.$uid" to FieldValue.increment(+share)),
+                SetOptions.merge()
+            )
+        }
+    }
+
+    private fun applyShares(
+        tx: com.google.firebase.firestore.Transaction,
+        totalsCol: CollectionReference,
+        payer: String,
+        shares: Map<String, Double>
+    ) {
+        shares.forEach { (uid, share) ->
+            if (uid == payer) return@forEach
+            tx.set(
+                totalsCol.document(uid),
+                mapOf("with.$payer" to FieldValue.increment(+share)),
+                SetOptions.merge()
+            )
+            tx.set(
+                totalsCol.document(payer),
+                mapOf("with.$uid" to FieldValue.increment(-share)),
+                SetOptions.merge()
+            )
+        }
+    }
+
+    // === saveChanges (as a function) ===
     private fun saveChanges() {
         if (!isOwner) {
             Toast.makeText(this, "You can edit only your own expense.", Toast.LENGTH_SHORT).show()
@@ -569,7 +615,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
             return
         }
 
-        // normalize shares
+        // normalize new shares
         val normalizedPaidShares = run {
             val sel = selectedMembers.toList()
             val tmp = LinkedHashMap<String, Double>()
@@ -596,7 +642,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
             "date" to newDate,
             "paidFor" to selectedMembers.toList(),
             "paidShares" to normalizedPaidShares,
-            "timestamp" to Timestamp.now()
+            "timestamp" to com.google.firebase.Timestamp.now()
         )
 
         val budgetRef = db.collection("budgets").document(budgetId)
@@ -605,7 +651,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
         val payer = expenseItem.createdBy
 
         db.runTransaction { tx ->
-            // rollback old
+            // Get old shares
             val oldDoc = tx.get(expenseRef)
             val oldShares: Map<String, Double> =
                 (oldDoc.get("paidShares") as? Map<*, *>)?.mapNotNull { (k, v) ->
@@ -614,52 +660,37 @@ class BudgetExpenseDetails : AppCompatActivity() {
                     id to d
                 }?.toMap().orEmpty()
 
-            var oldOthers = 0.0
+            // === rollback old shares ===
             oldShares.forEach { (uid, share) ->
                 if (uid == payer) return@forEach
-                oldOthers += share
+                // Participant had owed payer → remove that
                 tx.set(
                     totalsCol.document(uid),
-                    mapOf(
-                        "debt" to FieldValue.increment(-share),
-                        "updatedAt" to FieldValue.serverTimestamp()
-                    ),
-                    SetOptions.merge()
+                    mapOf("with.$payer" to com.google.firebase.firestore.FieldValue.increment(-share)),
+                    com.google.firebase.firestore.SetOptions.merge()
                 )
-            }
-            if (oldOthers != 0.0) {
+                // Payer had been expecting → remove that
                 tx.set(
                     totalsCol.document(payer),
-                    mapOf(
-                        "receivable" to FieldValue.increment(-oldOthers),
-                        "updatedAt" to FieldValue.serverTimestamp()
-                    ),
-                    SetOptions.merge()
+                    mapOf("with.$uid" to com.google.firebase.firestore.FieldValue.increment(+share)),
+                    com.google.firebase.firestore.SetOptions.merge()
                 )
             }
 
-            // apply new
-            var newOthers = 0.0
+            // === apply new shares ===
             normalizedPaidShares.forEach { (uid, share) ->
                 if (uid == payer) return@forEach
-                newOthers += share
+                // Participant owes payer now
                 tx.set(
                     totalsCol.document(uid),
-                    mapOf(
-                        "debt" to FieldValue.increment(share),
-                        "updatedAt" to FieldValue.serverTimestamp()
-                    ),
-                    SetOptions.merge()
+                    mapOf("with.$payer" to com.google.firebase.firestore.FieldValue.increment(+share)),
+                    com.google.firebase.firestore.SetOptions.merge()
                 )
-            }
-            if (newOthers != 0.0) {
+                // Payer expects from participant
                 tx.set(
                     totalsCol.document(payer),
-                    mapOf(
-                        "receivable" to FieldValue.increment(newOthers),
-                        "updatedAt" to FieldValue.serverTimestamp()
-                    ),
-                    SetOptions.merge()
+                    mapOf("with.$uid" to com.google.firebase.firestore.FieldValue.increment(-share)),
+                    com.google.firebase.firestore.SetOptions.merge()
                 )
             }
 
@@ -679,6 +710,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
     }
 
 
+    // === deleteExpense (as a function) ===
     private fun deleteExpense() {
         if (!isOwner) {
             Toast.makeText(this, "You can delete only your own expense.", Toast.LENGTH_SHORT).show()
@@ -699,30 +731,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
                     id to d
                 }?.toMap().orEmpty()
 
-            var others = 0.0
-            shares.forEach { (uid, share) ->
-                if (uid == payer) return@forEach
-                others += share
-                tx.set(
-                    totalsCol.document(uid),
-                    mapOf(
-                        "debt" to FieldValue.increment(-share),
-                        "updatedAt" to FieldValue.serverTimestamp()
-                    ),
-                    SetOptions.merge()
-                )
-            }
-            if (others != 0.0) {
-                tx.set(
-                    totalsCol.document(payer),
-                    mapOf(
-                        "receivable" to FieldValue.increment(-others),
-                        "updatedAt" to FieldValue.serverTimestamp()
-                    ),
-                    SetOptions.merge()
-                )
-            }
-
+            rollbackShares(tx, totalsCol, payer, shares)
             tx.delete(expenseRef)
             null
         }.addOnSuccessListener {
@@ -732,7 +741,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
             Toast.makeText(this, "Failed to delete: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
-
 
     private fun showDatePicker() {
         val cal = Calendar.getInstance()
