@@ -50,8 +50,8 @@ class DashboardFragment : Fragment() {
     }
 
     private var mainCurrency: String = "PLN"
-    private var eurRatesLatest: Map<String, Double> = emptyMap() // EUR -> CODE
-    private var eurToMainRate: Double = 1.0                      // EUR -> main
+    private var eurRatesLatest: Map<String, Double> = emptyMap()
+    private var eurToMainRate: Double = 1.0
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -110,8 +110,7 @@ class DashboardFragment : Fragment() {
             .addOnSuccessListener { userDoc ->
                 mainCurrency =
                     (userDoc.getString("mainCurrency") ?: "PLN").uppercase(Locale.ENGLISH)
-                expensesAdapter.updateCurrency(mainCurrency) // for latest headers (if used)
-                // Titles like "Debt (CZK)" / "Receivable (CZK)"
+                expensesAdapter.updateCurrency(mainCurrency)
                 binding.root.findViewById<TextView>(R.id.debtLabel)?.text =
                     getString(R.string.dashboard_debt_title_fmt, mainCurrency)
                 binding.root.findViewById<TextView>(R.id.receivableLabel)?.text =
@@ -154,38 +153,42 @@ class DashboardFragment : Fragment() {
                     return@addOnSuccessListener
                 }
 
-                val netPerBudget = mutableMapOf<String, Double>()
-                var done = 0
+                var pending = budgets.size
+                var sumReceivableMain = 0.0
+                var sumDebtMain = 0.0
+
+                fun finishOne() {
+                    pending--
+                    if (pending == 0) {
+                        binding.receivableAmount.text = df2.format(sumReceivableMain)
+                        binding.debtAmount.text = df2.format(sumDebtMain)
+                        showTotalsLoading(false)
+                    }
+                }
 
                 budgets.forEach { bid ->
-                    db.collection("budgets").document(bid)
-                        .collection("totals").document(uid)
-                        .get()
-                        .addOnSuccessListener { tdoc ->
-                            val receivable = readBudgetAmountInMain(tdoc, "receivable")
-                            val debt = readBudgetAmountInMain(tdoc, "debt")
+                    db.collection("budgets").document(bid).get()
+                        .addOnSuccessListener { budgetDoc ->
+                            val budgetCurrency =
+                                (budgetDoc.getString("currency") ?: "EUR").uppercase(Locale.ENGLISH)
 
-                            // net for this budget = receivable - debt
-                            val net = receivable - debt
-                            netPerBudget[bid] = net
-                        }
-                        .addOnCompleteListener {
-                            done++
-                            if (done == budgets.size) {
-                                // after all budgets loaded
-                                var sumReceivableMain = 0.0
-                                var sumDebtMain = 0.0
+                            db.collection("budgets").document(bid)
+                                .collection("totals").document(uid)
+                                .get()
+                                .addOnSuccessListener { tdoc ->
+                                    val recvMain =
+                                        readBudgetAmountInMain(tdoc, "receivable", budgetCurrency)
+                                            .coerceAtLeast(0.0)
+                                    val debtMain =
+                                        readBudgetAmountInMain(tdoc, "debt", budgetCurrency)
+                                            .coerceAtLeast(0.0)
 
-                                for (net in netPerBudget.values) {
-                                    if (net > 0) sumReceivableMain += net
-                                    if (net < 0) sumDebtMain += -net
+                                    sumReceivableMain += recvMain
+                                    sumDebtMain += debtMain
                                 }
-
-                                binding.receivableAmount.text = df2.format(sumReceivableMain)
-                                binding.debtAmount.text = df2.format(sumDebtMain)
-                                showTotalsLoading(false)
-                            }
+                                .addOnCompleteListener { finishOne() }
                         }
+                        .addOnFailureListener { finishOne() }
                 }
             }
             .addOnFailureListener {
@@ -195,14 +198,12 @@ class DashboardFragment : Fragment() {
             }
     }
 
-
     private fun showTotalsLoading(loading: Boolean) {
         binding.receivableLoading.visibility = if (loading) View.VISIBLE else View.GONE
         binding.debtLoading.visibility = if (loading) View.VISIBLE else View.GONE
         binding.receivableAmount.visibility = if (loading) View.GONE else View.VISIBLE
         binding.debtAmount.visibility = if (loading) View.GONE else View.VISIBLE
     }
-
 
     private fun loadLatestExpenses() {
         val uid = auth.currentUser?.uid ?: return
@@ -275,7 +276,6 @@ class DashboardFragment : Fragment() {
                             )
                         }
                         .addOnFailureListener {
-                            // Fallback if source expense missing
                             val amountLatest = readAmount(doc.get("amount"))
                             val signedOrig = if (type == "expense") -amountLatest else amountLatest
                             enriched.add(
@@ -328,10 +328,10 @@ class DashboardFragment : Fragment() {
                         budgetId = "null",
                         expenseIdInBudget = "null",
                         e.category,
-                        e.displayAmountOriginal,  // original only
+                        e.displayAmountOriginal,
                         e.date.toString(),
                         e.type,
-                        id = "" // no click from dashboard
+                        id = ""
                     )
                 )
             }
@@ -348,9 +348,7 @@ class DashboardFragment : Fragment() {
         }
     }
 
-    // ---------- conversion helpers (same logic as MyWallet) ----------
 
-    /** Amount in MAIN currency, unsigned. No-recalc if original currency == main. */
     private fun amountInMainUnsigned(expenseDoc: DocumentSnapshot): Double? {
         val cur = (expenseDoc.getString("currency") ?: "EUR").uppercase(Locale.ENGLISH)
         val amountOrig = readAmount(expenseDoc.get("amount"))
@@ -369,23 +367,46 @@ class DashboardFragment : Fragment() {
         return abs(amountBase * eurToMainRate)
     }
 
-    private fun readBudgetAmountInMain(doc: DocumentSnapshot, field: String): Double {
+    /**
+     * Read a total (e.g., "receivable" or "debt") from totals/{uid} and convert
+     * from the BUDGET currency to MAIN currency. If "<field>Base" exists, it is
+     * assumed to be in EUR and converted directly using EUR->MAIN.
+     */
+    private fun readBudgetAmountInMain(
+        doc: DocumentSnapshot,
+        field: String,
+        budgetCurrency: String
+    ): Double {
         val baseVal = (doc.get("${field}Base") as? Number)?.toDouble()
         if (baseVal != null) return baseVal * eurToMainRate
 
-        val amount = (doc.get(field) as? Number)?.toDouble() ?: 0.0
-        val cur = (doc.getString("${field}Currency")
-            ?: doc.getString("currency")
-            ?: "EUR").uppercase(Locale.ENGLISH)
+        val rawAny = doc.get(field)
+        val amountInBudget = when (rawAny) {
+            is Number -> rawAny.toDouble()
+            is String -> rawAny.replace(",", ".").toDoubleOrNull() ?: 0.0
+            else -> 0.0
+        }
+
+        return convertBudgetToMain(amountInBudget, budgetCurrency)
+    }
+
+    private fun convertBudgetToMain(amount: Double, budgetCurrency: String): Double {
+        val from = budgetCurrency.uppercase(Locale.ENGLISH)
+        val to = mainCurrency.uppercase(Locale.ENGLISH)
+        if (from == to) return amount
+
+        if (eurRatesLatest.isEmpty()) return amount
 
         return when {
-            cur == mainCurrency.uppercase(Locale.ENGLISH) -> amount
-            cur == "EUR" -> amount * eurToMainRate
+            from == "EUR" -> amount * eurToMainRate
+            to == "EUR" -> {
+                val eurToFrom = eurRatesLatest[from] ?: return amount
+                amount / eurToFrom
+            }
+
             else -> {
-                val eurToCur =
-                    eurRatesLatest[cur] ?: return amount
-                val curToEur = 1.0 / eurToCur
-                (amount * curToEur) * eurToMainRate
+                val eurToFrom = eurRatesLatest[from] ?: return amount
+                amount * eurToMainRate / eurToFrom
             }
         }
     }
@@ -431,8 +452,8 @@ class DashboardFragment : Fragment() {
         val date: LocalDate,
         val name: String,
         val category: String,
-        val displayAmountOriginal: String, // e.g., "-155.00 CZK"
-        val signedMain: Double,            // for header totals in main currency
+        val displayAmountOriginal: String,
+        val signedMain: Double,
         val type: String
     )
 }

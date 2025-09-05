@@ -112,7 +112,7 @@ class BudgetsFragment : Fragment() {
                         byId[id] = BudgetItem(
                             id = id,
                             name = doc.getString("name") ?: "",
-                            preferredCurrency = doc.getString("preferredCurrency") ?: "PLN",
+                            preferredCurrency = doc.getString("currency") ?: "PLN",
                             members = (doc.get("members") as? List<String>).orEmpty(),
                             ownerId = doc.getString("ownerId") ?: "",
                             balance = 0.0
