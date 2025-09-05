@@ -70,10 +70,9 @@ class ExpenseAnalysis : AppCompatActivity() {
 
     private val df2 by lazy { DecimalFormat("0.00", DecimalFormatSymbols(Locale.US)) }
 
-    // Currency view state — SAME as in MyWallet
     private var mainCurrency: String = "PLN"
-    private var eurRatesLatest: Map<String, Double> = emptyMap() // EUR -> CODE
-    private var eurToMainRate: Double = 1.0                      // EUR -> main
+    private var eurRatesLatest: Map<String, Double> = emptyMap()
+    private var eurToMainRate: Double = 1.0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -224,7 +223,6 @@ class ExpenseAnalysis : AppCompatActivity() {
                     return@addOnSuccessListener
                 }
 
-                // Pie data in MAIN currency (unsigned per category, filtered by selectedType & selectedCategory)
                 val allCategoryTotals = result.documents
                     .asSequence()
                     .filter { it.getString("type")?.equals(selectedType, true) == true }
@@ -242,7 +240,6 @@ class ExpenseAnalysis : AppCompatActivity() {
                 cachedPieData = allCategoryTotals
                 pieChart.setData(cachedPieData, selectedCategory)
 
-                // Build items: ORIGINAL display only + SIGNED MAIN for headers/total
                 cachedEntries = result.documents.mapNotNull { doc ->
                     val type = (doc.getString("type") ?: "expense").lowercase(Locale.ENGLISH)
                     if (!type.equals(selectedType, true)) return@mapNotNull null
@@ -254,13 +251,11 @@ class ExpenseAnalysis : AppCompatActivity() {
                     val description = doc.getString("description") ?: ""
                     val dateStr = doc.getString("date") ?: ""
 
-                    // ORIGINAL display (what user typed)
                     val curOrig = (doc.getString("currency") ?: "EUR").uppercase(Locale.ENGLISH)
                     val amountOrig = readAmount(doc.get("amount"))
                     val signedOrig = if (type == "expense") -amountOrig else amountOrig
                     val displayAmount = "${df2.format(signedOrig)} $curOrig"
 
-                    // SIGNED MAIN for headers/totals
                     val unsignedMain = amountInMainUnsigned(doc) ?: 0.0
                     val signedMain = if (type == "expense") -unsignedMain else unsignedMain
 
@@ -269,7 +264,7 @@ class ExpenseAnalysis : AppCompatActivity() {
                         name = description,
                         budgetId = "null", expenseIdInBudget = "null",
                         category = category,
-                        amount = displayAmount, // ORIGINAL ONLY
+                        amount = displayAmount,
                         date = dateStr,
                         type = type,
                         id = doc.id
@@ -342,28 +337,24 @@ class ExpenseAnalysis : AppCompatActivity() {
             listItems.add(
                 ExpenseListItem.Header(
                     LocalDate.parse(date).format(dayFmt),
-                    df2.format(dayTotalMainSigned), // adapter appends currency code
+                    df2.format(dayTotalMainSigned),
                     isPositive = dayTotalMainSigned >= 0
                 )
             )
-            listItems.addAll(pairs.map { it.first }) // ORIGINAL values per item
+            listItems.addAll(pairs.map { it.first })
         }
 
         expensesAdapter.updateItems(listItems)
         recyclerView.visibility = if (listItems.isEmpty()) View.GONE else View.VISIBLE
     }
 
-    // ---------- SAME conversions as in MyWallet ----------
 
-    /** Amount in MAIN currency, unsigned; with "no-recalc-if-same-currency" rule. */
     private fun amountInMainUnsigned(doc: DocumentSnapshot): Double? {
         val cur = (doc.getString("currency") ?: "EUR").uppercase(Locale.ENGLISH)
         val amountOrig = readAmount(doc.get("amount"))
         if (cur == mainCurrency.uppercase(Locale.ENGLISH)) {
-            // Already in display currency → do NOT convert.
             return abs(amountOrig)
         }
-        // Prefer stored amountBase (EUR), else compute via EUR snapshot
         val amountBase = (doc.get("amountBase") as? Number)?.toDouble()
             ?: run {
                 if (cur.equals("EUR", true)) amountOrig
@@ -382,7 +373,6 @@ class ExpenseAnalysis : AppCompatActivity() {
         else -> 0.0
     }
 
-    /** Fetch a single latest EUR snapshot (EUR -> CODE map). */
     private fun fetchEurRatesLatest(): Map<String, Double>? {
         var conn: HttpURLConnection? = null
         return try {

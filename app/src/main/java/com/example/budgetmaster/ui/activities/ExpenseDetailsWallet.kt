@@ -62,22 +62,19 @@ class ExpenseDetailsWallet : AppCompatActivity() {
     private var selectedMonth: String = ""
     private var expenseDocumentId: String = ""
 
-    // loaded from Firestore doc
-    private var originalCurrency: String = "EUR"  // expense's original currency
-    private var originalAmount: Double = 0.0      // expense's stored amount (original currency)
-    private var originalDateStr: String = ""      // yyyy-MM-dd
+    private var originalCurrency: String = "EUR"
+    private var originalAmount: Double = 0.0
+    private var originalDateStr: String = ""
     private var expenseType: String = "expense"
     private var expenseCategory: String = ""
     private var expenseDescription: String = ""
 
-    // user preference
     private var mainCurrency: String = "EUR"
     private var mainCurrencyLoaded = false
 
-    // rates cache EUR->*
     private val df2 by lazy { DecimalFormat("0.00", DecimalFormatSymbols(Locale.US)) }
     private val eurRatesCache =
-        mutableMapOf<String, Map<String, Double>>() // key = date or "latest"
+        mutableMapOf<String, Map<String, Double>>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -89,7 +86,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             insets
         }
 
-        // We still receive path info from intent (year, month, id) but we READ the document.
         selectedYear = intent.getIntExtra("selectedYear", 0)
         selectedMonth = intent.getStringExtra("selectedMonth") ?: ""
         expenseDocumentId = intent.getStringExtra("expenseId") ?: ""
@@ -98,7 +94,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         setupTopBarBehavior()
         updateTopIcons()
 
-        // Load user main currency & expense doc
         fetchUserMainCurrency()
         fetchExpenseDoc()
     }
@@ -151,7 +146,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
                 amountEdit.setText(sanitized)
                 amountEdit.setSelection(sanitized.length)
 
-                // live preview (orig -> main)
                 updatePreviewInMain()
             }
         })
@@ -169,7 +163,7 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             DatePickerDialog(this, { _, yy, mm, dd ->
                 val newDate = String.format("%04d-%02d-%02d", yy, mm + 1, dd)
                 dateEdit.setText(newDate)
-                updatePreviewInMain() // date change affects rate
+                updatePreviewInMain()
             }, y, m, d).show()
         }
     }
@@ -239,7 +233,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         if (enable) updatePreviewInMain()
     }
 
-    // ——— Data loading ———
     private fun fetchExpenseDoc() {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
         if (selectedYear == 0 || selectedMonth.isEmpty() || expenseDocumentId.isEmpty()) {
@@ -273,7 +266,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         expenseCategory = doc.getString("category") ?: ""
         expenseDescription = doc.getString("description") ?: ""
 
-        // View mode
         findViewById<TextView>(R.id.topBarTitle).text =
             if (expenseType == "income") "Income Details" else "Expense Details"
         amountText.text = formatAmountSigned(originalAmount, originalCurrency, expenseType)
@@ -282,7 +274,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         typeText.text = expenseType.replaceFirstChar { it.uppercase() }
         descriptionText.text = expenseDescription
 
-        // Edit mode prefill
         amountCurrencyLabel.text = originalCurrency
         originalAmountStatic.text = "Original: ${df2.format(originalAmount)} $originalCurrency"
         descriptionEdit.setText(expenseDescription)
@@ -294,7 +285,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             (typeSpinner.adapter as ArrayAdapter<String>).getPosition(expenseType.replaceFirstChar { it.uppercase() })
         if (typePos >= 0) typeSpinner.setSelection(typePos)
 
-        // If the list item came formatted, we still re-fill with raw
         amountEdit.setText(df2.format(originalAmount))
     }
 
@@ -313,7 +303,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             }
     }
 
-    // ——— Live preview (orig -> main) ———
     private fun updatePreviewInMain() {
         if (!isEditMode || !mainCurrencyLoaded) return
         val amount = amountEdit.text?.toString()?.replace(",", ".")?.toDoubleOrNull() ?: return
@@ -330,7 +319,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         }
     }
 
-    // ——— Save: recompute amountBase from ORIGINAL currency ———
     private fun saveData() {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
 
@@ -357,8 +345,8 @@ class ExpenseDetailsWallet : AppCompatActivity() {
 
         CoroutineScope(Dispatchers.Main).launch {
             val patch = mutableMapOf<String, Any>(
-                "amount" to editedAmountOrig,            // original currency amount
-                "currency" to originalCurrency,          // keep original currency
+                "amount" to editedAmountOrig,
+                "currency" to originalCurrency,
                 "description" to newDescription,
                 "category" to newCategory,
                 "type" to newType,
@@ -367,7 +355,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
                 "dayTimestamp" to dayTs
             )
 
-            // Recalculate amountBase (cur -> EUR) using historical snapshot (fallback latest)
             val snap = getEurRates(dateStr) ?: getEurRates(null)
             snap?.let { s ->
                 val curToEur = curToEurRate(originalCurrency, s.second)
@@ -376,7 +363,7 @@ class ExpenseDetailsWallet : AppCompatActivity() {
                     patch["baseCurrency"] = "EUR"
                     patch["amountBase"] = amountBase
                     patch["fx"] = mapOf(
-                        "rate" to curToEur,      // ORIGINAL -> EUR
+                        "rate" to curToEur,
                         "asOf" to s.first,
                         "provider" to "frankfurter"
                     )
@@ -393,7 +380,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
                     newRef.set(patch, SetOptions.merge()).await()
                 }
 
-                // Update 'latest' mirror identically (amount, base fields if computed)
                 val latestSnap = db.collection("users").document(uid)
                     .collection("latest")
                     .whereEqualTo("expenseId", expenseDocumentId)
@@ -407,7 +393,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
                 Toast.makeText(this@ExpenseDetailsWallet, "Expense updated", Toast.LENGTH_SHORT)
                     .show()
 
-                // refresh local state
                 selectedYear = newYear.toInt(); selectedMonth = newMonth
                 originalAmount = editedAmountOrig
                 originalDateStr = dateStr
@@ -471,9 +456,7 @@ class ExpenseDetailsWallet : AppCompatActivity() {
             }
     }
 
-    // ——— Rates helpers ———
 
-    /** Returns Pair<asOfDate, ratesMap(EUR->CODE)> for given date (yyyy-MM-dd) or latest (null). */
     private suspend fun getEurRates(asOf: String?): Pair<String, Map<String, Double>>? =
         withContext(Dispatchers.IO) {
             val key = asOf ?: "latest"
@@ -528,7 +511,6 @@ class ExpenseDetailsWallet : AppCompatActivity() {
         return amount * curToEur * eurToMain
     }
 
-    // ——— Utils ———
     private fun formatAmountSigned(amount: Double, currency: String, type: String): String {
         val v = if (type.equals("expense", true)) -amount else amount
         return "${df2.format(v)} $currency"

@@ -38,9 +38,7 @@ class MainActivity : AppCompatActivity() {
             val intent = Intent(this, SignInActivity::class.java)
             startActivity(intent)
             finish()
-        } else {
-            //there is a session - proceed as normal
-
         }
+        // else proceed normally
     }
 }

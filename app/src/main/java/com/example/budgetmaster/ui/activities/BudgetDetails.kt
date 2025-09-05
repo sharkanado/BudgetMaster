@@ -118,7 +118,6 @@ class BudgetDetails : AppCompatActivity() {
                             ?: "EUR"
                         ).uppercase(Locale.ENGLISH)
 
-                // update adapters with currency code
                 membersAdapter.updateCurrency(budgetCurrency)
                 expensesAdapter.updateCurrency(budgetCurrency) // ✅ added
 

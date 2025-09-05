@@ -88,7 +88,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
 
     private var editSnapshot: EditSnapshot? = null
 
-    // NEW: track if the current user is the creator (owner) of the expense
     private var isOwner: Boolean = false
 
     private data class EditSnapshot(
@@ -148,10 +147,8 @@ class BudgetExpenseDetails : AppCompatActivity() {
 
         bindViews()
 
-        // Determine ownership right after we have expenseItem
         val currentUid = FirebaseAuth.getInstance().currentUser?.uid
         isOwner = (currentUid != null && currentUid == expenseItem.createdBy)
-        // Show/hide the edit button based on ownership
         editBtn.visibility = if (isOwner) View.VISIBLE else View.GONE
 
         participantsRecycler.layoutManager = LinearLayoutManager(this)
@@ -264,7 +261,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
 
         amountView = findViewById(R.id.expenseAmount)
         amountEdit = findViewById(R.id.expenseAmountEdit)
-        amountCurrencyView = findViewById(R.id.expenseAmountCurrency)   // ⬅️ add this
+        amountCurrencyView = findViewById(R.id.expenseAmountCurrency)
 
         descriptionView = findViewById(R.id.expenseDescription)
         dateView = findViewById(R.id.expenseDate)
@@ -280,7 +277,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
 
     private fun updateTopIcons() {
         if (!isOwner) {
-            // Ensure the edit button stays hidden for non-owners
             editBtn.visibility = View.GONE
             backButton.setImageResource(R.drawable.ic_chevron_left)
             return
@@ -569,7 +565,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
             return
         }
 
-        // normalize shares
         val normalizedPaidShares = run {
             val sel = selectedMembers.toList()
             val tmp = LinkedHashMap<String, Double>()
@@ -605,7 +600,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
         val payer = expenseItem.createdBy
 
         db.runTransaction { tx ->
-            // rollback old
             val oldDoc = tx.get(expenseRef)
             val oldShares: Map<String, Double> =
                 (oldDoc.get("paidShares") as? Map<*, *>)?.mapNotNull { (k, v) ->
@@ -638,7 +632,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
                 )
             }
 
-            // apply new
             var newOthers = 0.0
             normalizedPaidShares.forEach { (uid, share) ->
                 if (uid == payer) return@forEach

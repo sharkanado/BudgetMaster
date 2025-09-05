@@ -121,19 +121,17 @@ class GroupSettlement : AppCompatActivity() {
                     return@addOnSuccessListener
                 }
 
-                val pair = mutableMapOf<String, Double>() // otherUid -> (+ you receive / - you pay)
+                val pair = mutableMapOf<String, Double>()
                 var totalExpenses = 0.0
 
                 for (doc in qs) {
                     val type = doc.getString("type") ?: "expense"
 
-                    // Count total spent ONLY for normal expenses
                     if (type == "expense") {
                         val amt = doc.getDouble("amount") ?: 0.0
                         totalExpenses += amt
                     }
 
-                    // Settlement balances: include both expenses and settlements
                     if (type != "expense" && type != "settlement") continue
 
                     val payer = doc.getString("createdBy") ?: continue
@@ -145,12 +143,10 @@ class GroupSettlement : AppCompatActivity() {
                     }.toMap()
 
                     if (currentUid == payer) {
-                        // You paid. Others' shares are your receivables (+)
                         shares.forEach { (uid, share) ->
                             if (uid != payer) pair[uid] = (pair[uid] ?: 0.0) + share
                         }
                     } else {
-                        // Someone else paid. Your share is your payable (-) to them
                         val yourShare = shares[currentUid]
                         if (yourShare != null && yourShare > 0.0) {
                             pair[payer] = (pair[payer] ?: 0.0) - yourShare
@@ -158,7 +154,6 @@ class GroupSettlement : AppCompatActivity() {
                     }
                 }
 
-                // Show the total group spend with currency code (only expenses)
                 allGroupExpenses.text = "${format2(totalExpenses)} $budgetCurrencyCode"
 
                 if (pair.isEmpty()) {

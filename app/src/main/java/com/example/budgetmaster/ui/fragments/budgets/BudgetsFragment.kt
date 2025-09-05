@@ -155,15 +155,13 @@ class BudgetsFragment : Fragment() {
         }
     }
 
-    // only sumBudgetExpenses changed to skip settlement
     private suspend fun sumBudgetExpenses(db: FirebaseFirestore, budgetId: String): Double {
         val col = db.collection("budgets").document(budgetId).collection("expenses")
         return try {
-            // aggregation cannot filter -> fallback to manual
             val snap = col.get().await()
             var total = 0.0
             for (doc in snap.documents) {
-                if ((doc.getString("type") ?: "expense") == "settlement") continue // 👈 skip
+                if ((doc.getString("type") ?: "expense") == "settlement") continue
                 val raw = doc.get("amount")
                 total += when (raw) {
                     is Number -> raw.toDouble()

@@ -57,8 +57,8 @@ class MyWallet : AppCompatActivity() {
     )
 
     private var mainCurrency: String = "PLN"
-    private var eurRatesLatest: Map<String, Double> = emptyMap() // EUR -> CODE
-    private var eurToMainRate: Double = 1.0                      // EUR -> mainCurrency
+    private var eurRatesLatest: Map<String, Double> = emptyMap()
+    private var eurToMainRate: Double = 1.0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -133,13 +133,12 @@ class MyWallet : AppCompatActivity() {
         refreshCurrencyAndRatesThenLoad()
     }
 
-    /** Load user's mainCurrency, fetch latest EUR rates, then load Firestore data */
     private fun refreshCurrencyAndRatesThenLoad() {
         val uid = auth.currentUser?.uid ?: return
         db.collection("users").document(uid).get()
             .addOnSuccessListener { doc ->
                 mainCurrency = (doc.getString("mainCurrency") ?: "PLN").uppercase()
-                expensesAdapter.updateCurrency(mainCurrency) // headers show this currency
+                expensesAdapter.updateCurrency(mainCurrency)
             }
             .addOnFailureListener {
                 mainCurrency = "PLN"
@@ -164,7 +163,6 @@ class MyWallet : AppCompatActivity() {
         val balanceValue = findViewById<TextView>(R.id.balanceValue)
         val monthlyAvgValue = findViewById<TextView>(R.id.monthlyAvgValue)
 
-        // Aggregate in MAIN currency for charts/summaries; items will show ORIGINAL ONLY.
         val monthlyIncomeMain = MutableList(12) { 0.0 }
         val monthlyExpensesMain = MutableList(12) { 0.0 }
         var monthsCompleted = 0
@@ -226,12 +224,10 @@ class MyWallet : AppCompatActivity() {
                     val category = doc.getString("category") ?: ""
                     val type = (doc.getString("type") ?: "expense").lowercase(Locale.ENGLISH)
 
-                    // ORIGINAL values (what user typed) — used for ITEM DISPLAY ONLY
                     val curOrig = (doc.getString("currency") ?: "EUR").uppercase(Locale.ENGLISH)
                     val amountOrig = readAmount(doc.get("amount"))
                     val signedOrig = if (type == "expense") -amountOrig else amountOrig
 
-                    // For headers (totals) we still need MAIN currency
                     val amountUnsignedMain = amountInMainUnsigned(doc) ?: 0.0
                     val signedMain =
                         if (type == "expense") -amountUnsignedMain else amountUnsignedMain
@@ -244,8 +240,8 @@ class MyWallet : AppCompatActivity() {
                         date = parsedDate,
                         name = name,
                         category = category,
-                        amountSignedMain = signedMain, // used for headers/totals
-                        amountSignedOrig = signedOrig,  // used for item display
+                        amountSignedMain = signedMain,
+                        amountSignedOrig = signedOrig,
                         currencyOrig = curOrig,
                         type = type,
                         id = doc.id,
@@ -262,9 +258,8 @@ class MyWallet : AppCompatActivity() {
                 for ((date, entries) in rows) {
                     val sortedEntries = entries.sortedByDescending { it.timestampMs }
 
-                    // Header totals in MAIN currency (signed)
                     val totalMain = sortedEntries.sumOf { it.amountSignedMain }
-                    val headerLabel = df2.format(totalMain) // adapter appends currency
+                    val headerLabel = df2.format(totalMain)
                     listItems.add(
                         ExpenseListItem.Header(
                             date = date.format(formatted),
@@ -273,7 +268,6 @@ class MyWallet : AppCompatActivity() {
                         )
                     )
 
-                    // Items: show ONLY the original value + its currency (no main currency here)
                     sortedEntries.forEach { row ->
                         val displayAmount =
                             "${df2.format(row.amountSignedOrig)} ${row.currencyOrig}"
@@ -285,7 +279,7 @@ class MyWallet : AppCompatActivity() {
                                 budgetId = row.budgetId,
                                 expenseIdInBudget = row.expenseIdInBudget,
                                 category = row.category,
-                                amount = displayAmount, // <-- original only
+                                amount = displayAmount,
                                 date = row.date.toString(),
                                 type = row.type,
                                 id = row.id
@@ -303,8 +297,8 @@ class MyWallet : AppCompatActivity() {
         val date: LocalDate,
         val name: String,
         val category: String,
-        val amountSignedMain: Double, // signed, MAIN currency (headers/totals)
-        val amountSignedOrig: Double, // signed, ORIGINAL currency (items)
+        val amountSignedMain: Double,
+        val amountSignedOrig: Double,
         val currencyOrig: String,
         val type: String,
         val id: String,
@@ -313,17 +307,13 @@ class MyWallet : AppCompatActivity() {
         val timestampMs: Long
     )
 
-    /** Amount in MAIN currency, unsigned (always positive), with "no-recalc-if-same-currency" rule. */
     private fun amountInMainUnsigned(doc: DocumentSnapshot): Double? {
         val cur = (doc.getString("currency") ?: "EUR").uppercase(Locale.ENGLISH)
         val amountOrig = readAmount(doc.get("amount"))
         if (cur == mainCurrency.uppercase(Locale.ENGLISH)) {
-            // Original expense already in display currency → do NOT convert.
             return abs(amountOrig)
         }
 
-        // Otherwise convert:
-        // 1) Prefer stored amountBase (EUR), 2) fallback to latest snapshot using original currency
         val amountBase = (doc.get("amountBase") as? Number)?.toDouble()
             ?: run {
                 if (cur.equals("EUR", true)) amountOrig

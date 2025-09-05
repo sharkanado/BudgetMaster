@@ -172,7 +172,6 @@ class BudgetsAdapter(
             statusText.setTextColor(ContextCompat.getColor(ctx, color))
         }
 
-        /** Create avatar icon + count TextView once; reuse on subsequent binds. */
         private fun ensureAvatarAndCountViews() {
             if (avatarsLayout.childCount >= 2) return
 

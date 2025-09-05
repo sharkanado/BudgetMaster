@@ -62,7 +62,7 @@ class AddExpense : AppCompatActivity() {
                 .get()
                 .addOnSuccessListener { doc ->
                     doc.getString("mainCurrency")?.let { userMainCurrency = it.uppercase() }
-                    bindCurrencies() // bind after we know main currency
+                    bindCurrencies()
                 }
                 .addOnFailureListener {
                     bindCurrencies()

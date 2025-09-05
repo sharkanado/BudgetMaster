@@ -43,7 +43,7 @@ class CreateGroupExpense : AppCompatActivity() {
     private lateinit var budgetName: String
     private lateinit var amountCurrencyText: TextView
 
-    private var budgetCurrency: String = "EUR" // default, will be fetched from budget
+    private var budgetCurrency: String = "EUR"
 
     private lateinit var membersRecycler: RecyclerView
     private lateinit var selectAllCheckbox: CheckBox
@@ -54,7 +54,6 @@ class CreateGroupExpense : AppCompatActivity() {
     private lateinit var descriptionInput: TextInputEditText
     private lateinit var amountInput: TextInputEditText
 
-    // exchange component
     private lateinit var exchangeInput: TextInputEditText
     private lateinit var exchangeSpinner: Spinner
     private lateinit var exchangeSwap: ShapeableImageView
@@ -101,7 +100,6 @@ class CreateGroupExpense : AppCompatActivity() {
         membersRecycler = findViewById(R.id.membersRecycler)
         selectAllCheckbox = findViewById(R.id.selectAllCheckbox)
 
-        // exchange views
         exchangeComponent = findViewById(R.id.exchangeOfficeContainer)
         exchangeInput = findViewById(R.id.exchangeInput)
         exchangeSpinner = findViewById(R.id.exchangeSpinner)
@@ -120,7 +118,6 @@ class CreateGroupExpense : AppCompatActivity() {
         exchangeHeader.setOnClickListener {
             expanded = !expanded
             exchangeContent.visibility = if (expanded) View.VISIBLE else View.GONE
-            // rotate arrow for effect
             exchangeArrow.animate().rotation(if (expanded) 180f else 0f).setDuration(200).start()
         }
 
@@ -162,10 +159,8 @@ class CreateGroupExpense : AppCompatActivity() {
 
         findViewById<View>(R.id.saveExpenseBtn).setOnClickListener { saveGroupExpense() }
 
-        // load members + budget currency
         loadBudgetMembers()
 
-        // exchange component setup
         loadCurrencies()
         exchangeSwap.setOnClickListener {
             triggerConversion()
@@ -431,7 +426,6 @@ class CreateGroupExpense : AppCompatActivity() {
             "paidShares" to paidShares
         )
 
-        // Save expense + update totals
         db.collection("budgets").document(budgetId)
             .collection("expenses")
             .add(expenseData)
@@ -445,7 +439,6 @@ class CreateGroupExpense : AppCompatActivity() {
 
                 val serverTime = FieldValue.serverTimestamp()
 
-                // Payer receivable++
                 if (othersSum != 0.0) {
                     val payerTotalsRef = db.collection("budgets").document(budgetId)
                         .collection("totals").document(uid)
@@ -459,7 +452,6 @@ class CreateGroupExpense : AppCompatActivity() {
                     )
                 }
 
-                // Each participant debt++
                 paidShares.forEach { (participantUid, share) ->
                     if (participantUid == uid) return@forEach
                     val participantRef = db.collection("budgets").document(budgetId)
