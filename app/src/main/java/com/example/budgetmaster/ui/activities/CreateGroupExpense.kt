@@ -33,7 +33,6 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Calendar
 import java.util.Locale
-import kotlin.math.max
 import kotlin.math.round
 
 class CreateGroupExpense : AppCompatActivity() {
@@ -80,10 +79,10 @@ class CreateGroupExpense : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_create_group_expense)
 
+        // ✅ FIX: don’t add IME height to padding; let adjustResize handle keyboard.
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val sys = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
-            v.setPadding(sys.left, sys.top, sys.right, max(sys.bottom, ime.bottom))
+            v.setPadding(sys.left, sys.top, sys.right, sys.bottom)
             insets
         }
 
@@ -109,12 +108,18 @@ class CreateGroupExpense : AppCompatActivity() {
         dateInput.setOnClickListener { showDatePicker() }
 
         membersRecycler.layoutManager = LinearLayoutManager(this)
+        // ✅ Reduce churn that steals focus
+        membersRecycler.setItemViewCacheSize(20)
+        membersRecycler.itemAnimator = null
+        membersRecycler.isFocusable = false
+        membersRecycler.isFocusableInTouchMode = false
+        membersRecycler.setHasFixedSize(true)
+
         val exchangeHeader = findViewById<View>(R.id.exchangeOfficeHeader)
         val exchangeContent = findViewById<View>(R.id.exchangeOfficeContent)
         val exchangeArrow = findViewById<ImageView>(R.id.exchangeOfficeArrow)
 
         var expanded = false
-
         exchangeHeader.setOnClickListener {
             expanded = !expanded
             exchangeContent.visibility = if (expanded) View.VISIBLE else View.GONE
@@ -138,13 +143,18 @@ class CreateGroupExpense : AppCompatActivity() {
                 suppressAmountWatcher = false
             }
             recomputeSharesEqual()
-            if (::splitAdapter.isInitialized) splitAdapter.notifyDataSetChanged()
+            if (::splitAdapter.isInitialized) {
+                // ✅ Focus-safe refresh
+                splitAdapter.refreshVisibleSharesExcept(membersRecycler, null)
+            }
         })
-        amountInput.setOnFocusChangeListener { v, hasFocus -> if (!hasFocus) normalizeTotalField() }
-        amountInput.setOnEditorActionListener { v, actionId, _ ->
+        amountInput.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) normalizeTotalField()
+        }
+        amountInput.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) {
                 normalizeTotalField()
-                v.clearFocus()
+                // ✅ Don’t clear focus; avoids IME flicker/close
                 true
             } else false
         }
@@ -154,7 +164,10 @@ class CreateGroupExpense : AppCompatActivity() {
             selectedMembers.clear()
             if (isChecked) selectedMembers.addAll(membersList.map { it.uid })
             recomputeSharesEqual()
-            if (::splitAdapter.isInitialized) splitAdapter.notifyDataSetChanged()
+            if (::splitAdapter.isInitialized) {
+                // ✅ Focus-safe refresh
+                splitAdapter.refreshVisibleSharesExcept(membersRecycler, null)
+            }
         }
 
         findViewById<View>(R.id.saveExpenseBtn).setOnClickListener { saveGroupExpense() }
@@ -162,9 +175,7 @@ class CreateGroupExpense : AppCompatActivity() {
         loadBudgetMembers()
 
         loadCurrencies()
-        exchangeSwap.setOnClickListener {
-            triggerConversion()
-        }
+        exchangeSwap.setOnClickListener { triggerConversion() }
     }
 
     private fun triggerConversion() {
@@ -175,14 +186,9 @@ class CreateGroupExpense : AppCompatActivity() {
                 amountInput.setText(df2.format(rawAmount))
                 return
             }
-
             convertCurrency(rawAmount, fromCode, budgetCurrency) { converted ->
                 runOnUiThread {
-                    if (converted != null) {
-                        amountInput.setText(df2.format(converted))
-                    } else {
-                        amountInput.setText(df2.format(rawAmount))
-                    }
+                    amountInput.setText(df2.format(converted ?: rawAmount))
                 }
             }
         }
@@ -246,6 +252,7 @@ class CreateGroupExpense : AppCompatActivity() {
     }
 
     private fun readTotalOrZero(): Double = parseFlexible(amountInput.text?.toString()) ?: 0.0
+
     private fun normalizeTotalField() {
         val v = readTotalOrZero()
         suppressAmountWatcher = true
@@ -298,7 +305,11 @@ class CreateGroupExpense : AppCompatActivity() {
                                             uid
                                         )
                                         recomputeSharesEqual()
-                                        splitAdapter.notifyDataSetChanged()
+                                        // ✅ Focus-safe refresh
+                                        splitAdapter.refreshVisibleSharesExcept(
+                                            membersRecycler,
+                                            null
+                                        )
                                         syncSelectAllCheckbox()
                                     },
                                     onShareEditedValid = { editedUid, newValue ->
@@ -314,6 +325,7 @@ class CreateGroupExpense : AppCompatActivity() {
                                 )
 
                                 membersRecycler.adapter = splitAdapter
+                                // Initial bind is fine
                                 splitAdapter.notifyDataSetChanged()
                                 syncSelectAllCheckbox()
                             }
@@ -331,7 +343,10 @@ class CreateGroupExpense : AppCompatActivity() {
             selectedMembers.clear()
             if (isChecked) selectedMembers.addAll(membersList.map { it.uid })
             recomputeSharesEqual()
-            if (::splitAdapter.isInitialized) splitAdapter.notifyDataSetChanged()
+            if (::splitAdapter.isInitialized) {
+                // ✅ Focus-safe refresh
+                splitAdapter.refreshVisibleSharesExcept(membersRecycler, null)
+            }
         }
     }
 
@@ -485,7 +500,6 @@ class CreateGroupExpense : AppCompatActivity() {
             }
     }
 
-
     private fun prefillTodayDate() {
         val today = LocalDate.now()
         dateInput.setText(today.format(DateTimeFormatter.ISO_LOCAL_DATE))
@@ -502,7 +516,6 @@ class CreateGroupExpense : AppCompatActivity() {
             }
         } catch (_: Exception) {
         }
-
         val year = calendar.get(Calendar.YEAR)
         val month = calendar.get(Calendar.MONTH)
         val day = calendar.get(Calendar.DAY_OF_MONTH)
