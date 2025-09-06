@@ -142,6 +142,41 @@
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/currencyInput"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:hint="Currency"
+            android:textColorHint="@color/grey_light"
+            app:boxBackgroundColor="@color/grey_dark"
+            app:boxBackgroundMode="outline"
+            app:boxCornerRadiusBottomEnd="12dp"
+            app:boxCornerRadiusBottomStart="12dp"
+            app:boxCornerRadiusTopEnd="12dp"
+            app:boxCornerRadiusTopStart="12dp"
+            app:boxStrokeWidth="0dp"
+            app:endIconMode="dropdown_menu"
+            app:layout_constraintTop_toBottomOf="@id/amountInputLayout"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent">
+
+            <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                android:id="@+id/currencyDropdown"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/manrope_regular"
+                android:paddingTop="16dp"
+                android:paddingHorizontal="16dp"
+                android:textSize="16dp"
+                android:paddingBottom="16dp"
+                android:textColor="@color/grey_light"
+                android:inputType="none"
+                android:importantForAutofill="no"
+                android:dropDownHeight="wrap_content"
+                android:dropDownWidth="match_parent" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/dateInputLayout"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -155,7 +190,7 @@
             app:boxStrokeWidth="0dp"
             app:endIconDrawable="@drawable/ic_calendar"
             app:endIconMode="custom"
-            app:layout_constraintTop_toBottomOf="@id/amountInputLayout"
+            app:layout_constraintTop_toBottomOf="@id/currencyInput"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
 

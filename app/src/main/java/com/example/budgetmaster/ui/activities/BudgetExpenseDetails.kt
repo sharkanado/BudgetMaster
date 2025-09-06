@@ -19,10 +19,10 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
-import com.example.budgetmaster.ui.budgets.BudgetExpenseItem
-import com.example.budgetmaster.ui.components.BudgetMemberItem
-import com.example.budgetmaster.ui.components.BudgetMembersAdapter
-import com.example.budgetmaster.ui.components.BudgetSplitMembersAdapter
+import com.example.budgetmaster.utils.BudgetExpenseItem
+import com.example.budgetmaster.utils.BudgetMemberItem
+import com.example.budgetmaster.utils.BudgetMembersAdapter
+import com.example.budgetmaster.utils.BudgetSplitMembersAdapter
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
@@ -48,9 +48,11 @@ class BudgetExpenseDetails : AppCompatActivity() {
     private lateinit var amountEdit: EditText
     private lateinit var descriptionEdit: EditText
     private lateinit var dateEdit: EditText
-
+    private lateinit var amountCurrencyView: TextView
     private lateinit var backButton: ImageButton
     private lateinit var editBtn: ImageButton
+    private var budgetCurrency: String = "EUR"
+
 
     private lateinit var participantsRecycler: RecyclerView
 
@@ -61,6 +63,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
     private lateinit var readOnlyAdapter: BudgetMembersAdapter
     private lateinit var splitAdapter: BudgetSplitMembersAdapter
 
+
     private var isEditMode = false
     private var isRowEditing = false
 
@@ -68,6 +71,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
     private val userNames: MutableMap<String, String> = mutableMapOf()
     private val userEmails: MutableMap<String, String> = mutableMapOf()
     private var budgetId: String = ""
+
 
     private val db by lazy { FirebaseFirestore.getInstance() }
 
@@ -84,7 +88,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
 
     private var editSnapshot: EditSnapshot? = null
 
-    // NEW: track if the current user is the creator (owner) of the expense
     private var isOwner: Boolean = false
 
     private data class EditSnapshot(
@@ -144,10 +147,8 @@ class BudgetExpenseDetails : AppCompatActivity() {
 
         bindViews()
 
-        // Determine ownership right after we have expenseItem
         val currentUid = FirebaseAuth.getInstance().currentUser?.uid
         isOwner = (currentUid != null && currentUid == expenseItem.createdBy)
-        // Show/hide the edit button based on ownership
         editBtn.visibility = if (isOwner) View.VISIBLE else View.GONE
 
         participantsRecycler.layoutManager = LinearLayoutManager(this)
@@ -259,21 +260,23 @@ class BudgetExpenseDetails : AppCompatActivity() {
         editBtn = findViewById(R.id.editButton)
 
         amountView = findViewById(R.id.expenseAmount)
+        amountEdit = findViewById(R.id.expenseAmountEdit)
+        amountCurrencyView = findViewById(R.id.expenseAmountCurrency)
+
         descriptionView = findViewById(R.id.expenseDescription)
         dateView = findViewById(R.id.expenseDate)
         paidByView = findViewById(R.id.whoPaidName)
         paidByMailView = findViewById(R.id.whoPaidEmail)
 
-        amountEdit = findViewById(R.id.expenseAmountEdit)
         descriptionEdit = findViewById(R.id.expenseDescriptionEdit)
         dateEdit = findViewById(R.id.expenseDateEdit)
 
         participantsRecycler = findViewById(R.id.expenseParticipantsRecyclerView)
     }
 
+
     private fun updateTopIcons() {
         if (!isOwner) {
-            // Ensure the edit button stays hidden for non-owners
             editBtn.visibility = View.GONE
             backButton.setImageResource(R.drawable.ic_chevron_left)
             return
@@ -320,7 +323,9 @@ class BudgetExpenseDetails : AppCompatActivity() {
         amountEdit.visibility = visEdit
         descriptionEdit.visibility = visEdit
         dateEdit.visibility = visEdit
+        findViewById<View>(R.id.amountEditRow).visibility = visEdit
 
+        amountView.visibility = visView
         amountView.visibility = visView
         descriptionView.visibility = visView
         dateView.visibility = visView
@@ -377,6 +382,14 @@ class BudgetExpenseDetails : AppCompatActivity() {
                         }
                 }
             }
+
+        db.collection("budgets").document(budgetId).get()
+            .addOnSuccessListener { doc ->
+
+                budgetCurrency = (doc.getString("currency") ?: "EUR").uppercase(Locale.ENGLISH)
+                amountCurrencyView.text = budgetCurrency
+
+            }
     }
 
     private fun loadPaidSharesOnce() {
@@ -398,6 +411,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
                 readOnlyAdapter.notifyDataSetChanged()
             }
     }
+
 
     private fun rebuildReadOnlyParticipants() {
         participantsReadOnly.clear()
@@ -472,7 +486,10 @@ class BudgetExpenseDetails : AppCompatActivity() {
         paidByView.text = userNames[e.createdBy] ?: e.createdBy
         paidByMailView.text = userEmails[e.createdBy] ?: ""
 
+        amountView.text = "${df2.format(e.amount)} $budgetCurrency"
         amountEdit.setText(df2.format(e.amount))
+        amountCurrencyView.text = budgetCurrency
+
         descriptionEdit.setText(e.description)
         dateEdit.setText(e.date)
 
@@ -579,15 +596,13 @@ class BudgetExpenseDetails : AppCompatActivity() {
 
         val budgetRef = db.collection("budgets").document(budgetId)
         val expenseRef = budgetRef.collection("expenses").document(expenseItem.id)
-        val splitsRef = budgetRef.collection("expenseSplits").document(expenseItem.id)
         val totalsCol = budgetRef.collection("totals")
         val payer = expenseItem.createdBy
 
         db.runTransaction { tx ->
-            val old = tx.get(splitsRef)
-            val oldPayer = old.getString("payer") ?: payer
+            val oldDoc = tx.get(expenseRef)
             val oldShares: Map<String, Double> =
-                (old.get("shares") as? Map<*, *>)?.mapNotNull { (k, v) ->
+                (oldDoc.get("paidShares") as? Map<*, *>)?.mapNotNull { (k, v) ->
                     val id = k?.toString() ?: return@mapNotNull null
                     val d = (v as? Number)?.toDouble() ?: return@mapNotNull null
                     id to d
@@ -595,7 +610,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
 
             var oldOthers = 0.0
             oldShares.forEach { (uid, share) ->
-                if (uid == oldPayer) return@forEach
+                if (uid == payer) return@forEach
                 oldOthers += share
                 tx.set(
                     totalsCol.document(uid),
@@ -608,7 +623,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
             }
             if (oldOthers != 0.0) {
                 tx.set(
-                    totalsCol.document(oldPayer),
+                    totalsCol.document(payer),
                     mapOf(
                         "receivable" to FieldValue.increment(-oldOthers),
                         "updatedAt" to FieldValue.serverTimestamp()
@@ -642,9 +657,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
             }
 
             tx.update(expenseRef, updates)
-
-            tx.set(splitsRef, mapOf("payer" to payer, "shares" to normalizedPaidShares))
-
             null
         }.addOnSuccessListener {
             savedPaidShares.clear()
@@ -659,6 +671,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
         }
     }
 
+
     private fun deleteExpense() {
         if (!isOwner) {
             Toast.makeText(this, "You can delete only your own expense.", Toast.LENGTH_SHORT).show()
@@ -667,14 +680,13 @@ class BudgetExpenseDetails : AppCompatActivity() {
 
         val budgetRef = db.collection("budgets").document(budgetId)
         val expenseRef = budgetRef.collection("expenses").document(expenseItem.id)
-        val splitsRef = budgetRef.collection("expenseSplits").document(expenseItem.id)
         val totalsCol = budgetRef.collection("totals")
 
         db.runTransaction { tx ->
-            val old = tx.get(splitsRef)
-            val payer = old.getString("payer") ?: expenseItem.createdBy
+            val oldDoc = tx.get(expenseRef)
+            val payer = expenseItem.createdBy
             val shares: Map<String, Double> =
-                (old.get("shares") as? Map<*, *>)?.mapNotNull { (k, v) ->
+                (oldDoc.get("paidShares") as? Map<*, *>)?.mapNotNull { (k, v) ->
                     val id = k?.toString() ?: return@mapNotNull null
                     val d = (v as? Number)?.toDouble() ?: return@mapNotNull null
                     id to d
@@ -705,7 +717,6 @@ class BudgetExpenseDetails : AppCompatActivity() {
             }
 
             tx.delete(expenseRef)
-            tx.delete(splitsRef)
             null
         }.addOnSuccessListener {
             Toast.makeText(this, "Expense deleted", Toast.LENGTH_SHORT).show()
@@ -714,6 +725,7 @@ class BudgetExpenseDetails : AppCompatActivity() {
             Toast.makeText(this, "Failed to delete: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
+
 
     private fun showDatePicker() {
         val cal = Calendar.getInstance()

@@ -13,6 +13,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.lifecycleScope
 import com.example.budgetmaster.R
 import com.example.budgetmaster.utils.Categories
 import com.example.budgetmaster.utils.updateLatestExpenses
@@ -25,13 +26,25 @@ import com.google.firebase.Firebase
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import kotlin.math.round
 
 class AddExpense : AppCompatActivity() {
+
+    private val BASE_CURRENCY = "EUR"
+    private var userMainCurrency: String = "PLN"
+
+    private lateinit var currencyDropdown: AutoCompleteTextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,7 +57,18 @@ class AddExpense : AppCompatActivity() {
             insets
         }
 
-        // Date Picker Setup with Calendar Icon
+        Firebase.auth.currentUser?.uid?.let { uid ->
+            FirebaseFirestore.getInstance().collection("users").document(uid)
+                .get()
+                .addOnSuccessListener { doc ->
+                    doc.getString("mainCurrency")?.let { userMainCurrency = it.uppercase() }
+                    bindCurrencies()
+                }
+                .addOnFailureListener {
+                    bindCurrencies()
+                }
+        } ?: bindCurrencies()
+
         val dateInputLayout = findViewById<TextInputLayout>(R.id.dateInputLayout)
         val dateInput = findViewById<TextInputEditText>(R.id.dateInput)
         val today = Calendar.getInstance().time
@@ -56,19 +80,15 @@ class AddExpense : AppCompatActivity() {
                 .setTitleText("Select date")
                 .setSelection(MaterialDatePicker.todayInUtcMilliseconds())
                 .build()
-
             picker.show(supportFragmentManager, "DATE_PICKER")
-
             picker.addOnPositiveButtonClickListener { selection ->
                 val selectedDate = Date(selection)
                 dateInput.setText(dateFormat.format(selectedDate))
             }
         }
-
         dateInputLayout.setEndIconOnClickListener { showDatePicker() }
         dateInput.setOnClickListener { showDatePicker() }
 
-        // Toggle Buttons Setup
         val btnExpense = findViewById<MaterialButton>(R.id.btnExpense)
         val btnIncome = findViewById<MaterialButton>(R.id.btnIncome)
         val toggleGroup = findViewById<MaterialButtonToggleGroup>(R.id.transactionTypeToggle)
@@ -77,7 +97,6 @@ class AddExpense : AppCompatActivity() {
             val orange = ContextCompat.getColor(this, R.color.orange)
             val greyDark = ContextCompat.getColor(this, R.color.grey_dark)
             val white = ContextCompat.getColor(this, android.R.color.white)
-
             if (btnExpense.isChecked) {
                 btnExpense.setBackgroundColor(orange)
                 btnIncome.setBackgroundColor(greyDark)
@@ -85,54 +104,37 @@ class AddExpense : AppCompatActivity() {
                 btnIncome.setBackgroundColor(orange)
                 btnExpense.setBackgroundColor(greyDark)
             }
-
             btnExpense.setTextColor(white)
             btnIncome.setTextColor(white)
         }
-
         toggleGroup.addOnButtonCheckedListener { _, _, _ -> updateToggleStyles() }
         updateToggleStyles()
 
-        // Category Dropdown
         val categoryDropdown = findViewById<AutoCompleteTextView>(R.id.categorySpinner)
-
-        val categoryAdapter = ArrayAdapter(
-            this,
-            android.R.layout.simple_list_item_1,
-            Categories.categoryList
-        )
+        val categoryAdapter =
+            ArrayAdapter(this, android.R.layout.simple_list_item_1, Categories.categoryList)
         categoryDropdown.setAdapter(categoryAdapter)
 
-
-        // Amount Input (comma/dot handling)
         val amountInput = findViewById<TextInputEditText>(R.id.amountInput)
         amountInput.addTextChangedListener(object : TextWatcher {
             private var current = ""
-
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-
             override fun afterTextChanged(s: Editable?) {
                 val raw = s?.toString() ?: return
                 if (raw == current) return
-
                 var sanitized = raw.replace(',', '.')
-
-                // Only digits + one dot
                 sanitized = sanitized.replace(Regex("[^0-9.]"), "")
                 val dotIndex = sanitized.indexOf('.')
                 if (dotIndex != -1) {
-                    sanitized = sanitized.substring(0, dotIndex + 1) +
-                            sanitized.substring(dotIndex + 1).replace(".", "")
-
+                    sanitized =
+                        sanitized.substring(0, dotIndex + 1) + sanitized.substring(dotIndex + 1)
+                            .replace(".", "")
                     if (sanitized.length > dotIndex + 3) {
                         sanitized = sanitized.substring(0, dotIndex + 3)
                     }
                 }
-
-                // Remove leading zeros (except before dot)
                 sanitized = sanitized.replaceFirst(Regex("^0+(?!\\.)"), "0")
-
                 current = sanitized
                 amountInput.setText(sanitized)
                 if (amountInput.isFocused && sanitized.length <= (amountInput.text?.length ?: 0)) {
@@ -141,14 +143,127 @@ class AddExpense : AppCompatActivity() {
             }
         })
 
-        // Save Button
         findViewById<MaterialButton>(R.id.saveTransactionBtn).setOnClickListener {
             val userId = Firebase.auth.currentUser?.uid
-            if (userId != null) {
-                saveExpense(this, userId)
+            if (userId != null) saveExpense(this, userId)
+        }
+    }
+
+    private fun bindCurrencies() {
+        currencyDropdown = findViewById(R.id.currencyDropdown)
+        if (currencyDropdown == null) return
+
+        lifecycleScope.launch {
+            val currencies = withContext(Dispatchers.IO) { fetchCurrenciesFrankfurter() }
+                ?: fallbackCurrencies()
+            val items = currencies.entries
+                .sortedBy { it.key }
+                .map { "${it.key} — ${it.value}" }
+
+            val adapter = ArrayAdapter(this@AddExpense, android.R.layout.simple_list_item_1, items)
+            currencyDropdown.setAdapter(adapter)
+
+            val preselect = items.firstOrNull {
+                it.startsWith("${userMainCurrency.uppercase()} ")
+                        || it.startsWith("${userMainCurrency.uppercase()}—")
+                        || it.startsWith("${userMainCurrency.uppercase()} —")
+            } ?: items.firstOrNull { it.startsWith("EUR") }
+
+            currencyDropdown.setText(preselect ?: userMainCurrency, false)
+        }
+    }
+
+    private fun selectedCurrency(): String {
+        val dd1 = findViewById<AutoCompleteTextView?>(R.id.currencyDropdown)
+        val dd2 = findViewById<AutoCompleteTextView?>(R.id.currencySpinner)
+        val raw = (dd1?.text?.toString() ?: dd2?.text?.toString() ?: "").trim()
+        val parsed = raw.substringBefore("—").trim().ifEmpty { raw }
+        return (if (parsed.isNotEmpty()) parsed else userMainCurrency).uppercase()
+    }
+
+    private suspend fun fetchFxRate(
+        dateStr: String,
+        from: String,
+        to: String
+    ): Pair<Double, String>? {
+        if (from.uppercase() == to.uppercase()) return 1.0 to dateStr
+        fun urlFor(path: String) = "https://api.frankfurter.dev/v1/$path"
+        return withContext(Dispatchers.IO) {
+            var conn: HttpURLConnection? = null
+            try {
+                var url = URL(urlFor("$dateStr?from=$from&to=$to"))
+                conn = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 8000
+                    readTimeout = 8000
+                }
+                var body = conn.inputStream.bufferedReader().use { it.readText() }
+                var json = JSONObject(body)
+                if (json.has("rates") && json.getJSONObject("rates").has(to)) {
+                    val rate = json.getJSONObject("rates").getDouble(to)
+                    val asOf = json.optString("date", dateStr)
+                    return@withContext rate to asOf
+                }
+                conn.disconnect()
+
+                url = URL(urlFor("latest?from=$from&to=$to"))
+                conn = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 8000
+                    readTimeout = 8000
+                }
+                body = conn.inputStream.bufferedReader().use { it.readText() }
+                json = JSONObject(body)
+                if (json.has("rates") && json.getJSONObject("rates").has(to)) {
+                    val rate = json.getJSONObject("rates").getDouble(to)
+                    val asOf = json.optString("date", dateStr)
+                    return@withContext rate to asOf
+                }
+                null
+            } catch (_: Exception) {
+                null
+            } finally {
+                conn?.disconnect()
             }
         }
     }
+
+    private suspend fun fetchCurrenciesFrankfurter(): Map<String, String>? =
+        withContext(Dispatchers.IO) {
+            var conn: HttpURLConnection? = null
+            try {
+                val url = URL("https://api.frankfurter.dev/v1/currencies")
+                conn = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 8000
+                    readTimeout = 8000
+                }
+                val text = conn.inputStream.bufferedReader().use { it.readText() }
+                val json = JSONObject(text)
+                val out = mutableMapOf<String, String>()
+                val keys = json.keys()
+                while (keys.hasNext()) {
+                    val k = keys.next()
+                    out[k.uppercase(Locale.ENGLISH)] = json.getString(k)
+                }
+                out
+            } catch (_: Exception) {
+                null
+            } finally {
+                conn?.disconnect()
+            }
+        }
+
+    private fun fallbackCurrencies(): Map<String, String> = mapOf(
+        "EUR" to "Euro",
+        "PLN" to "Polish Złoty",
+        "USD" to "US Dollar",
+        "CZK" to "Czech Koruna",
+        "GBP" to "British Pound",
+        "CHF" to "Swiss Franc"
+    )
+
+    private fun round2(value: Double): Double = round(value * 100.0) / 100.0
 
     private fun saveExpense(context: Context, uid: String) {
         val amountInput = findViewById<TextInputEditText>(R.id.amountInput)
@@ -169,43 +284,59 @@ class AddExpense : AppCompatActivity() {
             return
         }
 
+        val currency = selectedCurrency()
         val transactionType = if (btnExpense.isChecked) "expense" else "income"
         val date = LocalDate.parse(dateStr)
         val year = date.year.toString()
         val month = date.month.name.lowercase().replaceFirstChar { it.uppercase() }
 
-        val expenseData = hashMapOf(
-            "amount" to amount,
-            "category" to category,
-            "description" to description,
-            "type" to transactionType,
-            "date" to dateStr,
-            "timestamp" to Timestamp.now(),
-            "budgetName" to "personal"
-            
-        )
-
-        val db = FirebaseFirestore.getInstance()
-        val expensesRef = db.collection("users")
-            .document(uid)
-            .collection("expenses")
-            .document(year)
-            .collection(month)
-
-        expensesRef.add(expenseData)
-            .addOnSuccessListener { docRef ->
-                // Attach the ID for later deletion from `latest`
-                expenseData["expenseId"] = docRef.id
-
-                Toast.makeText(context, "Expense added successfully.", Toast.LENGTH_SHORT).show()
-                updateLatestExpenses(uid, expenseData)
-
-                startActivity(Intent(this, MyWallet::class.java))
-                finish()
+        lifecycleScope.launch {
+            val fx = fetchFxRate(dateStr, currency, BASE_CURRENCY)
+            if (fx == null && currency != BASE_CURRENCY) {
+                Toast.makeText(context, "Couldn’t fetch FX rate. Try again.", Toast.LENGTH_LONG)
+                    .show()
+                return@launch
             }
-            .addOnFailureListener { e ->
-                Toast.makeText(context, "Failed: ${e.message}", Toast.LENGTH_LONG).show()
-            }
+            val (rate, asOf) = fx ?: (1.0 to dateStr)
+            val amountBase = round2(amount * rate)
+
+            val expenseData = hashMapOf(
+                "amount" to amount,
+                "currency" to currency,
+                "baseCurrency" to BASE_CURRENCY,
+                "amountBase" to amountBase,
+                "fx" to mapOf(
+                    "rate" to rate,
+                    "asOf" to asOf,
+                    "provider" to "frankfurter"
+                ),
+                "category" to category,
+                "description" to description,
+                "type" to transactionType,
+                "date" to dateStr,
+                "timestamp" to Timestamp.now(),
+                "budgetName" to "personal"
+            )
+
+            val db = FirebaseFirestore.getInstance()
+            val expensesRef = db.collection("users")
+                .document(uid)
+                .collection("expenses")
+                .document(year)
+                .collection(month)
+
+            expensesRef.add(expenseData)
+                .addOnSuccessListener { docRef ->
+                    expenseData["expenseId"] = docRef.id
+                    Toast.makeText(context, "Expense added successfully.", Toast.LENGTH_SHORT)
+                        .show()
+                    updateLatestExpenses(uid, expenseData)
+                    startActivity(Intent(this@AddExpense, MyWallet::class.java))
+                    finish()
+                }
+                .addOnFailureListener { e ->
+                    Toast.makeText(context, "Failed: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+        }
     }
-
 }

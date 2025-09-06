@@ -1,4 +1,4 @@
-package com.example.budgetmaster.ui.settings
+package com.example.budgetmaster.ui.fragments.settings
 
 import android.view.LayoutInflater
 import android.view.View

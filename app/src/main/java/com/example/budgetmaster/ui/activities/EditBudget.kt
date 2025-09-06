@@ -18,7 +18,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
-import com.example.budgetmaster.ui.components.BudgetMemberItem
+import com.example.budgetmaster.utils.BudgetMemberItem
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -104,7 +104,6 @@ class EditBudget : AppCompatActivity() {
                         .addOnCompleteListener {
                             loaded++
                             if (loaded == memberIds.size) {
-                                // Use the simple, local adapter for this screen
                                 membersRecycler.adapter = EditMembersAdapter(currentMembers)
                             }
                         }
@@ -128,7 +127,6 @@ class EditBudget : AppCompatActivity() {
         membersContainer.addView(view)
     }
 
-    /** Save changes to budget **/
     private fun updateBudget() {
         val newName = budgetNameEdit.text?.toString()?.trim()
         if (newName.isNullOrEmpty()) {
@@ -136,7 +134,6 @@ class EditBudget : AppCompatActivity() {
             return
         }
 
-        // Collect new member emails
         val emails = mutableListOf<String>()
         for (i in 0 until membersContainer.childCount) {
             val view = membersContainer.getChildAt(i)
@@ -145,12 +142,10 @@ class EditBudget : AppCompatActivity() {
             if (!email.isNullOrEmpty()) emails.add(email)
         }
 
-        // Resolve new emails to UIDs
         resolveEmailsToUids(emails) { newUids ->
             val currentUids = currentMembers.map { it.uid }
             val allMembers = (currentUids + newUids).distinct()
 
-            // Update budget doc
             db.collection("budgets").document(budgetId)
                 .update(
                     mapOf(
@@ -159,7 +154,6 @@ class EditBudget : AppCompatActivity() {
                     )
                 )
                 .addOnSuccessListener {
-                    // Add budget to new members' budgetsAccessed
                     updateBudgetsAccessedForMembers(newUids, budgetId)
 
                     Toast.makeText(this, "Budget updated!", Toast.LENGTH_SHORT).show()
@@ -236,14 +230,14 @@ class EditBudget : AppCompatActivity() {
  * - No balances, no spent totals — just displays current members
  */
 private class EditMembersAdapter(
-    private val members: List<com.example.budgetmaster.ui.components.BudgetMemberItem>
+    private val members: List<BudgetMemberItem>
 ) : RecyclerView.Adapter<EditMembersAdapter.ViewHolder>() {
 
     inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val nameText: TextView = itemView.findViewById(R.id.memberName)
         private val emailText: TextView = itemView.findViewById(R.id.memberEmail)
 
-        fun bind(item: com.example.budgetmaster.ui.components.BudgetMemberItem) {
+        fun bind(item: BudgetMemberItem) {
             nameText.text = item.name
             emailText.text = item.email
         }
@@ -251,7 +245,6 @@ private class EditMembersAdapter(
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view = LayoutInflater.from(parent.context)
-            // This layout is the one you pasted above (name + email)
             .inflate(R.layout.item_budget_member_no_balance_tile, parent, false)
         return ViewHolder(view)
     }

@@ -28,6 +28,10 @@
     <string name="you_owe_label">you owe</string>
     <string name="settlement_clear_label">settled</string>
     <string name="back">Back</string>
+    <string name="dashboard_debt_title_fmt">debt (%1$s)</string>
+
+    <string name="dashboard_receivable_title_fmt">receivable (%1$s)</string>
+
 
     <string-array name="month_names">
         <item>January</item>

@@ -1,4 +1,4 @@
-package com.example.budgetmaster.ui.budgets
+package com.example.budgetmaster.utils
 
 import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
@@ -7,6 +7,7 @@ import kotlinx.parcelize.Parcelize
 data class BudgetExpenseItem(
     val id: String = "",
     val amount: Double = 0.0,
+    val currencyCode: String = "",
     val description: String = "",
     val date: String = "",
     val createdBy: String = "",

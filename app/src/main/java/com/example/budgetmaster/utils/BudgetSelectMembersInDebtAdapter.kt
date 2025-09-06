@@ -1,4 +1,4 @@
-package com.example.budgetmaster.ui.components
+package com.example.budgetmaster.utils
 
 import android.view.LayoutInflater
 import android.view.View

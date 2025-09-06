@@ -18,6 +18,13 @@ import com.example.budgetmaster.R
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 import java.util.UUID
 
 class AddNewBudget : AppCompatActivity() {
@@ -25,22 +32,19 @@ class AddNewBudget : AppCompatActivity() {
     private val db = FirebaseFirestore.getInstance()
     private val currentUser = FirebaseAuth.getInstance().currentUser
 
-    // Currency options
-    private val currencyOptions = listOf("USD", "EUR", "GBP", "PLN")
-
-    // Declare views
     private lateinit var currencySpinner: AutoCompleteTextView
     private lateinit var addMemberBtn: Button
     private lateinit var membersContainer: LinearLayout
     private lateinit var budgetNameInput: TextInputEditText
     private lateinit var saveBudgetBtn: Button
 
+    private var currencyMap: Map<String, String> = emptyMap()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_create_budget)
 
-        // Apply system bars insets dynamically (no XML changes)
         val contentView = findViewById<View>(android.R.id.content)
         val rootChild = (contentView as? ViewGroup)?.getChildAt(0)
         ViewCompat.setOnApplyWindowInsetsListener(contentView) { _, insets ->
@@ -54,14 +58,12 @@ class AddNewBudget : AppCompatActivity() {
             insets
         }
 
-        // Initialize views
         currencySpinner = findViewById(R.id.currencySpinner)
         addMemberBtn = findViewById(R.id.addMemberBtn)
         membersContainer = findViewById(R.id.membersContainer)
         budgetNameInput = findViewById(R.id.budgetNameInput)
         saveBudgetBtn = findViewById(R.id.saveBudgetBtn)
 
-        // Setup UI actions
         setupCurrencyDropdown()
         setupAddMemberButton()
 
@@ -70,17 +72,39 @@ class AddNewBudget : AppCompatActivity() {
         }
     }
 
-    /** Setup currency dropdown **/
     private fun setupCurrencyDropdown() {
-        val adapter = ArrayAdapter(
-            this,
-            androidx.appcompat.R.layout.support_simple_spinner_dropdown_item,
-            currencyOptions
-        )
-        currencySpinner.setAdapter(adapter)
+        CoroutineScope(Dispatchers.IO).launch {
+            val map = fetchCurrencies()
+            withContext(Dispatchers.Main) {
+                if (map.isNotEmpty()) {
+                    currencyMap = map
+                    val displayList = map.entries.map { "${it.key} — ${it.value}" }.sorted()
+                    val adapter = ArrayAdapter(
+                        this@AddNewBudget,
+                        androidx.appcompat.R.layout.support_simple_spinner_dropdown_item,
+                        displayList
+                    )
+                    currencySpinner.setAdapter(adapter)
+                } else {
+                    val fallback = mapOf(
+                        "EUR" to "Euro",
+                        "USD" to "US Dollar",
+                        "GBP" to "British Pound",
+                        "PLN" to "Polish Zloty"
+                    )
+                    currencyMap = fallback
+                    val displayList = fallback.entries.map { "${it.key} — ${it.value}" }
+                    val adapter = ArrayAdapter(
+                        this@AddNewBudget,
+                        androidx.appcompat.R.layout.support_simple_spinner_dropdown_item,
+                        displayList
+                    )
+                    currencySpinner.setAdapter(adapter)
+                }
+            }
+        }
     }
 
-    /** Add dynamic member fields **/
     private fun setupAddMemberButton() {
         addMemberBtn.setOnClickListener {
             val newMemberView = LayoutInflater.from(this)
@@ -95,27 +119,25 @@ class AddNewBudget : AppCompatActivity() {
         }
     }
 
-    /** Create budget and save to Firestore **/
     private fun createBudget() {
         val budgetName = budgetNameInput.text.toString().trim()
-        val currency = currencySpinner.text.toString().trim()
+        val raw = currencySpinner.text.toString().trim()
+        val code = raw.substringBefore("—").trim().uppercase()
 
         if (budgetName.isEmpty()) {
             Toast.makeText(this, "Please enter a budget name", Toast.LENGTH_SHORT).show()
             return
         }
-        if (currency.isEmpty()) {
+        if (code.isEmpty()) {
             Toast.makeText(this, "Please select a currency", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // Collect member emails
         val memberEmails = mutableListOf<String>()
         for (i in 0 until membersContainer.childCount) {
             val memberView = membersContainer.getChildAt(i)
             val emailField = memberView.findViewById<TextInputEditText>(R.id.memberEmailInput)
             val email = emailField.text?.toString()?.trim()
-
             if (!email.isNullOrEmpty()) {
                 if (android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
                     memberEmails.add(email)
@@ -129,7 +151,6 @@ class AddNewBudget : AppCompatActivity() {
         val ownerId = currentUser?.uid ?: return
         val budgetId = UUID.randomUUID().toString()
 
-        // Resolve emails to UIDs, then save budget
         resolveEmailsToUids(memberEmails) { resolvedMemberIds ->
             val allMembers = listOf(ownerId) + resolvedMemberIds
 
@@ -137,7 +158,7 @@ class AddNewBudget : AppCompatActivity() {
                 "name" to budgetName,
                 "ownerId" to ownerId,
                 "members" to allMembers,
-                "preferredCurrency" to currency,
+                "currency" to code,
                 "createdAt" to com.google.firebase.Timestamp.now(),
                 "budget" to "personal"
             )
@@ -154,7 +175,6 @@ class AddNewBudget : AppCompatActivity() {
         }
     }
 
-    /** Look up UIDs for emails from usersByEmail mapping **/
     private fun resolveEmailsToUids(emails: List<String>, callback: (List<String>) -> Unit) {
         if (emails.isEmpty()) {
             callback(emptyList())
@@ -186,7 +206,6 @@ class AddNewBudget : AppCompatActivity() {
         }
     }
 
-    /** Update budgetsAccessed for each member **/
     private fun updateBudgetsAccessedForMembers(memberIds: List<String>, budgetId: String) {
         var updated = 0
         for (uid in memberIds) {
@@ -204,6 +223,32 @@ class AddNewBudget : AppCompatActivity() {
                         finish()
                     }
                 }
+        }
+    }
+
+    private fun fetchCurrencies(): Map<String, String> {
+        var conn: HttpURLConnection? = null
+        return try {
+            val url = URL("https://api.frankfurter.dev/v1/currencies")
+            conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 8000
+                readTimeout = 8000
+            }
+            val body = conn.inputStream.bufferedReader().use { it.readText() }
+            val json = JSONObject(body)
+            val map = mutableMapOf<String, String>()
+            val keys = json.keys()
+            while (keys.hasNext()) {
+                val code = keys.next()
+                val name = json.getString(code)
+                map[code.uppercase()] = name
+            }
+            map
+        } catch (_: Exception) {
+            emptyMap()
+        } finally {
+            conn?.disconnect()
         }
     }
 }

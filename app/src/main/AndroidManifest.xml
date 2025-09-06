@@ -13,6 +13,12 @@
         android:theme="@style/Theme.BudgetMaster"
         tools:targetApi="31">
         <activity
+            android:name=".ui.activities.SettleUpPayments"
+            android:exported="false" />
+        <activity
+            android:name=".ui.activities.ChangeBaseSettings"
+            android:exported="false" />
+        <activity
             android:name=".ui.activities.GroupSettlement"
             android:exported="false" />
         <activity

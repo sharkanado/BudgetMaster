@@ -1,6 +1,5 @@
-package com.example.budgetmaster.ui.components
+package com.example.budgetmaster.utils
 
-import ExpenseListItem
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -9,12 +8,12 @@ import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
-import com.example.budgetmaster.utils.Categories
 import java.util.Locale
 import kotlin.math.max
 
 class ExpensesAdapter(
     private var items: List<ExpenseListItem>,
+    private var currencyCode: String = "",
     private val onItemClick: ((ExpenseListItem.Item) -> Unit)? = null
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
@@ -22,22 +21,17 @@ class ExpensesAdapter(
         private const val TYPE_HEADER = 0
         private const val TYPE_ITEM = 1
 
-        // Extract a numeric token from arbitrary text, accept spaces, '.' or ',' as separators.
-        // Treat the LAST separator ('.' or ',') as the decimal point; others are grouping.
         private fun parseAmountOrNull(raw: String): Double? {
             val match = Regex("[-+]?\\d[\\d.,\\s]*").find(raw.trim()) ?: return null
-            var token = match.value.replace("\\s".toRegex(), "") // drop spaces
-
+            var token = match.value.replace("\\s".toRegex(), "")
             val lastDot = token.lastIndexOf('.')
             val lastComma = token.lastIndexOf(',')
             val decIdx = max(lastDot, lastComma)
-
             token = if (decIdx >= 0) {
                 val intPart = token.substring(0, decIdx).replace(".", "").replace(",", "")
                 val fracPart = token.substring(decIdx + 1).replace(".", "").replace(",", "")
                 "$intPart.$fracPart"
             } else {
-                // No decimal separator -> remove groupings
                 token.replace(".", "").replace(",", "")
             }
             return token.toDoubleOrNull()
@@ -46,12 +40,18 @@ class ExpensesAdapter(
         private fun formatAmount(value: Double): String =
             String.format(Locale.US, "%.2f", value)
 
-        // Robust formatter for strings: try to parse; if ok -> format with dot+2dp,
-        // else return original with commas normalized to dots so it still shows.
-        private fun formatAmountFromString(s: String): String {
-            val n = parseAmountOrNull(s)
-            return if (n != null) formatAmount(n) else s.replace(',', '.')
+        // For headers we still normalize numeric-only strings; if string contains letters/() we leave it untouched.
+        private fun formatAmountForHeader(s: String): String {
+            val hasLetters = s.any { it.isLetter() } || s.contains('(') || s.contains(')')
+            if (hasLetters) return s
+            val n = parseAmountOrNull(s) ?: return s.replace(',', '.')
+            return formatAmount(n)
         }
+    }
+
+    fun updateCurrency(newCode: String) {
+        currencyCode = newCode.uppercase(Locale.ENGLISH)
+        notifyDataSetChanged()
     }
 
     override fun getItemViewType(position: Int): Int = when (items[position]) {
@@ -73,7 +73,7 @@ class ExpensesAdapter(
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         when (val item = items[position]) {
-            is ExpenseListItem.Header -> (holder as HeaderViewHolder).bind(item)
+            is ExpenseListItem.Header -> (holder as HeaderViewHolder).bind(item, currencyCode)
             is ExpenseListItem.Item -> (holder as ItemViewHolder).bind(item)
             else -> throw IllegalArgumentException("Unsupported item type at position $position")
         }
@@ -84,19 +84,20 @@ class ExpensesAdapter(
         notifyDataSetChanged()
     }
 
-    // Header ViewHolder
+    // Header ViewHolder (shows currency)
     class HeaderViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val dateText: TextView = itemView.findViewById(R.id.dailyExpensesDate)
         private val totalText: TextView = itemView.findViewById(R.id.dailyExpensesSummary)
 
-        fun bind(header: ExpenseListItem.Header) {
+        fun bind(header: ExpenseListItem.Header, currencyCode: String) {
             dateText.text = header.date
-            // Safely format totals no matter if they arrive like "123,45", "1 234,56", "Total: 12,34 PLN"
-            totalText.text = formatAmountFromString(header.total)
+            val formatted = formatAmountForHeader(header.total)
+            totalText.text =
+                if (currencyCode.isNotBlank()) "$formatted $currencyCode" else formatted
         }
     }
 
-    // Item ViewHolder
+    // Item ViewHolder (shows the composite string as-is)
     inner class ItemViewHolder(
         private val itemViewRoot: View,
         private val onItemClick: ((ExpenseListItem.Item) -> Unit)?
@@ -112,8 +113,8 @@ class ExpensesAdapter(
             categoryText.text = item.category
             nameText.text = item.name
 
-            // Amount: always dot + 2 decimals (robust against "12,5" etc.)
-            amountText.text = formatAmountFromString(item.amount)
+            // Amount string is prepared in MyWallet and can include main + (original)
+            amountText.text = item.amount
 
             val colorRes = if (item.type == "income") R.color.green_success else R.color.red_error
             amountText.setTextColor(ContextCompat.getColor(itemViewRoot.context, colorRes))

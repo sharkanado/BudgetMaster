@@ -4,11 +4,11 @@ import android.os.Bundle
 import android.view.View
 import android.widget.ImageButton
 import android.widget.TextView
-import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
@@ -35,6 +35,8 @@ class GroupSettlement : AppCompatActivity() {
     private lateinit var adapter: SettlementAdapter
     private var budgetId: String = ""
 
+    private var budgetCurrencyCode: String = "EUR"
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -60,19 +62,52 @@ class GroupSettlement : AppCompatActivity() {
         backButton.setOnClickListener { finish() }
 
         adapter = SettlementAdapter(onItemClick = { row ->
-            val msg = "You owe ${row.name} ${format2(abs(row.amount))}"
-            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+            if (row.amount < 0) {
+                val intent =
+                    android.content.Intent(this, SettleUpPayments::class.java).apply {
+                        putExtra("budgetId", budgetId)
+                        putExtra("receiverId", row.uid)
+                        putExtra("receiverName", row.name)
+                        putExtra("amount", abs(row.amount))
+                        putExtra("currency", budgetCurrencyCode)
+                    }
+                startActivity(intent)
+            }
         })
 
         recycler.layoutManager = LinearLayoutManager(this)
         recycler.adapter = adapter
 
-        loadSettlement()
+        loadBudgetCurrency {
+            loadSettlement()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        loadBudgetCurrency {
+            loadSettlement()
+        }
+    }
+
+    private fun loadBudgetCurrency(onReady: () -> Unit) {
+        db.collection("budgets").document(budgetId)
+            .get()
+            .addOnSuccessListener { doc ->
+                val code = (doc.getString("currency")
+                    ?: doc.getString("baseCurrency")
+                    ?: "EUR").uppercase(Locale.ENGLISH)
+                budgetCurrencyCode = code
+            }
+            .addOnFailureListener {
+                budgetCurrencyCode = "EUR"
+            }
+            .addOnCompleteListener { onReady() }
     }
 
     private fun loadSettlement() {
         val currentUid = auth.currentUser?.uid ?: run {
-            showNoData() // not authenticated -> no data
+            showNoData()
             return
         }
 
@@ -82,19 +117,24 @@ class GroupSettlement : AppCompatActivity() {
             .get()
             .addOnSuccessListener { qs ->
                 if (qs.isEmpty) {
-                    // No expenses at all -> everything zero
                     showNoData()
                     return@addOnSuccessListener
                 }
 
-                val pair = mutableMapOf<String, Double>() // otherUid -> (+ you receive / - you pay)
+                val pair = mutableMapOf<String, Double>()
                 var totalExpenses = 0.0
 
                 for (doc in qs) {
-                    if ((doc.getString("type") ?: "expense") != "expense") continue
+                    val type = doc.getString("type") ?: "expense"
+
+                    if (type == "expense") {
+                        val amt = doc.getDouble("amount") ?: 0.0
+                        totalExpenses += amt
+                    }
+
+                    if (type != "expense" && type != "settlement") continue
+
                     val payer = doc.getString("createdBy") ?: continue
-                    val amount = doc.getDouble("amount") ?: 0.0
-                    totalExpenses += amount
 
                     @Suppress("UNCHECKED_CAST")
                     val rawShares = doc.get("paidShares") as? Map<String, Any> ?: continue
@@ -103,12 +143,10 @@ class GroupSettlement : AppCompatActivity() {
                     }.toMap()
 
                     if (currentUid == payer) {
-                        // You paid. Others' shares are your receivables (+)
                         shares.forEach { (uid, share) ->
                             if (uid != payer) pair[uid] = (pair[uid] ?: 0.0) + share
                         }
                     } else {
-                        // Someone else paid. Your share is your payable (-) to them
                         val yourShare = shares[currentUid]
                         if (yourShare != null && yourShare > 0.0) {
                             pair[payer] = (pair[payer] ?: 0.0) - yourShare
@@ -116,18 +154,14 @@ class GroupSettlement : AppCompatActivity() {
                     }
                 }
 
-                // Always show the total expenses that exist in the group
-                allGroupExpenses.text = format2(totalExpenses)
+                allGroupExpenses.text = "${format2(totalExpenses)} $budgetCurrencyCode"
 
                 if (pair.isEmpty()) {
-                    // There are expenses, but none create inter-user balances (e.g., everyone paid only for themselves).
                     adapter.submit(emptyList())
                     emptyState.visibility = View.VISIBLE
-                    emptyState.text = getString(
-                        R.string.no_balances_to_settle,
-                    )
-                    youReceive.text = "0.00"
-                    youPay.text = "0.00"
+                    emptyState.text = getString(R.string.no_balances_to_settle)
+                    youReceive.text = "0.00 $budgetCurrencyCode"
+                    youPay.text = "0.00 $budgetCurrencyCode"
                     return@addOnSuccessListener
                 }
 
@@ -149,12 +183,11 @@ class GroupSettlement : AppCompatActivity() {
                     val totalReceive = items.filter { it.amount > 0 }.sumOf { it.amount }
                     val totalPay = items.filter { it.amount < 0 }.sumOf { abs(it.amount) }
 
-                    youReceive.text = format2(totalReceive)
-                    youPay.text = format2(totalPay)
+                    youReceive.text = "${format2(totalReceive)} $budgetCurrencyCode"
+                    youPay.text = "${format2(totalPay)} $budgetCurrencyCode"
                 }
             }
             .addOnFailureListener {
-                // On failure, we truly don't know totals -> zero all
                 showNoData()
             }
     }
@@ -162,14 +195,11 @@ class GroupSettlement : AppCompatActivity() {
     private fun showNoData() {
         adapter.submit(emptyList())
         emptyState.visibility = View.VISIBLE
-        emptyState.text = getString(
-            R.string.no_group_expenses_yet,
-        )
-        youReceive.text = "0.00"
-        youPay.text = "0.00"
-        allGroupExpenses.text = "0.00"
+        emptyState.text = getString(R.string.no_group_expenses_yet)
+        youReceive.text = "0.00 $budgetCurrencyCode"
+        youPay.text = "0.00 $budgetCurrencyCode"
+        allGroupExpenses.text = "0.00 $budgetCurrencyCode"
     }
-
 
     private fun fetchUsersByIds(
         uids: List<String>,
@@ -219,9 +249,24 @@ class GroupSettlement : AppCompatActivity() {
         private val data = mutableListOf<SettlementRow>()
 
         fun submit(items: List<SettlementRow>) {
+            val diff = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
+                override fun getOldListSize() = data.size
+                override fun getNewListSize() = items.size
+
+                override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
+                    return data[oldItemPosition].uid == items[newItemPosition].uid
+                }
+
+                override fun areContentsTheSame(
+                    oldItemPosition: Int,
+                    newItemPosition: Int
+                ): Boolean {
+                    return data[oldItemPosition] == items[newItemPosition]
+                }
+            })
             data.clear()
             data.addAll(items)
-            notifyDataSetChanged()
+            diff.dispatchUpdatesTo(this)
         }
 
         override fun onCreateViewHolder(
@@ -253,7 +298,7 @@ class GroupSettlement : AppCompatActivity() {
             nameText.text = row.name
             emailText.text = row.email
 
-            val formatted = String.format(Locale.US, "%.2f", abs(row.amount))
+            val formatted = "${format2(abs(row.amount))} $budgetCurrencyCode"
             val owes = row.amount < 0
 
             when {
@@ -268,7 +313,7 @@ class GroupSettlement : AppCompatActivity() {
                 }
 
                 else -> {
-                    amountText.text = "0.00"
+                    amountText.text = "0.00 $budgetCurrencyCode"
                     amountText.setTextColor(getColorCompat(android.R.color.darker_gray))
                 }
             }

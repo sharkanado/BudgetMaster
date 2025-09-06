@@ -7,19 +7,19 @@
 
     <fragment
         android:id="@+id/navigationBudgets"
-        android:name="com.example.budgetmaster.ui.budgets.BudgetsFragment"
+        android:name="com.example.budgetmaster.ui.fragments.budgets.BudgetsFragment"
         android:label="@string/title_budgets"
         tools:layout="@layout/fragment_budgets" />
 
     <fragment
         android:id="@+id/navigationDashboard"
-        android:name="com.example.budgetmaster.ui.dashboard.DashboardFragment"
+        android:name="com.example.budgetmaster.ui.fragments.dashboard.DashboardFragment"
         android:label="@string/title_dashboard"
         tools:layout="@layout/fragment_dashboard" />
 
     <fragment
         android:id="@+id/navigationSettings"
-        android:name="com.example.budgetmaster.ui.settings.SettingsFragment"
+        android:name="com.example.budgetmaster.ui.fragments.settings.SettingsFragment"
         android:label="@string/title_settings"
         tools:layout="@layout/fragment_settings" />
 </navigation>

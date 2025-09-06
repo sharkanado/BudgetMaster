@@ -3,7 +3,11 @@ package com.example.budgetmaster.ui.activities
 import android.app.DatePickerDialog
 import android.os.Bundle
 import android.view.View
+import android.widget.ArrayAdapter
 import android.widget.CheckBox
+import android.widget.ImageView
+import android.widget.Spinner
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -13,20 +17,22 @@ import androidx.core.widget.addTextChangedListener
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.budgetmaster.R
-import com.example.budgetmaster.ui.components.BudgetMemberItem
-import com.example.budgetmaster.ui.components.BudgetSplitMembersAdapter
+import com.example.budgetmaster.utils.BudgetMemberItem
+import com.example.budgetmaster.utils.BudgetSplitMembersAdapter
+import com.google.android.material.imageview.ShapeableImageView
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Calendar
 import java.util.Locale
-import kotlin.math.max
 import kotlin.math.round
 
 class CreateGroupExpense : AppCompatActivity() {
@@ -34,6 +40,9 @@ class CreateGroupExpense : AppCompatActivity() {
     private val db = FirebaseFirestore.getInstance()
     private lateinit var budgetId: String
     private lateinit var budgetName: String
+    private lateinit var amountCurrencyText: TextView
+
+    private var budgetCurrency: String = "EUR"
 
     private lateinit var membersRecycler: RecyclerView
     private lateinit var selectAllCheckbox: CheckBox
@@ -43,6 +52,12 @@ class CreateGroupExpense : AppCompatActivity() {
     private lateinit var dateInput: TextInputEditText
     private lateinit var descriptionInput: TextInputEditText
     private lateinit var amountInput: TextInputEditText
+
+    private lateinit var exchangeInput: TextInputEditText
+    private lateinit var exchangeSpinner: Spinner
+    private lateinit var exchangeSwap: ShapeableImageView
+    private lateinit var exchangeComponent: View
+    private var currencies: List<String> = emptyList()
 
     private lateinit var splitAdapter: BudgetSplitMembersAdapter
 
@@ -64,10 +79,10 @@ class CreateGroupExpense : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_create_group_expense)
 
+        // ✅ FIX: don’t add IME height to padding; let adjustResize handle keyboard.
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val sys = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
-            v.setPadding(sys.left, sys.top, sys.right, max(sys.bottom, ime.bottom))
+            v.setPadding(sys.left, sys.top, sys.right, sys.bottom)
             insets
         }
 
@@ -77,16 +92,39 @@ class CreateGroupExpense : AppCompatActivity() {
         }
         budgetName = intent.getStringExtra("budgetName") ?: "Unknown Budget"
 
+        amountCurrencyText = findViewById(R.id.amountCurrencyText)
         dateInput = findViewById(R.id.dateInput)
         descriptionInput = findViewById(R.id.descriptionInput)
         amountInput = findViewById(R.id.amountInput)
         membersRecycler = findViewById(R.id.membersRecycler)
         selectAllCheckbox = findViewById(R.id.selectAllCheckbox)
 
+        exchangeComponent = findViewById(R.id.exchangeOfficeContainer)
+        exchangeInput = findViewById(R.id.exchangeInput)
+        exchangeSpinner = findViewById(R.id.exchangeSpinner)
+        exchangeSwap = findViewById(R.id.exchangeSwapIcon)
+
         prefillTodayDate()
         dateInput.setOnClickListener { showDatePicker() }
 
         membersRecycler.layoutManager = LinearLayoutManager(this)
+        // ✅ Reduce churn that steals focus
+        membersRecycler.setItemViewCacheSize(20)
+        membersRecycler.itemAnimator = null
+        membersRecycler.isFocusable = false
+        membersRecycler.isFocusableInTouchMode = false
+        membersRecycler.setHasFixedSize(true)
+
+        val exchangeHeader = findViewById<View>(R.id.exchangeOfficeHeader)
+        val exchangeContent = findViewById<View>(R.id.exchangeOfficeContent)
+        val exchangeArrow = findViewById<ImageView>(R.id.exchangeOfficeArrow)
+
+        var expanded = false
+        exchangeHeader.setOnClickListener {
+            expanded = !expanded
+            exchangeContent.visibility = if (expanded) View.VISIBLE else View.GONE
+            exchangeArrow.animate().rotation(if (expanded) 180f else 0f).setDuration(200).start()
+        }
 
         amountInput.addTextChangedListener(afterTextChanged = {
             if (suppressAmountWatcher) return@addTextChangedListener
@@ -105,13 +143,18 @@ class CreateGroupExpense : AppCompatActivity() {
                 suppressAmountWatcher = false
             }
             recomputeSharesEqual()
-            if (::splitAdapter.isInitialized) splitAdapter.notifyDataSetChanged()
+            if (::splitAdapter.isInitialized) {
+                // ✅ Focus-safe refresh
+                splitAdapter.refreshVisibleSharesExcept(membersRecycler, null)
+            }
         })
-        amountInput.setOnFocusChangeListener { v, hasFocus -> if (!hasFocus) normalizeTotalField() }
-        amountInput.setOnEditorActionListener { v, actionId, _ ->
+        amountInput.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) normalizeTotalField()
+        }
+        amountInput.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) {
                 normalizeTotalField()
-                v.clearFocus()
+                // ✅ Don’t clear focus; avoids IME flicker/close
                 true
             } else false
         }
@@ -121,12 +164,86 @@ class CreateGroupExpense : AppCompatActivity() {
             selectedMembers.clear()
             if (isChecked) selectedMembers.addAll(membersList.map { it.uid })
             recomputeSharesEqual()
-            if (::splitAdapter.isInitialized) splitAdapter.notifyDataSetChanged()
+            if (::splitAdapter.isInitialized) {
+                // ✅ Focus-safe refresh
+                splitAdapter.refreshVisibleSharesExcept(membersRecycler, null)
+            }
         }
 
         findViewById<View>(R.id.saveExpenseBtn).setOnClickListener { saveGroupExpense() }
 
         loadBudgetMembers()
+
+        loadCurrencies()
+        exchangeSwap.setOnClickListener { triggerConversion() }
+    }
+
+    private fun triggerConversion() {
+        val rawAmount = exchangeInput.text?.toString()?.toDoubleOrNull()
+        val fromCode = exchangeSpinner.selectedItem?.toString()
+        if (rawAmount != null && !fromCode.isNullOrBlank()) {
+            if (fromCode == budgetCurrency) {
+                amountInput.setText(df2.format(rawAmount))
+                return
+            }
+            convertCurrency(rawAmount, fromCode, budgetCurrency) { converted ->
+                runOnUiThread {
+                    amountInput.setText(df2.format(converted ?: rawAmount))
+                }
+            }
+        }
+    }
+
+    private fun loadCurrencies() {
+        Thread {
+            try {
+                val url = URL("https://api.frankfurter.app/currencies")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "GET"
+                val reader = conn.inputStream.bufferedReader()
+                val response = reader.readText()
+                reader.close()
+                val regex = Regex("\"([A-Z]{3})\":\"[^\"]+\"")
+                val found = regex.findAll(response).map { it.groupValues[1] }.sorted().toList()
+                runOnUiThread {
+                    currencies = found
+                    val adapter =
+                        ArrayAdapter(this, android.R.layout.simple_spinner_item, currencies)
+                    adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+                    exchangeSpinner.adapter = adapter
+                    val defaultIdx = currencies.indexOf(budgetCurrency)
+                    if (defaultIdx >= 0) exchangeSpinner.setSelection(defaultIdx)
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    Toast.makeText(this, "Failed to load currencies", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }.start()
+    }
+
+    private fun convertCurrency(
+        amount: Double,
+        from: String,
+        to: String,
+        callback: (Double?) -> Unit
+    ) {
+        Thread {
+            try {
+                val url = URL("https://api.frankfurter.app/latest?amount=$amount&from=$from&to=$to")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "GET"
+                val reader = conn.inputStream.bufferedReader()
+                val response = reader.readText()
+                reader.close()
+                val regex = Regex("\"$to\":([0-9.]+)")
+                val match = regex.find(response)
+                val value = match?.groupValues?.get(1)?.toDoubleOrNull()
+                callback(value)
+            } catch (e: Exception) {
+                callback(null)
+            }
+        }.start()
     }
 
     private fun parseFlexible(txt: String?): Double? {
@@ -135,6 +252,7 @@ class CreateGroupExpense : AppCompatActivity() {
     }
 
     private fun readTotalOrZero(): Double = parseFlexible(amountInput.text?.toString()) ?: 0.0
+
     private fun normalizeTotalField() {
         val v = readTotalOrZero()
         suppressAmountWatcher = true
@@ -148,6 +266,9 @@ class CreateGroupExpense : AppCompatActivity() {
             .addOnSuccessListener { doc ->
                 val memberIds = doc.get("members") as? List<String> ?: emptyList()
                 budgetName = doc.getString("name") ?: budgetName
+                budgetCurrency = (doc.getString("currency") ?: "EUR").uppercase(Locale.ENGLISH)
+                amountCurrencyText.text = budgetCurrency
+
                 if (memberIds.isEmpty()) return@addOnSuccessListener
 
                 var processed = 0
@@ -184,7 +305,11 @@ class CreateGroupExpense : AppCompatActivity() {
                                             uid
                                         )
                                         recomputeSharesEqual()
-                                        splitAdapter.notifyDataSetChanged()
+                                        // ✅ Focus-safe refresh
+                                        splitAdapter.refreshVisibleSharesExcept(
+                                            membersRecycler,
+                                            null
+                                        )
                                         syncSelectAllCheckbox()
                                     },
                                     onShareEditedValid = { editedUid, newValue ->
@@ -200,6 +325,7 @@ class CreateGroupExpense : AppCompatActivity() {
                                 )
 
                                 membersRecycler.adapter = splitAdapter
+                                // Initial bind is fine
                                 splitAdapter.notifyDataSetChanged()
                                 syncSelectAllCheckbox()
                             }
@@ -217,7 +343,10 @@ class CreateGroupExpense : AppCompatActivity() {
             selectedMembers.clear()
             if (isChecked) selectedMembers.addAll(membersList.map { it.uid })
             recomputeSharesEqual()
-            if (::splitAdapter.isInitialized) splitAdapter.notifyDataSetChanged()
+            if (::splitAdapter.isInitialized) {
+                // ✅ Focus-safe refresh
+                splitAdapter.refreshVisibleSharesExcept(membersRecycler, null)
+            }
         }
     }
 
@@ -304,7 +433,7 @@ class CreateGroupExpense : AppCompatActivity() {
             "amount" to amount,
             "category" to "No Category",
             "description" to description,
-            "date" to dateStr,     // yyyy-MM-dd
+            "date" to dateStr,
             "timestamp" to Timestamp.now(),
             "type" to "expense",
             "createdBy" to uid,
@@ -312,19 +441,12 @@ class CreateGroupExpense : AppCompatActivity() {
             "paidShares" to paidShares
         )
 
-        // 1) Create expense
         db.collection("budgets").document(budgetId)
             .collection("expenses")
             .add(expenseData)
-            .addOnSuccessListener { ref ->
-                // 2) Write expenseSplits mirror + increment per-budget totals in a batch
+            .addOnSuccessListener { _ ->
                 val batch = db.batch()
 
-                val splitsRef = db.collection("budgets").document(budgetId)
-                    .collection("expenseSplits").document(ref.id)
-                batch.set(splitsRef, mapOf("payer" to uid, "shares" to paidShares))
-
-                // Sum of others' shares for payer receivable
                 var othersSum = 0.0
                 paidShares.forEach { (participantUid, share) ->
                     if (participantUid != uid) othersSum += share
@@ -332,7 +454,6 @@ class CreateGroupExpense : AppCompatActivity() {
 
                 val serverTime = FieldValue.serverTimestamp()
 
-                // Payer receivable++
                 if (othersSum != 0.0) {
                     val payerTotalsRef = db.collection("budgets").document(budgetId)
                         .collection("totals").document(uid)
@@ -346,7 +467,6 @@ class CreateGroupExpense : AppCompatActivity() {
                     )
                 }
 
-                // Each participant debt++
                 paidShares.forEach { (participantUid, share) ->
                     if (participantUid == uid) return@forEach
                     val participantRef = db.collection("budgets").document(budgetId)
@@ -396,7 +516,6 @@ class CreateGroupExpense : AppCompatActivity() {
             }
         } catch (_: Exception) {
         }
-
         val year = calendar.get(Calendar.YEAR)
         val month = calendar.get(Calendar.MONTH)
         val day = calendar.get(Calendar.DAY_OF_MONTH)

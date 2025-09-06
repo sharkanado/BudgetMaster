@@ -33,22 +33,22 @@
         android:id="@+id/nameDateBlock"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
         android:layout_marginStart="16dp"
-        app:layout_constraintStart_toEndOf="@id/iconContainer"
+        android:orientation="vertical"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toStartOf="@id/dailyExpensesSummary"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent">
+        app:layout_constraintStart_toEndOf="@id/iconContainer"
+        app:layout_constraintTop_toTopOf="parent">
 
         <TextView
             android:id="@+id/dailyExpensesName"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:ellipsize="end"
             android:fontFamily="@font/manrope_bold"
-            android:textColor="@color/white"
-            android:textSize="16sp"
             android:maxLines="1"
-            android:ellipsize="end" />
+            android:textColor="@color/white"
+            android:textSize="16sp" />
 
         <TextView
             android:id="@+id/dailyExpensesCategory"
@@ -70,7 +70,7 @@
         android:maxLines="1"
         android:ellipsize="end"
         android:minWidth="48dp"
-        android:maxWidth="96dp"
+        android:maxWidth="160dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent" />
