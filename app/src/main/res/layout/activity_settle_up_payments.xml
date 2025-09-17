@@ -14,7 +14,6 @@
         android:layout_height="match_parent"
         android:layout_margin="16dp">
 
-        <!-- Title -->
         <TextView
             android:id="@+id/settleUpTitle"
             android:layout_width="wrap_content"
@@ -27,7 +26,6 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
-        <!-- Description -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/descriptionLayout"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
@@ -53,7 +51,6 @@
                 android:inputType="textCapSentences" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Amount (prefilled, disabled) -->
         <LinearLayout
             android:id="@+id/amountRow"
             android:layout_width="0dp"
@@ -99,7 +96,6 @@
                 android:textSize="16sp" />
         </LinearLayout>
 
-        <!-- Date Picker -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/dateInputLayout"
             android:layout_width="0dp"
@@ -130,7 +126,6 @@
                 android:fontFamily="@font/manrope_regular" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Save button pinned to bottom -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/saveExpenseBtn"
             android:layout_width="0dp"

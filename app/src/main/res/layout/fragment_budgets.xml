@@ -10,7 +10,6 @@
         android:layout_height="match_parent"
         android:padding="16dp">
 
-        <!-- Title -->
         <TextView
             android:id="@+id/title"
             android:layout_width="wrap_content"
@@ -23,7 +22,6 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 
-        <!-- My Wallet Card -->
         <androidx.cardview.widget.CardView
             android:id="@+id/myWalletCard"
             android:layout_width="0dp"
@@ -70,7 +68,6 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Shared Wallets Label Row -->
         <LinearLayout
             android:id="@+id/budgetLabelRow"
             android:layout_width="0dp"
@@ -106,7 +103,6 @@
                 app:cornerRadius="12dp" />
         </LinearLayout>
 
-        <!-- RecyclerView for Budgets -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/budgetListRecycler"
             android:layout_width="0dp"
@@ -119,7 +115,6 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 
-        <!-- Loading spinner (centered) -->
         <com.google.android.material.progressindicator.CircularProgressIndicator
             android:id="@+id/loadingProgressBar"
             android:layout_width="48dp"

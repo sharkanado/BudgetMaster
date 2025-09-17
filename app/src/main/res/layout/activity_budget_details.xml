@@ -82,7 +82,6 @@
                         android:textColor="@color/white"
                         android:textSize="18sp" />
 
-                    <!-- flex spacer -->
                     <View
                         android:layout_width="0dp"
                         android:layout_height="0dp"

@@ -8,7 +8,6 @@
     android:background="@color/grey"
     tools:context=".ui.activities.EditBudget">
 
-    <!-- Top Bar -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/topBar"
         android:layout_width="match_parent"
@@ -42,7 +41,6 @@
             app:layout_constraintBottom_toBottomOf="parent" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <!-- Divider below top bar -->
     <View
         android:id="@+id/divider0"
         android:layout_width="0dp"
@@ -52,7 +50,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Scrollable content -->
     <ScrollView
         android:id="@+id/scrollContent"
         android:layout_width="0dp"
@@ -71,7 +68,6 @@
             android:paddingTop="24dp"
             android:paddingBottom="16dp">
 
-            <!-- Budget Name Label -->
             <TextView
                 android:id="@+id/budgetNameLabel"
                 android:layout_width="wrap_content"
@@ -81,7 +77,6 @@
                 android:textSize="14sp"
                 android:fontFamily="@font/manrope_bold" />
 
-            <!-- Budget Name Edit -->
             <EditText
                 android:id="@+id/budgetNameEdit"
                 android:layout_width="match_parent"
@@ -93,7 +88,6 @@
                 android:inputType="textCapSentences"
                 android:fontFamily="@font/manrope_bold" />
 
-            <!-- Members Label -->
             <TextView
                 android:id="@+id/membersLabel"
                 android:layout_width="wrap_content"
@@ -104,7 +98,6 @@
                 android:fontFamily="@font/manrope_bold"
                 android:layout_marginTop="24dp" />
 
-            <!-- Current Members Recycler -->
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/membersRecycler"
                 android:layout_width="match_parent"
@@ -114,7 +107,6 @@
                 android:nestedScrollingEnabled="true"
                 android:maxHeight="200dp" />
 
-            <!-- New Members Dynamic Container -->
             <TextView
                 android:id="@+id/newMembersLabel"
                 android:layout_width="wrap_content"
@@ -132,7 +124,6 @@
                 android:orientation="vertical"
                 android:layout_marginTop="8dp" />
 
-            <!-- Add Member Button -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/addMemberBtn"
                 android:layout_width="wrap_content"
@@ -147,7 +138,6 @@
         </LinearLayout>
     </ScrollView>
 
-    <!-- Save Button (Fixed at bottom) -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/saveButton"
         android:layout_width="0dp"

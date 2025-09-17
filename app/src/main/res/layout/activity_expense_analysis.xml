@@ -245,7 +245,6 @@
         </com.google.android.material.card.MaterialCardView>
     </com.google.android.material.appbar.AppBarLayout>
 
-    <!-- Container for list + overlays so they center within the scrolling area -->
     <FrameLayout
         android:id="@+id/listContainer"
         android:layout_width="match_parent"

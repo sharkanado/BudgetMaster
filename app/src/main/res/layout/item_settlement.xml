@@ -9,7 +9,6 @@
     android:paddingVertical="12dp"
     android:gravity="center_vertical">
 
-    <!-- Left: name + email -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -40,7 +39,6 @@
             android:ellipsize="end" />
     </LinearLayout>
 
-    <!-- Right: amount + label (keeps your IDs used in code) -->
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -56,7 +54,7 @@
             android:textSize="16sp"
             android:fontFamily="@font/manrope_bold" />
 
-       
+
     </LinearLayout>
 
 </LinearLayout>

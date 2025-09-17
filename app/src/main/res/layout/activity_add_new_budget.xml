@@ -11,7 +11,6 @@
         android:layout_height="match_parent"
         android:layout_margin="16dp">
 
-        <!-- Title -->
         <TextView
             android:id="@+id/createBudgetTitle"
             android:layout_width="wrap_content"
@@ -24,7 +23,6 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
-        <!-- Budget Name -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/budgetNameInputLayout"
             android:layout_width="0dp"
@@ -53,7 +51,6 @@
                 android:textColor="@color/white" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Optional Description -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/budgetDescriptionInputLayout"
             android:layout_width="0dp"
@@ -82,7 +79,6 @@
                 android:textColor="@color/white" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Currency Label -->
         <TextView
             android:id="@+id/currencyLabel"
             android:layout_width="wrap_content"
@@ -95,7 +91,6 @@
             app:layout_constraintTop_toBottomOf="@id/budgetDescriptionInputLayout"
             app:layout_constraintStart_toStartOf="parent" />
 
-        <!-- Preferred Currency Dropdown -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/currencyDropdownLayout"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
@@ -123,7 +118,6 @@
                 android:fontFamily="@font/manrope_regular" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Members Section Title -->
         <TextView
             android:id="@+id/membersTitle"
             android:layout_width="wrap_content"
@@ -136,7 +130,6 @@
             app:layout_constraintTop_toBottomOf="@id/currencyDropdownLayout"
             app:layout_constraintStart_toStartOf="parent" />
 
-        <!-- Members Container -->
         <LinearLayout
             android:id="@+id/membersContainer"
             android:layout_width="0dp"
@@ -147,11 +140,9 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
 
-            <!-- First member field -->
             <include layout="@layout/item_member_input" />
         </LinearLayout>
 
-        <!-- Add Member Button -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/addMemberBtn"
             android:layout_width="wrap_content"
@@ -165,7 +156,6 @@
             app:layout_constraintTop_toBottomOf="@id/membersContainer"
             app:layout_constraintStart_toStartOf="parent" />
 
-        <!-- Save Button -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/saveBudgetBtn"
             android:layout_width="0dp"

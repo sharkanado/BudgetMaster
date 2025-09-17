@@ -8,7 +8,6 @@
     android:paddingHorizontal="12dp"
     android:background="@drawable/expense_bg">
 
-    <!-- Checkbox -->
     <CheckBox
         android:id="@+id/memberCheckbox"
         android:layout_width="wrap_content"
@@ -18,7 +17,6 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent" />
 
-    <!-- Editable share (two decimals) -->
     <EditText
         android:id="@+id/memberShareEdit"
         android:layout_width="84dp"
@@ -34,7 +32,6 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent" />
 
-    <!-- Member Name -->
     <TextView
         android:id="@+id/memberName"
         android:layout_width="0dp"
@@ -49,7 +46,6 @@
         app:layout_constraintEnd_toStartOf="@id/memberShareEdit"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Member Email -->
     <TextView
         android:id="@+id/memberEmail"
         android:layout_width="0dp"

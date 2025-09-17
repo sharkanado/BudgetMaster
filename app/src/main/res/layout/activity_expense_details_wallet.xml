@@ -72,7 +72,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/divider0">
 
-        <!-- Amount (view) -->
         <TextView
             android:text="Amount"
             android:textColor="#AAAAAA"
@@ -88,7 +87,6 @@
             android:textSize="16sp"
             android:layout_marginBottom="8dp" />
 
-        <!-- Amount (edit row with currency chip) -->
         <LinearLayout
             android:id="@+id/amountEditRow"
             android:layout_width="match_parent"
@@ -119,7 +117,6 @@
                 android:background="@drawable/expense_bg" />
         </LinearLayout>
 
-        <!-- Original value (read-only hint) -->
         <TextView
             android:id="@+id/originalAmountStatic"
             android:layout_width="wrap_content"
@@ -130,7 +127,6 @@
             android:visibility="gone"
             android:layout_marginBottom="8dp" />
 
-        <!-- Preview conversion to main currency -->
         <TextView
             android:id="@+id/amountInMainText"
             android:layout_width="wrap_content"
@@ -141,7 +137,6 @@
             android:layout_marginBottom="16dp"
             android:visibility="gone" />
 
-        <!-- Description -->
         <TextView
             android:text="Description"
             android:textColor="#AAAAAA"
@@ -166,7 +161,6 @@
             android:visibility="gone"
             android:layout_marginBottom="16dp" />
 
-        <!-- Category -->
         <TextView
             android:text="Category"
             android:textColor="#AAAAAA"
@@ -189,7 +183,6 @@
             android:visibility="gone"
             android:layout_marginBottom="16dp" />
 
-        <!-- Type -->
         <TextView
             android:text="Type"
             android:textColor="#AAAAAA"
@@ -212,7 +205,6 @@
             android:visibility="gone"
             android:layout_marginBottom="16dp" />
 
-        <!-- Date -->
         <TextView
             android:text="Date"
             android:textColor="#AAAAAA"

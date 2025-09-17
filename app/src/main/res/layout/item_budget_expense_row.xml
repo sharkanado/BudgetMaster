@@ -9,7 +9,6 @@
     android:layout_marginHorizontal="8dp"
     android:background="@drawable/expense_ripple">
 
-    <!-- Expense name -->
     <TextView
         android:id="@+id/expenseDescription"
         android:layout_width="0dp"
@@ -25,7 +24,6 @@
         android:ellipsize="end"
         android:singleLine="true" />
 
-    <!-- Amount (right aligned, vertically centered) -->
     <TextView
         android:id="@+id/expenseAmount"
         android:layout_width="wrap_content"
@@ -38,7 +36,6 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent" />
 
-    <!-- Meta info: User + "paid on" + Date in one horizontal line -->
     <LinearLayout
         android:id="@+id/metaContainer"
         android:layout_width="wrap_content"
