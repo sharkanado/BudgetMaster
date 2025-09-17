@@ -2,9 +2,11 @@ package com.example.budgetmaster.ui.activities
 
 import android.content.Context
 import android.content.Intent
+import android.content.res.AssetManager
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.util.Log
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.Toast
@@ -30,8 +32,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import org.tensorflow.lite.Interpreter
+import java.io.FileInputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.nio.MappedByteBuffer
+import java.nio.channels.FileChannel
 import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.util.Calendar
@@ -45,6 +51,10 @@ class AddExpense : AppCompatActivity() {
     private var userMainCurrency: String = "PLN"
 
     private lateinit var currencyDropdown: AutoCompleteTextView
+
+    lateinit var tflite: Interpreter
+    lateinit var tokenizer: Map<String, Int>
+    lateinit var categoryMap: Map<Int, String>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,6 +79,17 @@ class AddExpense : AppCompatActivity() {
                 }
         } ?: bindCurrencies()
 
+        // Load model
+        tflite = Interpreter(loadModelFile(assets, "expense_model.tflite"))
+
+        // Load tokenizer and categories
+        loadTokenizerAndCategories()
+
+        // Test with a hardcoded word
+        val testWord = "concert"
+        val predictedCategory = predictCategory(testWord)
+        Log.d("ExpenseModel", "Predicted category for '$testWord': $predictedCategory")
+
         val dateInputLayout = findViewById<TextInputLayout>(R.id.dateInputLayout)
         val dateInput = findViewById<TextInputEditText>(R.id.dateInput)
         val today = Calendar.getInstance().time
@@ -92,6 +113,7 @@ class AddExpense : AppCompatActivity() {
         val btnExpense = findViewById<MaterialButton>(R.id.btnExpense)
         val btnIncome = findViewById<MaterialButton>(R.id.btnIncome)
         val toggleGroup = findViewById<MaterialButtonToggleGroup>(R.id.transactionTypeToggle)
+
 
         fun updateToggleStyles() {
             val orange = ContextCompat.getColor(this, R.color.orange)
@@ -148,6 +170,67 @@ class AddExpense : AppCompatActivity() {
             if (userId != null) saveExpense(this, userId)
         }
     }
+
+    // Load TFLite model from assets
+    fun loadModelFile(assetManager: AssetManager, filename: String): MappedByteBuffer {
+        val fileDescriptor = assetManager.openFd(filename)
+        val inputStream = FileInputStream(fileDescriptor.fileDescriptor)
+        val channel = inputStream.channel
+        return channel.map(
+            FileChannel.MapMode.READ_ONLY,
+            fileDescriptor.startOffset,
+            fileDescriptor.declaredLength
+        )
+    }
+
+    // Load tokenizer and category map
+    fun loadTokenizerAndCategories() {
+        val tokenizerJson = assets.open("tokenizer.json").bufferedReader().use { it.readText() }
+        val jsonObj = JSONObject(tokenizerJson)
+        val config = jsonObj.getJSONObject("config")
+
+        // word_index might be a String instead of JSONObject
+        val wordIndexRaw = config.get("word_index")
+        val wordIndexObj: JSONObject = when (wordIndexRaw) {
+            is JSONObject -> wordIndexRaw
+            is String -> JSONObject(wordIndexRaw)  // parse string into JSONObject
+            else -> throw Exception("Unexpected word_index type: ${wordIndexRaw::class}")
+        }
+
+        tokenizer = wordIndexObj.keys().asSequence().associateWith { wordIndexObj.getInt(it) }
+
+        // category_map.json should be a flat JSON { "Food & Groceries": 0, ... }
+        val categoryJson = assets.open("category_map.json").bufferedReader().use { it.readText() }
+        val catObj = JSONObject(categoryJson)
+        categoryMap = catObj.keys().asSequence().associate { it to catObj.getInt(it) }
+            .entries.associate { it.value to it.key }
+    }
+
+
+    // Preprocess text into sequence
+    fun textToSequenceFloat(text: String, maxLen: Int = 5): FloatArray {
+        val tokens = text.lowercase().split(" ")
+        val seq = FloatArray(maxLen) { 0f }
+        for ((i, word) in tokens.withIndex()) {
+            if (i >= maxLen) break
+            seq[i] = (tokenizer[word] ?: tokenizer["<OOV>"] ?: 1).toFloat()
+        }
+        return seq
+    }
+
+    fun predictCategory(text: String, threshold: Float = 0.5f): String {
+        val seq = textToSequenceFloat(text)
+        val input = arrayOf(seq)  // shape [1, maxLen], type [[F
+        val output = Array(1) { FloatArray(categoryMap.size) }
+        tflite.run(input, output)
+
+        val probs = output[0]
+        val maxProb = probs.maxOrNull() ?: 0f
+        val maxIndex = probs.indices.maxByOrNull { probs[it] } ?: 0
+
+        return if (maxProb < threshold) "No Category" else categoryMap[maxIndex] ?: "No Category"
+    }
+
 
     private fun bindCurrencies() {
         currencyDropdown = findViewById(R.id.currencyDropdown)
