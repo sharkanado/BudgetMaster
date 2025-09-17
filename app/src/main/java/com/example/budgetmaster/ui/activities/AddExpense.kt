@@ -6,7 +6,6 @@ import android.content.res.AssetManager
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
-import android.util.Log
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.Toast
@@ -79,16 +78,43 @@ class AddExpense : AppCompatActivity() {
                 }
         } ?: bindCurrencies()
 
+
         // Load model
         tflite = Interpreter(loadModelFile(assets, "expense_model.tflite"))
 
         // Load tokenizer and categories
         loadTokenizerAndCategories()
 
-        // Test with a hardcoded word
-        val testWord = "concert"
-        val predictedCategory = predictCategory(testWord)
-        Log.d("ExpenseModel", "Predicted category for '$testWord': $predictedCategory")
+
+        val descriptionInput = findViewById<TextInputEditText>(R.id.descriptionInput)
+
+        descriptionInput.addTextChangedListener(object : TextWatcher {
+            val categoryDropdown = findViewById<AutoCompleteTextView>(R.id.categorySpinner)
+
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+
+            override fun afterTextChanged(s: Editable?) {
+                val text = s?.toString()?.trim() ?: return
+
+                if (text.length < 3) {
+                    // If shorter than 3 characters, reset to "No Category"
+                    if (categoryDropdown.text.toString() != "No Category") {
+                        categoryDropdown.setText("No Category", false)
+                    }
+                    return
+                }
+
+                // Predict category using your TFLite model
+                val predictedCategory = predictCategory(text)
+
+                // Only update if category exists and is different from current selection
+                if (predictedCategory != "No Category" && categoryDropdown.text.toString() != predictedCategory) {
+                    categoryDropdown.setText(predictedCategory, false)
+                }
+            }
+        })
+
 
         val dateInputLayout = findViewById<TextInputLayout>(R.id.dateInputLayout)
         val dateInput = findViewById<TextInputEditText>(R.id.dateInput)
@@ -171,7 +197,6 @@ class AddExpense : AppCompatActivity() {
         }
     }
 
-    // Load TFLite model from assets
     fun loadModelFile(assetManager: AssetManager, filename: String): MappedByteBuffer {
         val fileDescriptor = assetManager.openFd(filename)
         val inputStream = FileInputStream(fileDescriptor.fileDescriptor)
@@ -183,31 +208,49 @@ class AddExpense : AppCompatActivity() {
         )
     }
 
-    // Load tokenizer and category map
     fun loadTokenizerAndCategories() {
         val tokenizerJson = assets.open("tokenizer.json").bufferedReader().use { it.readText() }
         val jsonObj = JSONObject(tokenizerJson)
         val config = jsonObj.getJSONObject("config")
 
-        // word_index might be a String instead of JSONObject
         val wordIndexRaw = config.get("word_index")
         val wordIndexObj: JSONObject = when (wordIndexRaw) {
             is JSONObject -> wordIndexRaw
-            is String -> JSONObject(wordIndexRaw)  // parse string into JSONObject
+            is String -> JSONObject(wordIndexRaw)
             else -> throw Exception("Unexpected word_index type: ${wordIndexRaw::class}")
         }
 
-        tokenizer = wordIndexObj.keys().asSequence().associateWith { wordIndexObj.getInt(it) }
+        tokenizer = wordIndexObj.keys().asSequence().associateWith { key ->
+            // getInt if value is numeric, otherwise fallback
+            try {
+                wordIndexObj.getInt(key)
+            } catch (e: Exception) {
+                1 // default OOV index
+            }
+        }
 
-        // category_map.json should be a flat JSON { "Food & Groceries": 0, ... }
         val categoryJson = assets.open("category_map.json").bufferedReader().use { it.readText() }
         val catObj = JSONObject(categoryJson)
-        categoryMap = catObj.keys().asSequence().associate { it to catObj.getInt(it) }
-            .entries.associate { it.value to it.key }
+
+        categoryMap = if (catObj.keys().asSequence().firstOrNull()?.toIntOrNull() != null) {
+            // keys are numeric indices, values are category names
+            catObj.keys().asSequence().associate { key ->
+                key.toInt() to catObj.getString(key)
+            }
+        } else {
+            // keys are category names, values are indices
+            catObj.keys().asSequence().associate { key ->
+                val index = try {
+                    catObj.getInt(key)
+                } catch (e: Exception) {
+                    0 // fallback index
+                }
+                index to key
+            }
+        }
     }
 
 
-    // Preprocess text into sequence
     fun textToSequenceFloat(text: String, maxLen: Int = 5): FloatArray {
         val tokens = text.lowercase().split(" ")
         val seq = FloatArray(maxLen) { 0f }
@@ -218,7 +261,7 @@ class AddExpense : AppCompatActivity() {
         return seq
     }
 
-    fun predictCategory(text: String, threshold: Float = 0.5f): String {
+    fun predictCategory(text: String, threshold: Float = 0.3f): String {
         val seq = textToSequenceFloat(text)
         val input = arrayOf(seq)  // shape [1, maxLen], type [[F
         val output = Array(1) { FloatArray(categoryMap.size) }
